@@ -1,0 +1,237 @@
+{
+  "index_patterns": [
+    "secweaver-public-agent-*"
+  ],
+  "priority": 501,
+  "version": 1,
+  "_meta": {
+    "owner": "SecWeaver Community",
+    "purpose": "Standalone Agent ingestion; no Operator dependency"
+  },
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index.refresh_interval": "10s"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp": {
+          "type": "date"
+        },
+        "time": {
+          "type": "date"
+        },
+        "timestamp": {
+          "type": "date"
+        },
+        "secweaver_dataset": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "enterprise_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "event_type": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "asset_type": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "host": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "host_name": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "host_ip": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "src_ip": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "dst_ip": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "connect_address": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "listener_address": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "pid": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "ppid": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "uid": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "auid": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "process": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "comm": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "exe": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "user": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "path": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "connect_port": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "listener_port": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "dst_port": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "snapshot_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "action": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "entity_type": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "container_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "severity": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "risk_level": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "rule_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "rule_name": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "device_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "agent_version": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "health_status": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "evidence_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "event_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "audit_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "command": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 8192
+            }
+          }
+        },
+        "persistence_type": {"type": "keyword"},
+        "category": {"type": "keyword"},
+        "file_type": {"type": "keyword"},
+        "hash": {"type": "keyword"},
+        "previous_hash": {"type": "keyword"},
+        "mode": {"type": "keyword"},
+        "actor_source": {"type": "keyword"},
+        "protocol": {"type": "keyword"},
+        "listen_address": {"type": "keyword"},
+        "listen_port": {"type": "keyword"},
+        "listener_process": {"type": "keyword"},
+        "listener_pid": {"type": "keyword"},
+        "cwd": {"type": "keyword", "ignore_above": 4096},
+        "program": {"type": "keyword"},
+        "parser_version": {"type": "keyword"},
+        "service_name": {"type": "keyword"},
+        "task_name": {"type": "keyword"},
+        "module_name": {"type": "keyword"},
+        "container_runtime": {"type": "keyword"},
+        "kernel_release": {"type": "keyword"},
+        "state": {"type": "keyword"},
+        "start_mode": {"type": "keyword"},
+        "gid": {"type": "keyword"},
+        "sid": {"type": "keyword"},
+        "groups": {"type": "keyword"},
+        "command_hash": {"type": "keyword"},
+        "change_fields": {"type": "keyword"},
+        "start_time": {"type": "date"},
+        "rss_bytes": {"type": "long"},
+        "thread_count": {"type": "integer"},
+        "command_line": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 8192
+            }
+          }
+        },
+        "message": {
+          "type": "text",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 8192
+            }
+          }
+        }
+      }
+    }
+  }
+}

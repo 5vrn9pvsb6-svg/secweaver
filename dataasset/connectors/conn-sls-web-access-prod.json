@@ -1,0 +1,17 @@
+{
+  "connector_id": "conn-sls-web-access-prod",
+  "name": "生产环境 SLS - WEB 访问日志",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "nginx-access"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72
+  }
+}

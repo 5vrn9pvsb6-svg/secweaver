@@ -1,0 +1,45 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery"
+  },
+  "data_sources": [
+    {
+      "name": "demo-aws-cloudwatch-cloudtrail",
+      "connector_type": "aws_cloudwatch",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://aws/security-readonly",
+      "region": "ap-southeast-1",
+      "log_group": "/aws/cloudtrail/organization",
+      "log_stream_prefix": "2026/",
+      "executor_endpoint": "http://127.0.0.1:8788/fetch",
+      "asset": {
+        "coverage": {
+          "zones": ["cloud"],
+          "apps": ["demo-cloudtrail"],
+          "hosts": []
+        },
+        "schema": {
+          "fields": ["timestamp", "src_ip", "eventName", "userIdentity", "awsRegion"],
+          "time_field": "@timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "sourceIPAddress": "src_ip",
+          "eventTime": "timestamp"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "cloudwatch_query": "fields @timestamp, @message | filter sourceIPAddress = '{src_ip}' | sort @timestamp desc | limit {limit}"
+      }
+    }
+  ]
+}

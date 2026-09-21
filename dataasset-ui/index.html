@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SecWeaver 数据源管理平台</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body data-page="home">
+    <div class="grain"></div>
+    <header id="appTopbar" class="topbar"></header>
+
+    <main class="workbench">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <section class="workspace">
+        <section id="homeDashboard" class="dashboard-page">
+          <section class="panel topo-panel">
+            <div class="panel-title-row topo-panel-head">
+              <div>
+                <h3 id="topoTitle">网络 · 主机 · 资产拓扑</h3>
+                <span id="topoHint" class="hint">仅展示 status=active 的网络域、主机与数据资产；实线表示 coverage.hosts 来源 IP 匹配关系。</span>
+              </div>
+              <div id="topoStats" class="topo-stats"></div>
+            </div>
+            <div id="topoLegend" class="topo-legend"></div>
+            <div id="topologyMap" class="topo-map"></div>
+          </section>
+
+        </section>
+      </section>
+    </main>
+
+    <script src="./i18n.js"></script><script src="./shared-nav.js"></script>
+    <script src="./home.js"></script>
+  </body>
+</html>

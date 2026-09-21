@@ -1,0 +1,43 @@
+{
+  "asset_id": "asset-dns-internal-prod",
+  "name": "内网 DNS 查询日志",
+  "asset_type": "dns_log",
+  "domain": "D4",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-sls-dns-internal",
+  "description": "SLS DNS 查询示例；模板 dns_by_client_ip_time；与 network_traffic_audit 互补",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "client_ip",
+      "timestamp",
+      "query",
+      "response",
+      "query_type",
+      "rcode",
+      "src_ip",
+      "qname"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "dns_by_client_ip_time",
+    "dns_by_query_time"
+  ],
+  "sensitivity": "internal",
+  "tags": [
+    "dns",
+    "sls",
+    "example",
+    "d4"
+  ],
+  "field_aliases": {
+    "src_ip": "client_ip",
+    "host_ip": "client_ip"
+  }
+}

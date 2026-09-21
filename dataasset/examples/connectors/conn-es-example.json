@@ -1,0 +1,18 @@
+{
+  "connector_id": "conn-es-example",
+  "name": "Elasticsearch / OpenSearch 示例连接器",
+  "connector_type": "es",
+  "status": "draft",
+  "credentials_ref": "vault://es/security-readonly",
+  "description": "示例：从 ES / OpenSearch 索引查询安全日志；模板使用 es_query。",
+  "config": {
+    "url": "https://es.example.com:9200",
+    "index": "security-logs-*",
+    "time_field": "@timestamp"
+  },
+  "constraints": {
+    "max_records_per_request": 5000,
+    "request_timeout_sec": 30
+  },
+  "tags": ["example", "elasticsearch", "opensearch", "not-for-production"]
+}

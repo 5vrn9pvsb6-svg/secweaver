@@ -1,0 +1,76 @@
+{
+  "output_log": "C:\\ProgramData\\SecWeaver\\Agent\\logs\\host-persistence.log",
+  "state_path": "C:\\ProgramData\\SecWeaver\\Agent\\data\\host-persistence-state.json",
+  "poll_interval_seconds": 30,
+  "include_hash": true,
+  "max_hash_bytes": 1048576,
+  "include_content_diff": true,
+  "max_content_bytes": 65536,
+  "max_diff_lines": 200,
+  "emit_baseline": false,
+  "audit": {
+    "enabled": false,
+    "manage_rules": false,
+    "follow_log": false,
+    "fail_on_error": false
+  },
+  "watch": [
+    {
+      "path": "C:\\Windows\\System32\\Tasks",
+      "category": "scheduled_task",
+      "persistence_type": "windows_scheduled_task",
+      "recursive": true,
+      "max_depth": 6
+    },
+    {
+      "path": "C:\\Windows\\Tasks",
+      "category": "scheduled_task",
+      "persistence_type": "windows_scheduled_task",
+      "recursive": true,
+      "max_depth": 3
+    },
+    {
+      "path": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\StartUp",
+      "category": "startup_folder",
+      "persistence_type": "startup_folder",
+      "recursive": true,
+      "max_depth": 3
+    },
+    {
+      "path": "C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup",
+      "category": "startup_folder",
+      "persistence_type": "startup_folder",
+      "recursive": true,
+      "max_depth": 3
+    },
+    {
+      "path": "C:\\Windows\\System32\\GroupPolicy\\Machine\\Scripts",
+      "category": "logon_script",
+      "persistence_type": "group_policy_script",
+      "recursive": true,
+      "max_depth": 5
+    },
+    {
+      "path": "C:\\Windows\\System32\\GroupPolicy\\User\\Scripts",
+      "category": "logon_script",
+      "persistence_type": "group_policy_script",
+      "recursive": true,
+      "max_depth": 5
+    },
+    {
+      "path": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\profile.ps1",
+      "category": "shell_startup",
+      "persistence_type": "powershell_profile"
+    },
+    {
+      "path": "C:\\Users\\*\\Documents\\WindowsPowerShell\\profile.ps1",
+      "category": "shell_startup",
+      "persistence_type": "powershell_profile"
+    },
+    {
+      "path": "C:\\Users\\*\\Documents\\PowerShell\\profile.ps1",
+      "category": "shell_startup",
+      "persistence_type": "powershell_profile"
+    }
+  ]
+}

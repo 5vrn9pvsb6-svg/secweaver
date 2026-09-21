@@ -1,0 +1,13 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "MySQL 只读（模板）",
+  "connector_type": "database_ro",
+  "status": "draft",
+  "credentials_ref": "vault://db/readonly",
+  "config": {
+    "engine": "mysql",
+    "host": "YOUR_HOST",
+    "port": 3306,
+    "database": "YOUR_DATABASE"
+  }
+}

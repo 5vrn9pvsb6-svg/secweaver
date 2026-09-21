@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-ssh-bastion-dmz",
+  "name": "DMZ 堡垒机（SSH 跳转）",
+  "connector_type": "ssh_file",
+  "status": "active",
+  "credentials_ref": "vault://ssh/readonly-bastion",
+  "description": "生产 SSH 建议经堡垒机；仅只读读日志",
+  "config": {
+    "host": "bastion.example.com",
+    "hostname": "bastion-dmz",
+    "port": 22,
+    "transport": "sftp",
+    "role": "bastion"
+  },
+  "constraints": {
+    "max_file_size_mb": 100,
+    "max_lines_per_query": 10000,
+    "forbidden_paths": ["/etc/shadow", "/root/.ssh", "/home/*/.ssh"]
+  }
+}

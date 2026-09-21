@@ -1,0 +1,19 @@
+{
+  "bundle_id": "bundle-host-risk-default",
+  "name": "主机行为风险识别（默认）",
+  "description": "brain 产品第 4 页：进程命令执行 + 主动外连高危识别",
+  "status": "active",
+  "asset_ids": [
+    "asset-secweaver-host-exec",
+    "asset-secweaver-host-connect",
+    "asset-secweaver-host-file-op",
+	"asset-secweaver-host-process",
+	"asset-secweaver-host-socket",
+	"asset-secweaver-host-identity",
+	"asset-secweaver-host-service",
+	"asset-secweaver-host-kernel-context",
+    "asset-secweaver-sys-risk-alert"
+  ],
+  "investigation_scenarios": ["S5"],
+  "notes": "请先运行 S5 完整性分析，再执行风险识别 Skill"
+}

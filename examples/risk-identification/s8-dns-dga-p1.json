@@ -1,0 +1,30 @@
+{
+  "investigation_intent": "调查主机异常 DNS 域名查询",
+  "scenario": "S8",
+  "risk_modules": ["connect", "dns"],
+  "params": {
+    "host": "192.0.2.91",
+    "time_start": "2026-07-01T10:00:00+08:00",
+    "time_end": "2026-07-01T10:10:00+08:00",
+    "severity_floor": "P2"
+  },
+  "evidence_bundles": {
+    "host_connect": [],
+    "dns_log": [
+      {
+        "evidence_id": "dns-dga-01",
+        "client_ip": "192.0.2.91",
+        "timestamp": "2026-07-01T10:00:20+08:00",
+        "query": "a9d8f7g6h5j4k3l2m1n0p9q8.xyz",
+        "rcode": "NOERROR"
+      }
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S8 异常 DNS 域名，缺少可关联外连事件",
+    "expected_overall_verdict": "high_risk_detected",
+    "expected_highest_severity": "P1",
+    "expected_risk_modules": ["dns"],
+    "expected_matched_rules": ["suspected_dga_domain", "uncommon_tld_query"]
+  }
+}

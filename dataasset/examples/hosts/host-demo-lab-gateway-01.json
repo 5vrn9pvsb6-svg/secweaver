@@ -1,0 +1,28 @@
+{
+  "host_id": "host-demo-lab-gateway-01",
+  "name": "Demo Lab Gateway 01",
+  "hostname": "demo-lab-gateway-01",
+  "host_type": "gateway",
+  "host_os": "linux",
+  "host_ip": "203.0.113.20",
+  "network_id": "net-demo-lab-core",
+  "aliases": [
+    "demo-lab-gateway-01",
+    "203.0.113.20"
+  ],
+  "roles": [
+    "api-gateway",
+    "access-log-source"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic lab gateway template.",
+  "tags": [
+    "access-log-source",
+    "api-gateway",
+    "demo",
+    "gateway",
+    "reference"
+  ]
+}

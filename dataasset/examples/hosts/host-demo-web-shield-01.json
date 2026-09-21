@@ -1,0 +1,28 @@
+{
+  "host_id": "host-demo-web-shield-01",
+  "name": "Demo Web Shield 01",
+  "hostname": "demo-web-shield-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "192.0.2.43",
+  "network_id": "net-demo-web-edge",
+  "aliases": [
+    "demo-web-shield-01",
+    "192.0.2.43"
+  ],
+  "roles": [
+    "web",
+    "shielding-proxy"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic web shielding proxy template.",
+  "tags": [
+    "demo",
+    "reference",
+    "server",
+    "shielding-proxy",
+    "web"
+  ]
+}

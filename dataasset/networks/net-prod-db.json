@@ -1,0 +1,15 @@
+{
+  "network_id": "net-prod-db",
+  "name": "Lab DB Zone",
+  "cidr": "198.51.100.0/24",
+  "zone": "production_network",
+  "network_type": "production",
+  "gateway_ip": "198.51.100.1",
+  "trust_level": "restricted",
+  "status": "active",
+  "description": "Synthetic database tier CIDR for offline demos.",
+  "tags": [
+    "demo",
+    "db"
+  ]
+}

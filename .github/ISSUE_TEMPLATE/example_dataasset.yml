@@ -1,0 +1,56 @@
+name: Example DataAsset / connector template
+description: Request or propose a new sanitized connector, asset, host, or network example
+title: "[dataasset]: "
+labels:
+  - dataasset
+  - good first issue
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when you want to **add or improve a community example** (SLS, ES, SSH, Splunk, etc.).
+        Ready to contribute? See "Contributing example DataAssets" in CONTRIBUTING.md and open a PR instead.
+
+  - type: dropdown
+    id: object_type
+    attributes:
+      label: Object type
+      options:
+        - Connector template
+        - Asset + query templates
+        - Host / network (synthetic)
+        - Bundle / scenario wiring
+        - Parser / normalizer example
+    validations:
+      required: true
+
+  - type: input
+    id: source_system
+    attributes:
+      label: Source system or vendor
+      placeholder: e.g. Aliyun SLS, Splunk, syslog file, PostgreSQL audit
+    validations:
+      required: true
+
+  - type: textarea
+    id: fields
+    attributes:
+      label: Key fields or join keys needed
+      description: Which fields should appear in schema.fields or correlation-matrix joins?
+      placeholder: src_ip, url, timestamp, host_ip, command_line
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Link to public docs, sample field names (synthetic), or related Scenario Pattern (S1–S7).
+
+  - type: checkboxes
+    id: hygiene
+    attributes:
+      label: Sanitization (required for merged examples)
+      options:
+        - label: I will use REPLACE_ME / vault:// refs only — no real secrets
+          required: true
+        - label: I will use synthetic IPs (RFC 5737/3849) and fake hostnames — no production inventory
+          required: true

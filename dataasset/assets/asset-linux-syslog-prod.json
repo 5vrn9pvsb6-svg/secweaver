@@ -1,0 +1,45 @@
+{
+  "asset_id": "asset-linux-syslog-prod",
+  "name": "Linux 系统日志（生产）",
+  "asset_type": "linux_syslog",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-sls-ssh-auth-internal",
+  "description": "rsyslog/syslog-ng/journald 汇聚至 SLS，或 SSH grep /var/log/syslog、messages；SSH 认证专项见 asset_type=ssh_auth",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "host",
+      "timestamp",
+      "message",
+      "program",
+      "severity",
+      "facility",
+      "pid",
+      "unit",
+      "user",
+      "src_ip"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "linux_syslog_by_host_time",
+    "linux_syslog_by_program",
+    "linux_syslog_file_grep"
+  ],
+  "sensitivity": "internal",
+  "masking": {
+    "message": "truncate_500"
+  },
+  "tags": [
+    "linux",
+    "syslog",
+    "journald",
+    "draft"
+  ]
+}

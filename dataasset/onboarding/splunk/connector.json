@@ -1,0 +1,22 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Splunk SIEM（模板）",
+  "connector_type": "splunk",
+  "status": "draft",
+  "credentials_ref": "vault://splunk/security-readonly",
+  "description": "Splunk 搜索模板；live fetch 需要 Splunk management API token。",
+  "config": {
+    "base_url": "https://splunk.example.com:8089",
+    "index": "security",
+    "verify_tls": true
+  },
+  "constraints": {
+    "max_records_per_request": 5000,
+    "request_timeout_sec": 90
+  },
+  "tags": [
+    "template",
+    "splunk",
+    "siem"
+  ]
+}

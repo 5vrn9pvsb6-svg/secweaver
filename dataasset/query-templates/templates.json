@@ -1,0 +1,683 @@
+{
+  "version": "1.0",
+  "description": "参数化查询模板；AI 仅传 template_id + params，不拼裸 SQL/SLS",
+  "default_templates": {
+    "sls": {
+      "waf_alert": "waf_gateway_plugin_by_ip_time",
+      "web_access_log": "web_access_by_src_ip_time",
+      "host_exec": "host_exec_by_host_time",
+      "host_connect": "host_connect_by_host_ip_time",
+      "host_file_op": "host_file_op_by_host_ip_time",
+      "host_persistence": "host_persistence_by_host_time",
+	  "host_process": "host_process_by_host_time",
+	  "host_socket": "host_socket_by_host_time",
+	  "host_identity": "host_identity_by_host_time",
+	  "host_service": "host_service_by_host_time",
+	  "host_kernel_context": "host_kernel_context_by_host_time",
+      "windows_event_log": "windows_event_by_host_time",
+      "linux_syslog": "linux_syslog_by_host_time",
+      "syslog_risk_alert": "syslog_risk_by_time",
+      "ssh_auth": "ssh_auth_by_host_ip_time",
+      "firewall_log": "firewall_by_src_ip_time",
+      "dns_log": "dns_by_client_ip_time",
+      "network_traffic_audit": "network_traffic_by_src_ip_time"
+    },
+    "ssh_file": {
+      "ssh_auth": "ssh_file_grep_auth",
+      "linux_syslog": "linux_syslog_file_grep",
+      "windows_event_log": "windows_event_file_grep"
+    },
+    "local_file": {
+      "ssh_auth": "local_file_grep_auth",
+      "linux_syslog": "linux_syslog_file_grep",
+      "windows_event_log": "windows_event_file_grep"
+    },
+    "database_ro": {
+      "asset_inventory": "cmdb_all_hosts",
+      "ssh_auth": "ssh_auth_by_src_ip_time",
+      "db_audit": "db_audit_by_user_time"
+    },
+    "http_api": {
+      "waf_alert": "waf_api_search"
+    },
+    "es": {
+      "waf_alert": "waf_es_by_src_ip_time",
+      "web_access_log": "web_access_es_by_src_ip_time",
+      "windows_event_log": "windows_event_by_host_time",
+      "linux_syslog": "linux_syslog_by_host_time",
+      "firewall_log": "firewall_by_src_ip_time",
+      "dns_log": "dns_by_client_ip_time",
+      "network_traffic_audit": "network_traffic_by_src_ip_time"
+    }
+  },
+  "templates": {
+    "waf_gateway_plugin_by_time": {
+      "asset_types": ["waf_alert"],
+      "connector_types": ["sls"],
+      "params": ["time_start", "time_end", "limit"],
+      "defaults": { "limit": 5000 },
+      "description": "WAF 告警按时间窗拉取；时间窗由 SLS API from/to 控制。租户、项目、logstore 等环境约束应放在 connector 或自定义模板中。",
+      "sls_query": "* | select * limit {limit}"
+    },
+    "waf_gateway_plugin_by_ip_time": {
+      "asset_types": ["waf_alert"],
+      "connector_types": ["sls"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "WAF 告警按源 IP 检索；默认兼容 src_ip/client_ip/ip 字段，时间窗由 SLS API from/to 控制。",
+      "sls_query": "(src_ip: {src_ip} OR client_ip: {src_ip} OR ip: {src_ip}) | select * limit {limit}"
+    },
+    "waf_gateway_plugin_by_target_ip_time": {
+      "asset_types": ["waf_alert"],
+      "connector_types": ["sls"],
+      "params": ["target_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "WAF 告警按受害目标 IP 反查；默认兼容 target_ip/dst_ip/upstream_addr，时间窗由 SLS API from/to 控制。",
+      "sls_query": "* | select * from log where target_ip = '{target_ip}' or dst_ip = '{target_ip}' or upstream_addr = '{target_ip}' or upstream_addr like '{target_ip}:%' limit {limit}"
+    },
+    "waf_gateway_plugin_by_trace_id": {
+      "asset_types": ["waf_alert"],
+      "connector_types": ["sls"],
+      "params": ["alert_id", "time_start", "time_end"],
+      "description": "WAF 告警按 trace_id / alert_id 查询；原始字段名差异可通过 asset.field_aliases 或自定义模板适配。",
+      "sls_query": "(trace_id: {alert_id} OR alert_id: {alert_id})"
+    },
+    "waf_by_src_ip_time": {
+      "asset_types": ["waf_alert"],
+      "connector_types": ["sls"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "sls_query": "* | select * from log where src_ip = '{src_ip}' and __time__ >= to_unixtime(parse_datetime('{time_start}')) and __time__ <= to_unixtime(parse_datetime('{time_end}')) limit {limit}"
+    },
+    "waf_by_alert_id": {
+      "asset_types": ["waf_alert"],
+      "connector_types": ["sls", "http_api"],
+      "params": ["alert_id"],
+      "sls_query": "alert_id: {alert_id} | select * limit 100"
+    },
+    "web_access_by_src_ip_time": {
+      "asset_types": ["web_access_log"],
+      "connector_types": ["sls"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "Web access：logstore 已建 src_ip 列索引时使用（SQL 管道）；多数 GW access 请用 web_access_by_ip_time 或 web_access_by_remote_addr_time",
+      "sls_query": "* | select * from log where src_ip = '{src_ip}' and __time__ >= to_unixtime(parse_datetime('{time_start}')) and __time__ <= to_unixtime(parse_datetime('{time_end}')) limit {limit}"
+    },
+    "web_access_by_ip_time": {
+      "asset_types": ["web_access_log"],
+      "connector_types": ["sls"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "Web/GW access_log 按 logstore 原始字段 ip 检索（SQL）；逻辑参数 src_ip；时间窗由 SLS API from/to 控制",
+      "sls_query": "* | select * from log where ip = '{src_ip}' limit {limit}"
+    },
+    "web_access_by_remote_addr_time": {
+      "asset_types": ["web_access_log"],
+      "connector_types": ["sls"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "Web/GW access_log 按 remote_addr 检索；src_ip 参数映射到当前 SLS logstore 的 remote_addr 字段，时间窗由 SLS API from/to 控制",
+      "sls_query": "remote_addr=\"{src_ip}\""
+    },
+    "web_access_by_target_ip_time": {
+      "asset_types": ["web_access_log"],
+      "connector_types": ["sls"],
+      "params": ["target_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "Web/GW access_log 按受害 upstream（upstream_addr→target_ip）反查访问记录；用于已知 host_ip 还原攻击源 remote_addr/src_ip；时间窗由 SLS API from/to 控制",
+      "sls_query": "upstream_addr=\"{target_ip}\""
+    },
+    "web_access_by_time": {
+      "asset_types": ["web_access_log"],
+      "connector_types": ["sls"],
+      "params": ["time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "Web/GW access_log 按时间窗拉取；时间窗由 SLS API from/to 控制，避免使用 SQL 管道导致原始字段被 null 占位覆盖",
+      "sls_query": "*"
+    },
+    "host_exec_by_time": {
+      "asset_types": ["host_exec"],
+      "connector_types": ["sls"],
+      "params": ["time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "audit-port-execmon 按时间窗拉取 exec 事件；时间窗由 SLS API from/to 控制，避免使用 SQL 管道导致原始字段丢失",
+      "sls_query": "event_type=\"exec\""
+    },
+    "host_exec_by_host_time": {
+      "asset_types": ["host_exec"],
+      "connector_types": ["sls"],
+      "params": ["host", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "按 host 参数检索 exec 事件；兼容原始 host、host_name 与 host_ip 字段；时间窗由 SLS API from/to 控制",
+      "sls_query": "event_type=\"exec\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\")"
+    },
+    "host_exec_by_host_name_time": {
+      "asset_types": ["host_exec"],
+      "connector_types": ["sls"],
+      "params": ["host_name", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "audit-port-execmon：按 host_name 检索 exec 事件；时间窗由 SLS API from/to 控制",
+      "sls_query": "event_type=\"exec\" and host_name=\"{host_name}\""
+    },
+    "host_exec_by_host_ip_time": {
+      "asset_types": ["host_exec"],
+      "connector_types": ["sls"],
+      "params": ["host_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "audit-port-execmon：按 host_ip 检索 exec 事件；时间窗由 SLS API from/to 控制",
+      "sls_query": "event_type=\"exec\" and host_ip=\"{host_ip}\""
+    },
+    "host_connect_by_host_time": {
+	  "asset_types": ["host_connect"],
+	  "connector_types": ["sls"],
+	  "params": ["host", "time_start", "time_end", "limit"],
+	  "defaults": { "limit": 2000 },
+	  "sls_query": "event_type=\"active_connect\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\")"
+	},
+	"host_process_by_host_time": {
+	  "asset_types": ["host_process"],
+	  "connector_types": ["sls"],
+	  "params": ["host", "time_start", "time_end", "limit"],
+	  "defaults": { "limit": 10000 },
+	  "description": "按主机查询每日进程基线及扫描增量；建议把时间窗控制在 24 小时内。",
+	  "sls_query": "asset_type=\"host_process\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\")"
+	},
+	"host_process_by_host_ip_time": {
+	  "asset_types": ["host_process"],
+	  "connector_types": ["sls"],
+	  "params": ["host_ip", "time_start", "time_end", "limit"],
+	  "defaults": { "limit": 10000 },
+	  "sls_query": "asset_type=\"host_process\" and host_ip=\"{host_ip}\""
+	},
+	"host_process_by_name_time": {
+	  "asset_types": ["host_process"],
+	  "connector_types": ["sls"],
+	  "params": ["process", "time_start", "time_end", "limit"],
+	  "defaults": { "limit": 5000 },
+	  "sls_query": "asset_type=\"host_process\" and (process=\"{process}\" or comm=\"{process}\" or exe=\"{process}\")"
+	},
+	"host_process_by_snapshot_id": {
+	  "asset_types": ["host_process"],
+	  "connector_types": ["sls"],
+	  "params": ["snapshot_id", "time_start", "time_end", "limit"],
+	  "defaults": { "limit": 10000 },
+	  "sls_query": "asset_type=\"host_process\" and snapshot_id=\"{snapshot_id}\""
+	},
+	"host_socket_by_host_time": {"asset_types": ["host_socket"], "connector_types": ["sls"], "params": ["host", "time_start", "time_end", "limit"], "defaults": {"limit": 10000}, "sls_query": "asset_type=\"host_socket\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"},
+	"host_socket_by_port_time": {"asset_types": ["host_socket"], "connector_types": ["sls"], "params": ["listen_port", "time_start", "time_end", "limit"], "defaults": {"limit": 5000}, "sls_query": "asset_type=\"host_socket\" and listen_port=\"{listen_port}\""},
+	"host_identity_by_host_time": {"asset_types": ["host_identity"], "connector_types": ["sls"], "params": ["host", "time_start", "time_end", "limit"], "defaults": {"limit": 10000}, "sls_query": "asset_type=\"host_identity\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"},
+	"host_identity_by_user_time": {"asset_types": ["host_identity"], "connector_types": ["sls"], "params": ["user", "time_start", "time_end", "limit"], "defaults": {"limit": 5000}, "sls_query": "asset_type=\"host_identity\" and user=\"{user}\""},
+	"host_service_by_host_time": {"asset_types": ["host_service"], "connector_types": ["sls"], "params": ["host", "time_start", "time_end", "limit"], "defaults": {"limit": 10000}, "sls_query": "asset_type=\"host_service\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"},
+	"host_service_by_name_time": {"asset_types": ["host_service"], "connector_types": ["sls"], "params": ["name", "time_start", "time_end", "limit"], "defaults": {"limit": 5000}, "sls_query": "asset_type=\"host_service\" and (service_name=\"{name}\" or task_name=\"{name}\")"},
+	"host_kernel_context_by_host_time": {"asset_types": ["host_kernel_context"], "connector_types": ["sls"], "params": ["host", "time_start", "time_end", "limit"], "defaults": {"limit": 10000}, "sls_query": "asset_type=\"host_kernel_context\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"},
+	"host_kernel_context_by_indicator_time": {"asset_types": ["host_kernel_context"], "connector_types": ["sls"], "params": ["indicator", "time_start", "time_end", "limit"], "defaults": {"limit": 5000}, "sls_query": "asset_type=\"host_kernel_context\" and (module_name=\"{indicator}\" or container_id=\"{indicator}\" or container_runtime=\"{indicator}\")"},
+    "host_connect_by_host_ip_time": {
+      "asset_types": ["host_connect"],
+      "connector_types": ["sls"],
+      "params": ["host_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "audit-port-execmon：按 host_ip 检索 active_connect 事件；时间窗由 SLS API from/to 控制",
+      "sls_query": "event_type=\"active_connect\" and host_ip=\"{host_ip}\""
+    },
+    "host_file_op_by_host_time": {
+      "asset_types": ["host_file_op"],
+      "connector_types": ["sls"],
+      "params": ["host", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "sls_query": "event_type=\"file_op\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\")"
+    },
+    "host_file_op_by_host_ip_time": {
+      "asset_types": ["host_file_op"],
+      "connector_types": ["sls"],
+      "params": ["host_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "audit-port-execmon：按 host_ip 检索 file_op 事件；时间窗由 SLS API from/to 控制",
+      "sls_query": "event_type=\"file_op\" and host_ip=\"{host_ip}\""
+    },
+    "host_persistence_by_host_time": {
+      "asset_types": ["host_persistence"],
+      "connector_types": ["sls"],
+      "params": ["host", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "host-persistence：按 host/host_name/host_ip 检索持久化变更事件；时间窗由 SLS API from/to 控制",
+      "sls_query": "event_type=\"persistence_change\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\")"
+    },
+    "host_persistence_by_host_ip_time": {
+      "asset_types": ["host_persistence"],
+      "connector_types": ["sls"],
+      "params": ["host_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "host-persistence：按 host_ip 检索持久化变更事件；时间窗由 SLS API from/to 控制",
+      "sls_query": "event_type=\"persistence_change\" and host_ip=\"{host_ip}\""
+    },
+    "host_persistence_by_path_time": {
+      "asset_types": ["host_persistence"],
+      "connector_types": ["sls"],
+      "params": ["path", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "host-persistence：按持久化文件路径检索变更事件；时间窗由 SLS API from/to 控制",
+      "sls_query": "event_type=\"persistence_change\" and path=\"{path}\""
+    },
+    "host_persistence_by_type_time": {
+      "asset_types": ["host_persistence"],
+      "connector_types": ["sls"],
+      "params": ["persistence_type", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "host-persistence：按持久化类型检索，如 cron/systemd/ssh_authorized_keys/sudoers/ld_preload",
+      "sls_query": "event_type=\"persistence_change\" and persistence_type=\"{persistence_type}\""
+    },
+    "windows_event_by_host_time": {
+      "asset_types": ["windows_event_log"],
+      "connector_types": ["sls", "es"],
+      "params": ["host", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "Windows 事件日志；host 对应 Computer；时间窗由 API from/to 控制",
+      "sls_query": "Computer: {host} OR host: {host} | select * limit {limit}",
+      "es_query": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "bool": {
+                  "should": [
+                    { "term": { "Computer": "{host}" } },
+                    { "term": { "host": "{host}" } }
+                  ],
+                  "minimum_should_match": 1
+                }
+              },
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "{time_start}",
+                    "lte": "{time_end}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": "{limit}",
+        "sort": [{ "@timestamp": "desc" }]
+      }
+    },
+    "windows_event_by_event_id": {
+      "asset_types": ["windows_event_log"],
+      "connector_types": ["sls", "es"],
+      "params": ["event_id", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "按 Windows EventID 过滤（如 4624 登录、4688 进程创建）",
+      "sls_query": "EventID: {event_id} OR event_id: {event_id} | select * limit {limit}"
+    },
+    "windows_event_file_grep": {
+      "asset_types": ["windows_event_log"],
+      "connector_types": ["ssh_file", "local_file"],
+      "params": ["grep_pattern", "log_path", "max_lines"],
+      "defaults": { "log_path": "C:/Windows/System32/winevt/Logs/Security.evtx", "max_lines": 5000 },
+      "description": "仅适用于已导出为文本的日志；EVTX 二进制需 Winlogbeat/SLS 接入",
+      "ssh_command": "grep -E '{grep_pattern}' {log_path} 2>/dev/null | tail -n {max_lines}",
+      "local_file_command": "grep -E '{grep_pattern}' {log_path} 2>/dev/null | tail -n {max_lines}"
+    },
+    "syslog_risk_by_time": {
+      "asset_types": ["syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "syslog-risk-json 结构化报警日志：按时间窗拉取最近风险事件；时间窗由 API from/to 控制；避免 SQL 管道导致 __line__ 等原始字段丢失",
+      "sls_query": "*"
+    },
+    "syslog_risk_by_host_ip_time": {
+      "asset_types": ["syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["host_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "syslog-risk-json：按受害主机 __source__（= host_ip）检索；用于确认目标机（如 192.0.2.92）是否被横向登录",
+      "sls_query": "__source__:\"{host_ip}\""
+    },
+    "syslog_risk_by_host_time": {
+      "asset_types": ["syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["host_name", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "syslog-risk-json：按 host_name 检索（受害 IP 请用 syslog_risk_by_host_ip_time / __source__）",
+      "sls_query": "host_name:\"{host_name}\""
+    },
+    "syslog_risk_by_src_ip_time": {
+      "asset_types": ["syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "syslog-risk-json：按源 IP 查询 SSH/PAM 等认证风险事件；时间窗由 API from/to 控制",
+      "sls_query": "src_ip:\"{src_ip}\""
+    },
+    "syslog_risk_by_event_type_time": {
+      "asset_types": ["syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["event_type", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "syslog-risk-json：按事件类型查询，如 ssh_login_failed、ssh_login_success、root_session_opened",
+      "sls_query": "event_type:\"{event_type}\""
+    },
+    "syslog_risk_by_risk_level_time": {
+      "asset_types": ["syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["risk_level", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "syslog-risk-json：按风险等级查询，如 high、medium、low",
+      "sls_query": "risk_level:\"{risk_level}\""
+    },
+    "linux_syslog_by_host_time": {
+      "asset_types": ["linux_syslog"],
+      "connector_types": ["sls", "es"],
+      "params": ["host", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "Linux syslog/journald 入 SLS；时间窗由 API from/to 控制",
+      "sls_query": "host: {host} OR hostname: {host} | select * limit {limit}",
+      "es_query": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "bool": {
+                  "should": [
+                    { "term": { "host": "{host}" } },
+                    { "term": { "hostname": "{host}" } }
+                  ],
+                  "minimum_should_match": 1
+                }
+              },
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "{time_start}",
+                    "lte": "{time_end}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": "{limit}",
+        "sort": [{ "@timestamp": "desc" }]
+      }
+    },
+    "linux_syslog_by_program": {
+      "asset_types": ["linux_syslog"],
+      "connector_types": ["sls", "es"],
+      "params": ["program", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "按 syslog program/ident 过滤（如 sshd、sudo、kernel）",
+      "sls_query": "program: {program} OR ident: {program} | select * limit {limit}"
+    },
+    "linux_syslog_file_grep": {
+      "asset_types": ["linux_syslog"],
+      "connector_types": ["ssh_file", "local_file"],
+      "params": ["grep_pattern", "log_path", "max_lines"],
+      "defaults": { "log_path": "/var/log/syslog", "max_lines": 5000 },
+      "description": "SSH/本地 grep syslog、messages；auth 专项见 ssh_auth + syslog_auth parser",
+      "ssh_command": "grep -E '{grep_pattern}' {log_path} 2>/dev/null | tail -n {max_lines}",
+      "local_file_command": "grep -E '{grep_pattern}' {log_path} 2>/dev/null | tail -n {max_lines}"
+    },
+    "ssh_auth_by_src_ip_time": {
+      "asset_types": ["ssh_auth", "syslog_risk_alert"],
+      "connector_types": ["sls", "database_ro"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "sls_query": "src_ip: {src_ip} | select * limit {limit}",
+      "sql": "SELECT host, src_ip, user, result, ts AS timestamp FROM login_events WHERE src_ip = :src_ip AND ts BETWEEN :time_start AND :time_end LIMIT :limit"
+    },
+    "ssh_auth_by_host_ip_time": {
+      "asset_types": ["ssh_auth", "syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["host_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "secweaver-sys-messages：按受害主机 IP 全文检索 syslog-risk-json 认证事件",
+      "sls_query": "\"{host_ip}\" | select * limit {limit}"
+    },
+    "ssh_auth_by_host_name_time": {
+      "asset_types": ["ssh_auth", "syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["host", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "secweaver-sys-messages：按 host_name 全文检索认证事件",
+      "sls_query": "\"{host}\" | select * limit {limit}"
+    },
+    "ssh_auth_failures_by_host_ip_time": {
+      "asset_types": ["ssh_auth", "syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["host_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "secweaver-sys-messages：受害主机 IP + 认证失败关键词",
+      "sls_query": "\"{host_ip}\" AND (ssh_login_failed OR auth_failure OR \"Failed password\" OR \"Invalid user\") | select * limit {limit}"
+    },
+    "ssh_auth_by_host_time": {
+      "asset_types": ["ssh_auth", "syslog_risk_alert"],
+      "connector_types": ["sls"],
+      "params": ["host", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "SSH 认证证据：按主机名或主机 IP 全文检索，兼容独立 ssh_auth 与 syslog-risk-json 派生事件",
+      "sls_query": "\"{host}\" | select * limit {limit}"
+    },
+    "ssh_file_grep_auth": {
+      "asset_types": ["ssh_auth"],
+      "connector_types": ["ssh_file"],
+      "params": ["grep_pattern", "log_path", "max_lines"],
+      "defaults": { "log_path": "/var/log/auth.log", "max_lines": 5000 },
+      "ssh_command": "grep -E '{grep_pattern}' {log_path} | tail -n {max_lines}"
+    },
+    "local_file_grep_auth": {
+      "asset_types": ["ssh_auth"],
+      "connector_types": ["local_file"],
+      "params": ["grep_pattern", "log_path", "max_lines"],
+      "defaults": { "log_path": "/var/log/auth.log", "max_lines": 5000 },
+      "local_file_command": "grep -E '{grep_pattern}' {log_path} | tail -n {max_lines}"
+    },
+    "firewall_by_src_ip_time": {
+      "asset_types": ["firewall_log"],
+      "connector_types": ["sls", "es"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 5000 },
+      "description": "防火墙：按源 IP + 时间窗；时间边界由 API from/to 控制",
+      "sls_query": "src_ip: {src_ip} OR sip: {src_ip} | select * limit {limit}",
+      "es_query": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "bool": {
+                  "should": [
+                    { "term": { "src_ip": "{src_ip}" } },
+                    { "term": { "sip": "{src_ip}" } }
+                  ],
+                  "minimum_should_match": 1
+                }
+              },
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "{time_start}",
+                    "lte": "{time_end}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": "{limit}",
+        "sort": [{ "@timestamp": "desc" }]
+      }
+    },
+    "firewall_by_src_dst_time": {
+      "asset_types": ["firewall_log"],
+      "connector_types": ["sls"],
+      "params": ["src_ip", "dst_ip", "time_start", "time_end", "limit"],
+      "sls_query": "src_ip: {src_ip} and dst_ip: {dst_ip} | select * limit {limit}"
+    },
+    "dns_by_client_ip_time": {
+      "asset_types": ["dns_log"],
+      "connector_types": ["sls", "es"],
+      "params": ["client_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 5000 },
+      "description": "DNS 查询：按 client_ip + 时间窗",
+      "sls_query": "client_ip: {client_ip} OR src_ip: {client_ip} | select * limit {limit}",
+      "es_query": {
+        "query": {
+          "bool": {
+            "must": [
+              { "term": { "client_ip": "{client_ip}" } },
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "{time_start}",
+                    "lte": "{time_end}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": "{limit}",
+        "sort": [{ "@timestamp": "desc" }]
+      }
+    },
+    "dns_by_query_time": {
+      "asset_types": ["dns_log"],
+      "connector_types": ["sls", "es"],
+      "params": ["query", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "DNS：按域名 query + 时间窗",
+      "sls_query": "query: {query} OR qname: {query} | select * limit {limit}"
+    },
+    "network_traffic_by_src_ip_time": {
+      "asset_types": ["network_traffic_audit"],
+      "connector_types": ["sls", "es"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 5000 },
+      "description": "全流量审计：按源 IP + 时间窗；时间边界由 API from/to 控制",
+      "sls_query": "src_ip: {src_ip} OR sip: {src_ip} | select * limit {limit}",
+      "es_query": {
+        "query": {
+          "bool": {
+            "must": [
+              {
+                "bool": {
+                  "should": [
+                    { "term": { "src_ip": "{src_ip}" } },
+                    { "term": { "sip": "{src_ip}" } }
+                  ],
+                  "minimum_should_match": 1
+                }
+              },
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "{time_start}",
+                    "lte": "{time_end}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": "{limit}",
+        "sort": [{ "@timestamp": "desc" }]
+      }
+    },
+    "network_traffic_by_src_dst_time": {
+      "asset_types": ["network_traffic_audit"],
+      "connector_types": ["sls", "es"],
+      "params": ["src_ip", "dst_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 5000 },
+      "description": "全流量审计：源目 IP 会话/流关联",
+      "sls_query": "(src_ip: {src_ip} OR sip: {src_ip}) AND (dst_ip: {dst_ip} OR dip: {dst_ip}) | select * limit {limit}"
+    },
+    "network_traffic_by_dst_port": {
+      "asset_types": ["network_traffic_audit"],
+      "connector_types": ["sls", "es"],
+      "params": ["dst_port", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "按目的端口筛查（如可疑 C2 端口）",
+      "sls_query": "dst_port: {dst_port} OR dport: {dst_port} | select * limit {limit}"
+    },
+    "cmdb_all_hosts": {
+      "asset_types": ["asset_inventory"],
+      "connector_types": ["database_ro"],
+      "params": ["limit"],
+      "defaults": { "limit": 5000 },
+      "sql": "SELECT hostname, ip, zone, owner, services FROM cmdb_hosts LIMIT :limit"
+    },
+    "cmdb_by_hostname": {
+      "asset_types": ["asset_inventory"],
+      "connector_types": ["database_ro"],
+      "params": ["hostname"],
+      "sql": "SELECT hostname, ip, zone, owner, services FROM cmdb_hosts WHERE hostname = :hostname LIMIT 10"
+    },
+    "db_audit_by_user_time": {
+      "asset_types": ["db_audit"],
+      "connector_types": ["database_ro"],
+      "params": ["user", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "description": "MySQL 数据库审计表按账号 + 时间窗查询",
+      "sql": "SELECT ts AS timestamp, user, action, object, host, database_name AS database, sql_text, client_ip AS src_ip FROM db_audit_events WHERE user = :user AND ts BETWEEN :time_start AND :time_end LIMIT :limit"
+    },
+    "waf_api_search": {
+      "asset_types": ["waf_alert"],
+      "connector_types": ["http_api"],
+      "params": ["src_ip", "time_start", "time_end"],
+      "http": {
+        "method": "POST",
+        "path": "/alerts/search",
+        "body": { "src_ip": "{src_ip}", "from": "{time_start}", "to": "{time_end}" }
+      }
+    },
+    "waf_es_by_src_ip_time": {
+      "asset_types": ["waf_alert"],
+      "connector_types": ["es"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "es_query": {
+        "query": {
+          "bool": {
+            "must": [
+              { "term": { "src_ip": "{src_ip}" } },
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "{time_start}",
+                    "lte": "{time_end}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": "{limit}",
+        "sort": [{ "@timestamp": "desc" }]
+      }
+    },
+    "web_access_es_by_src_ip_time": {
+      "asset_types": ["web_access_log"],
+      "connector_types": ["es"],
+      "params": ["src_ip", "time_start", "time_end", "limit"],
+      "defaults": { "limit": 2000 },
+      "es_query": {
+        "query": {
+          "bool": {
+            "must": [
+              { "term": { "src_ip": "{src_ip}" } },
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "{time_start}",
+                    "lte": "{time_end}"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "size": "{limit}"
+      }
+    }
+  }
+}

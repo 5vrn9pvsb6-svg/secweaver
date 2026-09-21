@@ -1,0 +1,78 @@
+{
+  "asset_id": "asset-gw-access-file-01",
+  "name": "生产 GW 访问日志",
+  "asset_type": "web_access_log",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-sls-gw-prod",
+  "description": "阿里云 SLS YOUR_SLS_PROJECT / YOUR_GATEWAY_ACCESS_LOGSTORE（杭州）；示例 API 网关访问日志，按 json_lines 解析，remote_addr/request_uri/request_method 归一化为 src_ip/url/method。",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "src_ip",
+      "timestamp",
+      "url",
+      "status",
+      "method",
+      "user_agent",
+      "referer",
+      "host",
+      "hostname",
+      "remote_addr",
+      "remote_port",
+      "remote_user",
+      "request_uri",
+      "request_method",
+      "request_time",
+      "request_length",
+      "http_user_agent",
+      "http_referer",
+      "http_x_forwarded_for",
+      "body_bytes_sent",
+      "bytes_sent",
+      "content_length",
+      "content_type",
+      "server_addr",
+      "server_name",
+      "server_port",
+      "server_protocol",
+      "scheme",
+      "upstream_response_time",
+      "time_local",
+      "time_iso8601",
+      "evidence_id"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30,
+    "time_correction": {
+      "assume_timezone": "Asia/Shanghai",
+      "offset_minutes": 0,
+      "reason": ""
+    }
+  },
+  "query_template_ids": [
+    "web_access_by_time"
+  ],
+  "sensitivity": "internal",
+  "pii_fields": [],
+  "masking": {},
+  "tags": [
+    "web_access_log",
+    "prod",
+    "gateway_access_log",
+    "demo"
+  ],
+  "field_aliases": {
+    "remote_addr": "src_ip",
+    "request_uri": "url",
+    "request_method": "method",
+    "http_user_agent": "user_agent",
+    "http_referer": "referer",
+    "__source__": "log_source",
+    "log_source": "host_ip"
+  }
+}

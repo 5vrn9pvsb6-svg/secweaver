@@ -1,0 +1,19 @@
+{
+  "template_id": "YOUR_TEMPLATE_ID",
+  "asset_types": [
+    "waf_alert"
+  ],
+  "connector_types": [
+    "splunk"
+  ],
+  "params": [
+    "src_ip",
+    "time_start",
+    "time_end",
+    "limit"
+  ],
+  "defaults": {
+    "limit": 1000
+  },
+  "splunk_search": "index=security src_ip={src_ip} | head {limit}"
+}

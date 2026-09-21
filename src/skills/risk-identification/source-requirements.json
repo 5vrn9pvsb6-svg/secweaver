@@ -1,0 +1,164 @@
+{
+  "version": "1.0",
+  "description": "数据源与可识别风险映射（与 scripts/source_risk_map.py 同步）",
+  "data_sources": {
+    "host_exec": {
+      "label": "进程命令执行",
+      "asset_type": "host_exec",
+      "module": "exec",
+      "status_meanings": {
+        "present": "有事件且可运行 exec 模块",
+        "missing": "evidence_bundles 未提供该键",
+        "empty_in_window": "有资产但 host/时间窗/filter 后无事件"
+      },
+      "enables_rules": [
+        "external_listener_shell_exec",
+        "download_and_execute",
+        "reverse_shell",
+        "persistence_modify",
+        "security_control_tampering",
+        "sensitive_file_read",
+        "internal_recon",
+        "webshell_write",
+        "network_exfil_tools",
+        "obfuscated_exec",
+        "data_staging",
+        "database_dump",
+        "noise_command"
+      ]
+    },
+    "host_connect": {
+      "label": "进程主动外连",
+      "asset_type": "host_connect",
+      "module": "connect",
+      "enables_rules": [
+        "external_c2_connect",
+        "suspicious_port_connect",
+        "exec_correlated_egress",
+        "non_whitelist_egress",
+        "business_whitelist_connect",
+        "doh_egress",
+        "dot_egress"
+      ]
+    },
+    "host_file_op": {
+      "label": "进程文件操作",
+      "asset_type": "host_file_op",
+      "role": "auxiliary",
+      "boosts_rules": ["webshell_write", "data_staging", "persistence_modify"],
+      "note": "不独立产出 risk_items；缺省时 exec 上下文加权与攻击链降级"
+    },
+    "host_persistence": {
+      "label": "主机持久化变更",
+      "asset_type": "host_persistence",
+      "module": "persistence",
+      "enables_rules": [
+        "persistence_cron_modify",
+        "persistence_systemd_modify",
+        "persistence_ssh_key_modify",
+        "persistence_profile_modify",
+        "persistence_sudoers_modify",
+        "persistence_kernel_module_modify",
+        "persistence_ld_preload_modify",
+        "persistence_generic_change"
+      ]
+    },
+	"host_process": {
+	  "label": "主机进程快照",
+	  "asset_type": "host_process",
+	  "role": "auxiliary",
+	  "boosts_rules": [
+		"external_listener_shell_exec",
+		"download_and_execute",
+		"reverse_shell",
+		"persistence_modify"
+	  ],
+	  "note": "用于补充进程存活、父子关系、用户和资源占用；10 分钟快照不能替代实时 host_exec。"
+	},
+	"host_socket": {
+	  "label": "主机监听端口快照", "asset_type": "host_socket", "role": "auxiliary",
+	  "boosts_rules": ["external_listener_shell_exec", "reverse_shell"],
+	  "note": "用于确认异常端口是否仍在监听以及对应进程，不替代实时网络事件。"
+	},
+	"host_identity": {
+	  "label": "主机登录与身份变化", "asset_type": "host_identity", "role": "auxiliary",
+	  "boosts_rules": ["persistence_modify"],
+	  "note": "用于确认新增/修改账户及登录会话影响面。"
+	},
+	"host_service": {
+	  "label": "主机服务与计划任务变化", "asset_type": "host_service", "role": "auxiliary",
+	  "boosts_rules": ["persistence_modify", "download_and_execute"],
+	  "note": "用于确认服务、cron、timer 和计划任务持久化。"
+	},
+	"host_kernel_context": {
+	  "label": "主机内核与容器上下文", "asset_type": "host_kernel_context", "role": "auxiliary",
+	  "boosts_rules": ["persistence_modify", "reverse_shell"],
+	  "note": "用于确认异常内核模块、驱动和容器上下文。"
+	},
+    "waf_alert": {
+      "label": "WAF 告警",
+      "asset_type": "waf_alert",
+      "role": "auxiliary",
+      "note": "缺省时不给出 WAF 互证 recommended_next_skills"
+    },
+    "ssh_auth": {
+      "label": "SSH 认证日志",
+      "asset_type": "ssh_auth",
+      "module": "ssh",
+      "implemented": true,
+      "enables_rules": ["ssh_bruteforce"],
+      "note": "由 scripts/ssh_rules.py 聚合认证失败波次；也可从 syslog_risk_alert 提取认证失败事件，不代表所有 SSH 账号异常均可识别。"
+    },
+    "dns_log": {
+      "label": "DNS 查询日志",
+      "asset_type": "dns_log",
+      "module": "dns",
+      "enables_rules": [
+        "high_nxdomain_burst",
+        "suspected_dga_domain",
+        "uncommon_tld_query",
+        "dns_tunnel_suspected"
+      ],
+      "boosts_rules": ["external_c2_connect", "suspicious_port_connect", "doh_egress", "dot_egress"],
+      "note": "关联 C2 域名和 DGA 查询，可独立产出 DNS profile risk_items；不能替代 firewall/NTA/proxy 的会话与流量体量证据"
+    },
+    "network_traffic_audit": {
+      "label": "全流量会话",
+      "asset_type": "network_traffic_audit",
+      "role": "auxiliary",
+      "boosts_rules": ["external_c2_connect", "suspicious_port_connect"],
+      "note": "支撑 beacon 周期、会话体量和持续时间分析"
+    }
+  },
+  "scenario_requirements": {
+    "S5": {
+      "required": ["host_exec"],
+	  "recommended": ["host_connect", "host_file_op", "host_persistence"],
+      "optional": ["waf_alert"]
+    },
+    "S5-EXEC": {
+      "required": ["host_exec"],
+	  "recommended": ["host_file_op", "host_persistence"]
+    },
+    "S5-CONNECT": {
+      "required": ["host_connect"],
+	  "recommended": ["host_exec"]
+    },
+    "S5-HOST": {
+      "required": ["host_exec"],
+	  "recommended": ["host_connect", "host_file_op", "host_persistence"]
+    },
+    "S5-PERSISTENCE": {
+      "required": ["host_persistence"],
+	  "recommended": ["host_exec", "syslog_risk_alert"]
+    },
+    "S5+WAF": {
+      "required": ["host_exec"],
+	  "recommended": ["host_connect", "host_file_op", "host_persistence", "waf_alert"]
+    },
+    "S8": {
+      "required": ["host_connect"],
+      "recommended": ["host_exec", "dns_log", "network_traffic_audit", "syslog_risk_alert"]
+    }
+  }
+}

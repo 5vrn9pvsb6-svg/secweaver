@@ -1,0 +1,15 @@
+{
+  "network_id": "net-demo-control-plane",
+  "name": "Demo Control Plane 192.0.2.64/27",
+  "cidr": "192.0.2.64/27",
+  "zone": "demo_cloud",
+  "network_type": "cloud_vpc",
+  "trust_level": "management",
+  "status": "draft",
+  "description": "Synthetic control-plane network template for public examples.",
+  "tags": [
+    "demo",
+    "control-plane",
+    "reference"
+  ]
+}

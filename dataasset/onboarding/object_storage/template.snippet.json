@@ -1,0 +1,19 @@
+{
+  "template_id": "YOUR_TEMPLATE_ID",
+  "asset_types": [
+    "waf_alert"
+  ],
+  "connector_types": [
+    "object_storage"
+  ],
+  "params": [
+    "src_ip",
+    "time_start",
+    "time_end",
+    "limit"
+  ],
+  "defaults": {
+    "limit": 1000
+  },
+  "note": "object_storage 当前无内置 live fetch query key；请通过外部执行器或覆盖模板接入。"
+}

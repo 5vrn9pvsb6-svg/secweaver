@@ -1,0 +1,18 @@
+{
+  "bundle_id": "bundle-data-exfiltration-default",
+  "name": "数据外传追踪默认资产包",
+  "description": "S7 数据外传：主机主动外连 + 文件操作 + 命令执行 + DNS/NTA/DB 审计；SecWeaver 主机证据已 active，其余源待接入后 promote",
+  "status": "draft",
+  "asset_ids": [
+    "asset-secweaver-host-connect",
+    "asset-secweaver-host-file-op",
+    "asset-secweaver-host-exec",
+    "asset-dns-internal-prod",
+    "asset-network-nta-prod",
+    "asset-mysql-db-audit"
+  ],
+  "investigation_scenarios": [
+    "S7"
+  ],
+  "notes": "P0: host_connect + host_file_op；P1: host_exec + network_traffic_audit。layer1: host_connect/host_file_op/host_exec/dns_log/network_traffic_audit；layer2: db_audit；Join: host_connect_to_dns、nta_session_correlation。DNS/NTA/DB 为 draft 占位，连通性确认后再改 active。"
+}

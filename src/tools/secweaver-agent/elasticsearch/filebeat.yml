@@ -1,0 +1,181 @@
+{
+  "filebeat.inputs": [
+    {
+      "type": "filestream",
+      "id": "secweaver-public-audit-port-execmon",
+      "enabled": true,
+      "paths": [
+        "/opt/secweaver-agent/logs/audit-port-execmon.log",
+        "/opt/secweaver-agent/logs/audit-port-execmon.log.*"
+      ],
+      "prospector.scanner.exclude_files": [
+        "\\.gz$"
+      ],
+      "fields_under_root": true,
+      "fields": {
+        "secweaver_dataset": "audit-port-execmon"
+      }
+    },
+    {
+      "type": "filestream",
+      "id": "secweaver-public-syslog-risk-json",
+      "enabled": true,
+      "paths": [
+        "/opt/secweaver-agent/logs/syslog-risk-json.log",
+        "/opt/secweaver-agent/logs/syslog-risk-json.log.*"
+      ],
+      "prospector.scanner.exclude_files": [
+        "\\.gz$"
+      ],
+      "fields_under_root": true,
+      "fields": {
+        "secweaver_dataset": "syslog-risk-json"
+      }
+    },
+    {
+      "type": "filestream",
+      "id": "secweaver-public-host-persistence",
+      "enabled": true,
+      "paths": [
+        "/opt/secweaver-agent/logs/host-persistence.log",
+        "/opt/secweaver-agent/logs/host-persistence.log.*"
+      ],
+      "prospector.scanner.exclude_files": [
+        "\\.gz$"
+      ],
+      "fields_under_root": true,
+      "fields": {
+        "secweaver_dataset": "host-persistence"
+      }
+    },
+    {
+      "type": "filestream",
+      "id": "secweaver-public-host-process-snapshot",
+      "enabled": true,
+      "paths": [
+        "/opt/secweaver-agent/logs/host-process-snapshot.log",
+        "/opt/secweaver-agent/logs/host-process-snapshot.log.*"
+      ],
+      "prospector.scanner.exclude_files": [
+        "\\.gz$"
+      ],
+      "fields_under_root": true,
+      "fields": {
+        "secweaver_dataset": "host-process-snapshot"
+      }
+    },
+    {
+      "type": "filestream",
+      "id": "secweaver-public-host-state-snapshot",
+      "enabled": true,
+      "paths": [
+        "/opt/secweaver-agent/logs/host-state-snapshot.log",
+        "/opt/secweaver-agent/logs/host-state-snapshot.log.*"
+      ],
+      "prospector.scanner.exclude_files": [
+        "\\.gz$"
+      ],
+      "fields_under_root": true,
+      "fields": {
+        "secweaver_dataset": "host-state-snapshot"
+      }
+    },
+    {
+      "type": "filestream",
+      "id": "secweaver-public-secweaver-agent-health",
+      "enabled": true,
+      "paths": [
+        "/opt/secweaver-agent/logs/secweaver-agent-health.log",
+        "/opt/secweaver-agent/logs/secweaver-agent-health.log.*"
+      ],
+      "prospector.scanner.exclude_files": [
+        "\\.gz$"
+      ],
+      "fields_under_root": true,
+      "fields": {
+        "secweaver_dataset": "secweaver-agent-health"
+      }
+    }
+  ],
+  "processors": [
+    {
+      "drop_fields": {
+        "fields": [
+          "host",
+          "agent",
+          "ecs"
+        ],
+        "ignore_missing": true
+      }
+    },
+    {
+      "decode_json_fields": {
+        "fields": [
+          "message"
+        ],
+        "target": "",
+        "overwrite_keys": true,
+        "add_error_key": true
+      }
+    },
+    {
+      "timestamp": {
+        "field": "time",
+        "layouts": [
+          "2006-01-02T15:04:05Z07:00",
+          "2006-01-02T15:04:05.999999999Z07:00"
+        ],
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    },
+    {
+      "timestamp": {
+        "field": "timestamp",
+        "layouts": [
+          "2006-01-02T15:04:05Z07:00",
+          "2006-01-02T15:04:05.999999999Z07:00"
+        ],
+        "ignore_missing": true,
+        "ignore_failure": true
+      }
+    }
+  ],
+  "setup.template.enabled": false,
+  "setup.ilm.enabled": false,
+  "queue.disk": {
+    "max_size": "1GB"
+  },
+  "output.elasticsearch": {
+    "hosts": [
+      "${SECWEAVER_ES_URL}"
+    ],
+    "username": "${SECWEAVER_ES_WRITER_USER}",
+    "password": "${SECWEAVER_ES_WRITER_PASSWORD}",
+    "ssl.verification_mode": "full",
+    "ssl.certificate_authorities": [
+      "${SECWEAVER_ES_CA}"
+    ],
+    "index": "secweaver-public-agent-%{[secweaver_dataset]}-%{+yyyy.MM.dd}",
+    "indices": [
+      {
+        "index": "secweaver-public-agent-exec-%{+yyyy.MM.dd}",
+        "when.equals": {
+          "event_type": "exec"
+        }
+      },
+      {
+        "index": "secweaver-public-agent-connect-%{+yyyy.MM.dd}",
+        "when.equals": {
+          "event_type": "active_connect"
+        }
+      },
+      {
+        "index": "secweaver-public-agent-file-op-%{+yyyy.MM.dd}",
+        "when.equals": {
+          "event_type": "file_op"
+        }
+      }
+    ]
+  }
+}

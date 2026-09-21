@@ -1,0 +1,25 @@
+{
+  "connector_id": "conn-sls-example",
+  "name": "阿里云 SLS 示例连接器",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "示例：从阿里云 SLS LogStore 查询 WAF、主机、DNS 或防火墙日志；模板使用 sls_query。",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "project": "example-security-project",
+    "logstore": "example-security-logstore",
+    "region": "cn-hangzhou",
+    "hostname": "example-host"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "request_timeout_sec": 30
+  },
+  "tags": [
+    "example",
+    "aliyun",
+    "sls",
+    "not-for-production"
+  ]
+}

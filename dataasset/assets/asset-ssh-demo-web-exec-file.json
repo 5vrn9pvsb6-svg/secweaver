@@ -1,0 +1,37 @@
+{
+  "asset_id": "asset-ssh-demo-web-exec-file",
+  "name": "203.0.113.24 SSH 直读 auth",
+  "asset_type": "ssh_auth",
+  "domain": "D3",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-ssh-demo-web-exec-auth",
+  "description": "demo-reader@203.0.113.24 SSH 直读 /var/log/auth.log",
+  "coverage": {
+    "hosts": [
+      "203.0.113.24"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "host",
+      "src_ip",
+      "user",
+      "result",
+      "timestamp"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 7
+  },
+  "query_template_ids": [
+    "ssh_file_grep_auth"
+  ],
+  "text_parser": "iso_syslog_auth",
+  "sensitivity": "internal",
+  "tags": [
+    "ssh",
+    "ssh_file",
+    "demo-web-exec"
+  ]
+}

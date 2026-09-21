@@ -1,0 +1,47 @@
+{
+  "asset_id": "asset-windows-event-prod",
+  "name": "Windows 系统事件日志（生产）",
+  "asset_type": "windows_event_log",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-sls-waf-prod",
+  "description": "Windows Event Log（Security/System/Application/Sysmon）经 Winlogbeat 等写入 SLS；请改为实际 connector 与 logstore",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "enterprise_id",
+      "host",
+      "host_name",
+      "host_ip",
+      "timestamp",
+      "event_id",
+      "channel",
+      "level",
+      "provider",
+      "user",
+      "message",
+      "src_ip",
+      "process",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "windows_event_by_host_time",
+    "windows_event_by_event_id"
+  ],
+  "sensitivity": "confidential",
+  "masking": {
+    "message": "truncate_500"
+  },
+  "tags": [
+    "windows",
+    "eventlog",
+    "draft"
+  ]
+}

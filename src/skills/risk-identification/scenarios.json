@@ -1,0 +1,61 @@
+{
+  "version": "1.0",
+  "description": "风险识别场景与子模块映射",
+  "source_requirements_ref": "source-requirements.json",
+  "scenarios": {
+    "S5": {
+      "name": "主机异常行为",
+      "risk_modules": ["exec", "connect", "persistence", "ssh", "syslog"],
+      "required_sources": ["host_exec"],
+	  "recommended_sources": ["host_connect", "host_file_op", "host_persistence", "ssh_auth", "syslog_risk_alert"],
+      "optional_sources": ["waf_alert"],
+      "keywords": ["监听进程", "命令执行", "exec", "connect", "对外端口", "风险识别", "高危"]
+    },
+    "S5-EXEC": {
+      "name": "仅命令执行筛查",
+      "risk_modules": ["exec"],
+      "required_sources": ["host_exec"],
+	  "recommended_sources": ["host_file_op", "host_persistence"],
+      "keywords": ["exec", "命令执行", "shell"]
+    },
+    "S5-CONNECT": {
+      "name": "仅主动外连筛查",
+      "risk_modules": ["connect"],
+      "required_sources": ["host_connect"],
+	  "recommended_sources": ["host_exec"],
+      "keywords": ["connect", "外连", "主动连接"]
+    },
+    "S5-HOST": {
+      "name": "单主机全量行为",
+      "risk_modules": ["exec", "connect", "persistence", "ssh", "syslog"],
+      "required_sources": ["host_exec"],
+	  "recommended_sources": ["host_connect", "host_file_op", "host_persistence", "ssh_auth", "syslog_risk_alert"],
+      "keywords": ["主机", "全量", "host"]
+    },
+    "S5-PERSISTENCE": {
+      "name": "仅持久化变更筛查",
+      "risk_modules": ["persistence"],
+      "required_sources": ["host_persistence"],
+	  "recommended_sources": ["host_exec", "syslog_risk_alert"],
+      "keywords": ["persistence", "持久化", "cron", "systemd", "authorized_keys"]
+    },
+    "S5+WAF": {
+      "name": "主机风险 + WAF 互证",
+      "risk_modules": ["exec", "connect", "persistence"],
+      "required_sources": ["host_exec"],
+	  "recommended_sources": ["host_connect", "host_file_op", "host_persistence", "waf_alert"],
+      "include_waf": true,
+      "keywords": ["WAF", "互证"]
+    },
+    "S8": {
+      "name": "C2 通信检测",
+      "risk_modules": ["connect", "dns", "exec", "syslog"],
+      "required_sources": ["host_connect"],
+      "recommended_sources": ["host_exec", "dns_log", "network_traffic_audit", "syslog_risk_alert"],
+      "optional_sources": [],
+      "keywords": ["C2", "C&C", "beacon", "回连", "反弹 Shell", "可疑外连", "DGA"]
+    }
+  },
+  "default_scenario": "S5",
+  "default_bundle": "bundle-host-risk-default"
+}

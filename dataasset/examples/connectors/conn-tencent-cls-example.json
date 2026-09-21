@@ -1,0 +1,18 @@
+{
+  "connector_id": "conn-tencent-cls-example",
+  "name": "腾讯云 CLS 示例连接器",
+  "connector_type": "tencent_cls",
+  "status": "draft",
+  "credentials_ref": "vault://tencent/cls-readonly",
+  "description": "示例：从腾讯云 CLS Topic 查询 WAF、主机或应用安全日志；模板使用 cls_query。",
+  "config": {
+    "endpoint": "https://cls.ap-guangzhou.tencentcloudapi.com",
+    "region": "ap-guangzhou",
+    "topic_id": "example-topic-id"
+  },
+  "constraints": {
+    "max_records_per_request": 5000,
+    "request_timeout_sec": 60
+  },
+  "tags": ["example", "tencent", "cls", "not-for-production"]
+}

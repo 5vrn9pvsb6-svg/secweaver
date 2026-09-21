@@ -1,0 +1,51 @@
+{
+  "investigation_intent": "分析 IP 203.0.113.10 的 SQL 注入 WAF 告警，确认误报还是真实攻击，是否打穿",
+  "scenario": "S4",
+  "params": {
+    "attacker_ip": "203.0.113.10",
+    "alert_time": "2026-06-21T14:30:00+08:00",
+    "time_window_minutes": 10,
+    "alert_ids": ["WAF-20260621-001"]
+  },
+  "completeness_precheck": {
+    "overall_verdict": "partial_traceable",
+    "confidence": 0.75,
+    "next_skill_blocked": false,
+    "data_gaps": ["host_connect not registered"]
+  },
+  "primary_alerts": [
+    {
+      "alert_id": "WAF-20260621-001",
+      "source": "waf",
+      "timestamp": "2026-06-21T14:30:05+08:00",
+      "src_ip": "203.0.113.10",
+      "url": "/api/user?id=1' OR 1=1--",
+      "method": "GET",
+      "rule_id": "942100",
+      "rule_name": "SQL Injection",
+      "payload": "id=1' OR 1=1--",
+      "action": "blocked",
+      "host": "web-01"
+    }
+  ],
+  "correlated_evidence": {
+    "web_access_log": [
+      {
+        "evidence_id": "web-003",
+        "src_ip": "203.0.113.10",
+        "timestamp": "2026-06-21T14:30:04+08:00",
+        "url": "/api/user?id=1' OR 1=1--",
+        "status": 403
+      }
+    ],
+    "host_exec": [],
+    "host_connect": [],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S4 SQLi 被 WAF 拦截，无主机侧证据",
+    "expected_alert_verdict": "confirmed_attack",
+    "expected_attack_outcome": "blocked",
+    "expected_attack_success": false
+  }
+}

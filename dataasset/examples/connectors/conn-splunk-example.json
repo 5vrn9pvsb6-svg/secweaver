@@ -1,0 +1,18 @@
+{
+  "connector_id": "conn-splunk-example",
+  "name": "Splunk SIEM 示例连接器",
+  "connector_type": "splunk",
+  "status": "draft",
+  "credentials_ref": "vault://splunk/security-readonly",
+  "description": "示例：对接企业已有 Splunk Index 查询 WAF、EDR、NDR 或 SIEM 事件；模板使用 splunk_search。",
+  "config": {
+    "base_url": "https://splunk.example.com:8089",
+    "index": "security",
+    "verify_tls": true
+  },
+  "constraints": {
+    "max_records_per_request": 5000,
+    "request_timeout_sec": 90
+  },
+  "tags": ["example", "splunk", "siem", "not-for-production"]
+}

@@ -1,0 +1,35 @@
+{
+  "asset_id": "asset-fw-dmz-internal",
+  "name": "DMZ→内网 防火墙日志",
+  "asset_type": "firewall_log",
+  "domain": "D4",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-sls-firewall-dmz",
+  "description": "DMZ 到内网访问控制与横向移动观测防火墙日志；用于 S1/S3 溯源链中验证边界到内网连接、SSH 横向路径和阻断/放行动作。",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "src_ip",
+      "dst_ip",
+      "src_port",
+      "dst_port",
+      "timestamp",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "firewall_by_src_ip_time",
+    "firewall_by_src_dst_time"
+  ],
+  "sensitivity": "internal",
+  "tags": [
+    "firewall",
+    "demo"
+  ]
+}

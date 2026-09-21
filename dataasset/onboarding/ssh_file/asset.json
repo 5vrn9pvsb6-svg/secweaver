@@ -1,0 +1,33 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "SSH 日志资产（模板）",
+  "asset_type": "ssh_auth",
+  "domain": "D3",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "text_parser": "syslog_auth",
+  "coverage": {
+    "zones": [
+      "internal"
+    ],
+    "apps": [],
+    "hosts": [
+      "YOUR_HOST"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "host",
+      "timestamp",
+      "src_ip",
+      "user",
+      "result"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 90
+  },
+  "query_template_ids": [
+    "ssh_auth_by_src_ip_time"
+  ],
+  "field_aliases": {}
+}

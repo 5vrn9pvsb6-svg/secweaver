@@ -1,0 +1,238 @@
+{
+  "version": "1.0.0",
+  "description": "Traceability heuristic rules — ops may edit without changing Python. Time windows: correlation-matrix.json time_windows only (optional time_window id per section).",
+  "lateral_join_ids": [
+    "lateral_from_exec",
+    "lateral_from_syslog",
+    "lateral_from_target_exec"
+  ],
+  "ssh_auth_result": {
+    "accepted_tokens": ["accepted", "success", "successful"],
+    "failed_tokens": ["failed", "failure", "denied", "invalid"],
+    "accepted_substrings": ["accept"],
+    "failed_substrings": ["fail"],
+    "syslog_success_event_types": ["ssh_login_success"],
+    "syslog_failed_event_types": [
+      "ssh_login_failed",
+      "auth_failure",
+      "ssh_invalid_user",
+      "ssh_auth_attempts_exceeded"
+    ]
+  },
+  "syslog_lateral": {
+    "enabled": true,
+    "time_window": "lateral_movement",
+    "impact_event_types": [
+      "ssh_login_success",
+      "root_session_opened",
+      "sudo_command",
+      "account_created",
+      "account_modified"
+    ],
+    "confirmed_lateral": {
+      "lateral_class": "confirmed_lateral",
+      "confidence": 0.92,
+      "join_id": "lateral_from_syslog",
+      "mitre_id": "T1021.004",
+      "impact_mitre_id": "T1078",
+      "impact_confidence": 0.88,
+      "impact_join_id": "impact_from_syslog",
+      "description_template": "syslog 确认横向: {src_ip} → {target} SSH 登录成功（用户 {user}）",
+      "impact_description_template": "syslog 确认 {target} 受影响: {event_type}（来自 {src_ip}）"
+    },
+    "upgrade_suspected": {
+      "suspected_confidence_floor": 0.78,
+      "confirmed_confidence_floor": 0.92,
+      "correlation_source": "exec_inferred+syslog_risk_alert",
+      "note": "exec 推断横向已由 syslog_risk_alert（目标机 SSH 登录成功）确认"
+    }
+  },
+  "target_exec_lateral": {
+    "enabled": true,
+    "time_window": "lateral_movement",
+    "min_high_risk_events": 3,
+    "min_risk_categories": 2,
+    "min_hits_floor": 2,
+    "confidence_base": 0.86,
+    "confidence_cap": 0.9,
+    "confidence_per_extra_event": 0.008,
+    "confidence_bonus_cap": 0.04,
+    "suspected_confidence_floor": 0.78,
+    "lateral_class": "likely_lateral",
+    "join_id": "lateral_from_target_exec",
+    "mitre_id": "T1021.004",
+    "correlation_source": "exec_inferred+target_host_exec",
+    "impact_signal": "target_high_risk_exec_burst",
+    "description_template": "目标机 {target} 在疑似横向（{source}→{target}）后出现 {event_count} 条高危 exec（{categories}）；syslog 未命中 ssh_login_success 时仍提升置信度（日志缺口/暴力猜解噪声）",
+    "upgrade_note": "源机 exec 推断横向 + 目标机高危命令突发互证（可弥补 syslog 登录成功缺失）",
+    "impacted_note_template": "目标机高危 exec 突发互证（{event_count} 条，{categories}）；syslog 无登录成功时也倾向已沦陷",
+    "high_risk_exec_rules": [
+      {
+        "id": "cred-shadow",
+        "pattern": "/etc/shadow|/etc/passwd",
+        "category": "credential_access",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "persist-account",
+        "pattern": "\\buseradd\\b|\\busermod\\b|\\bchpasswd\\b|(?<!/)\\bpasswd\\b\\s+[^/\\s]",
+        "category": "persistence",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "defense-auditctl",
+        "pattern": "auditctl\\s+-[dD]",
+        "category": "defense_evasion",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "persist-ssh-keys",
+        "pattern": "authorized_keys|/\\.ssh/",
+        "category": "persistence",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "exec-pipe-shell",
+        "pattern": "curl\\s+[^\\s]+\\|\\s*(ba)?sh|wget\\s+[^\\s]+\\|\\s*(ba)?sh",
+        "category": "execution",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "persist-chmod-suid",
+        "pattern": "chmod\\s+[+\\-]?[0-7]*[sx]",
+        "category": "persistence",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "c2-reverse-shell",
+        "pattern": "nc\\s+-[el]|bash\\s+-i|/dev/tcp/",
+        "category": "command_and_control",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "priv-sudo",
+        "pattern": "\\bsudo\\b|/etc/sudoers",
+        "category": "privilege_escalation",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "discover-scan",
+        "pattern": "\\bnmap\\b|\\bping\\b.*\\d+\\.\\d+\\.\\d+\\.\\d+",
+        "category": "discovery",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "discover-find-tmp",
+        "pattern": "find\\s+/.*-perm|/tmp/|/var/tmp/",
+        "category": "discovery",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "persist-cron",
+        "pattern": "crontab|systemctl\\s+(enable|start)",
+        "category": "persistence",
+        "flags": "i",
+        "enabled": true
+      },
+      {
+        "id": "defense-clear-history",
+        "pattern": "history\\s+-c|unset\\s+HISTFILE|shred\\s+|truncate\\s+-s0",
+        "category": "defense_evasion",
+        "flags": "i",
+        "enabled": true
+      }
+    ]
+  },
+  "lateral_from_exec": {
+    "enabled": true,
+    "time_window": "lateral_movement",
+    "confidence": 0.78,
+    "lateral_class": "suspected_lateral",
+    "join_id": "lateral_from_exec",
+    "mitre_id": "T1021.004",
+    "correlation_source": "exec_inferred",
+    "description_template": "exec 推断横向: {source} → {dst}（sshpass/ssh，用户 {user}）"
+  },
+  "initial_access_exec_inferred": {
+    "confidence_non_interactive": 0.9,
+    "confidence_interactive": 0.85,
+    "confidence_default": 0.88,
+    "inference_note_base": "无 WAF/WEB 日志，由 nginx/listener 子进程 exec 推断 Web 入口",
+    "inference_note_non_interactive_suffix": "has_tty=false（无交互终端，符合 WebShell/RCE 特征）",
+    "inference_note_interactive_suffix": "has_tty=true（交互式 SSH 会话，非典型 Web 入口）"
+  },
+  "initial_access_from_victim": {
+    "enabled": true,
+    "confidence_waf": 0.93,
+    "confidence_web_access": 0.9,
+    "victim_fields": ["target_ip", "upstream_addr"],
+    "attacker_fields": ["src_ip", "ip", "client_ip", "remote_addr"],
+    "description_template_waf": "受害 upstream {target_ip} 反查 WAF：攻击源 {attacker_ip} 访问 {url}（{vector}）",
+    "description_template_web": "受害 upstream {target_ip} 反查网关 access：攻击源 {attacker_ip} 访问 {url}（{vector}）",
+    "no_match_gap_template": "d1_reverse_lookup:no_waf_or_web_for_target_ip={target_ip}"
+  },
+  "confidence_adjustments": {
+    "matrix_join_matched_gte": 2,
+    "matrix_join_boost": 0.03,
+    "likely_lateral_boost": 0.03
+  },
+  "policy": {
+    "bfs_lateral": {
+      "max_hops": 10,
+      "mitre_id": "T1021.004",
+      "confidence_with_fw": 0.88,
+      "confidence_without_fw": 0.82,
+      "firewall_near_seconds": 600,
+      "ssh_bruteforce_suspected": {
+        "failed_threshold": 5,
+        "confidence": 0.55
+      }
+    },
+    "execution_chain": {
+      "time_window": "host_behavior_chain",
+      "base_confidence": 0.85,
+      "connect_near_seconds": 120,
+      "connect_boost": 0.08,
+      "confidence_cap": 0.95,
+      "file_op_near_seconds": 300
+    },
+    "initial_access_stages": {
+      "matrix_confidence": 0.92,
+      "heuristic_confidence": 0.9
+    },
+    "confidence_defaults": {
+      "stage_fallback": 0.7,
+      "empty_chain_cap": 0.4
+    },
+    "hypotheses": {
+      "initial_no_exec": 0.5,
+      "exec_no_lateral": 0.6,
+      "data_gap": 0.45,
+      "suspected_default": 0.55
+    },
+    "listener": {
+      "ssh_listeners": ["sshd", "ssh"],
+      "web_ports": ["80", "443", "8080"]
+    },
+    "verdict_rules": [
+      {"conditions": {"blocked": true}, "verdict": "insufficient_evidence"},
+      {"conditions": {"has_initial": false, "has_execution": false}, "verdict": "insufficient_evidence"},
+      {"conditions": {"has_initial": true, "has_execution": false, "has_exec": false}, "verdict": "scanning_or_attempt_only"},
+      {"conditions": {"has_initial": true, "has_execution": true, "has_lateral": true}, "verdict": "confirmed_intrusion_chain"},
+      {"conditions": {"has_initial": true, "has_execution": true, "has_lateral": false}, "verdict": "initial_access_only"},
+      {"conditions": {"has_initial": true, "has_execution": false}, "verdict": "likely_intrusion_chain"},
+      {"conditions": {"has_initial": false, "has_execution": true}, "verdict": "likely_intrusion_chain"},
+      {"conditions": {}, "verdict": "insufficient_evidence"}
+    ]
+  }
+}

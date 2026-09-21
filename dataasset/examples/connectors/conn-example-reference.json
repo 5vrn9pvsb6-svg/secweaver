@@ -1,0 +1,21 @@
+{
+  "connector_id": "conn-example-reference",
+  "name": "字段参考示例连接器（非生产）",
+  "connector_type": "local_file",
+  "status": "draft",
+  "description": "仅供 dataasset/examples/reference-assets.json 中的参考资产绑定；不拉 live 数据。",
+  "config": {
+    "hostname": "example-host",
+    "base_path": "dataasset/samples/local-logs/web-01",
+    "log_paths": {
+      "ssh_auth": "auth.log"
+    }
+  },
+  "constraints": {
+    "max_file_size_mb": 1,
+    "max_lines_per_query": 100,
+    "allowed_read_commands": ["grep", "tail"],
+    "forbidden_paths": ["/etc/shadow"]
+  },
+  "tags": ["example", "reference", "not-for-production"]
+}

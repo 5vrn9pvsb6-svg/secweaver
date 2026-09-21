@@ -1,0 +1,69 @@
+{
+  "version": "1.0",
+  "owner": "security-ops",
+  "description": "跨阶段攻击叙事模式。阶段指标引用 risk-identification 的 matched_rule（exec/ssh/connect）与 attck-map policy_rules；溯源分析复用本文件，不再维护独立 attack-patterns.json。",
+  "stage_mitre_defaults": {
+    "reconnaissance": "T1595",
+    "initial_access": "T1190",
+    "execution": "T1059",
+    "persistence": "T1505",
+    "command_and_control": "T1071",
+    "lateral_movement": "T1021.004",
+    "collection": "T1560",
+    "exfiltration": "T1048"
+  },
+  "chain_patterns": [
+    {
+      "id": "web_shell_to_ssh_lateral",
+      "name": "WebShell → 下载工具 → SSH 横向",
+      "description": "brain 产品规则第 5 页典型剧本",
+      "stages": ["initial_access", "execution", "lateral_movement"],
+      "stage_rules": {
+        "initial_access": [
+          "webshell_write",
+          "external_listener_shell_exec",
+          "WEB-SHELL-001",
+          "WEB-SHELL-002"
+        ],
+        "execution": [
+          "download_and_execute",
+          "obfuscated_exec",
+          "DOWNLOAD-MALICIOUS-001",
+          "LATERAL-SSH-001",
+          "external_listener_shell_exec"
+        ],
+        "lateral_movement": [
+          "root_ssh_login",
+          "LATERAL-SSH-001",
+          "network_exfil_tools"
+        ]
+      },
+      "policy_rules": ["WEB-SHELL-001", "LATERAL-SSH-001"]
+    },
+    {
+      "id": "vpn_to_internal_lateral",
+      "name": "VPN 失陷 → 内网横向",
+      "stages": ["initial_access", "lateral_movement"],
+      "stage_rules": {
+        "initial_access": ["root_ssh_login"],
+        "lateral_movement": ["root_ssh_login", "LATERAL-SSH-001", "network_exfil_tools"]
+      },
+      "policy_rules": ["LATERAL-SSH-001"]
+    },
+    {
+      "id": "exec_to_exfiltration",
+      "name": "主机命令执行 → 外连外传",
+      "stages": ["execution", "command_and_control", "exfiltration"],
+      "stage_rules": {
+        "execution": ["data_staging", "database_dump", "download_and_execute"],
+        "command_and_control": [
+          "exec_correlated_egress",
+          "non_whitelist_egress",
+          "CONNECT-C2-001"
+        ],
+        "exfiltration": ["network_exfil_tools", "data_staging"]
+      },
+      "policy_rules": ["CONNECT-C2-001"]
+    }
+  ]
+}

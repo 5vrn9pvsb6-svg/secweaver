@@ -1,0 +1,4 @@
+{
+  "template_id": "cmdb_all_hosts",
+  "note": "内置 SQL 模板；结构化表主要用 field_aliases 对齐列名"
+}

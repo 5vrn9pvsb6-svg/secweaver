@@ -1,0 +1,2 @@
+{"client_ip":"203.0.113.10","@timestamp":"2026-06-21T08:15:01+08:00","request_uri":"/api?id=1","rule_action":"blocked","host":"portal.example.com"}
+{"remote_addr":"198.51.100.2","__time__":1718933800,"url":"/admin","action":"logged","hostname":"web-01"}

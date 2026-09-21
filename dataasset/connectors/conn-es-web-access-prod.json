@@ -1,0 +1,17 @@
+{
+  "connector_id": "conn-es-web-access-prod",
+  "name": "生产 WEB 访问日志 Elasticsearch",
+  "connector_type": "es",
+  "status": "draft",
+  "credentials_ref": "vault://es/security-readonly",
+  "config": {
+    "url": "https://es.example.com:9200",
+    "index": "logs-nginx-access-*",
+    "time_field": "@timestamp"
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 30
+  },
+  "description": "Nginx/Apache 访问日志 ES 索引；模板 web_access_es_by_src_ip_time"
+}

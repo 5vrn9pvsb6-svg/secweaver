@@ -1,0 +1,15 @@
+{
+  "bundle_id": "bundle-c2-detection-default",
+  "name": "C2 通信检测默认资产包",
+  "description": "S8 C2 检测：主机主动外连为 P0，命令执行、DNS 和 NTA 用于进程归因、域名识别和周期信标互证",
+  "status": "active",
+  "asset_ids": [
+    "asset-secweaver-host-connect",
+    "asset-secweaver-host-exec",
+    "asset-secweaver-sys-risk-alert"
+  ],
+  "investigation_scenarios": [
+    "S8"
+  ],
+  "notes": "host_connect/host_exec/syslog-risk 已 active，可做主机侧 C2 规则检测。DNS/NTA 仍为 draft，通过连通性验证后再加入本 bundle，用于 DGA、周期 beacon 和流量画像。"
+}

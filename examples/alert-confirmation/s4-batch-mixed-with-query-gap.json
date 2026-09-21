@@ -1,0 +1,120 @@
+{
+  "investigation_intent": "批量研判同一时间窗内的误报、扫描与被拦截攻击，并保留查询不完整边界",
+  "scenario": "S4",
+  "batch_mode": true,
+  "params": {
+    "time_start": "2026-06-21T03:00:00+08:00",
+    "time_end": "2026-06-21T16:10:00+08:00"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "partial_traceable",
+    "confidence": 0.7,
+    "next_skill_blocked": false,
+    "data_gaps": ["host_exec query failed"]
+  },
+  "primary_alerts": [
+    {
+      "alert_id": "WAF-BATCH-SCAN-001",
+      "timestamp": "2026-06-21T03:00:10+08:00",
+      "src_ip": "203.0.113.77",
+      "url": "/admin/login",
+      "method": "GET",
+      "rule_id": "900100",
+      "rule_name": "Generic Anomaly Detection",
+      "payload": "",
+      "action": "logged",
+      "user_agent": "sqlmap/1.8.2#stable",
+      "host": "web-01"
+    },
+    {
+      "alert_id": "WAF-BATCH-SQLI-001",
+      "timestamp": "2026-06-21T14:30:05+08:00",
+      "src_ip": "203.0.113.10",
+      "url": "/api/user?id=1' OR 1=1--",
+      "method": "GET",
+      "rule_id": "942100",
+      "rule_name": "SQL Injection",
+      "payload": "id=1' OR 1=1--",
+      "action": "blocked",
+      "host": "web-01"
+    },
+    {
+      "alert_id": "WAF-BATCH-FP-001",
+      "timestamp": "2026-06-21T16:00:01+08:00",
+      "src_ip": "198.51.100.20",
+      "url": "/api/order/detail",
+      "method": "GET",
+      "rule_id": "942100",
+      "rule_name": "SQL Injection",
+      "payload": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "action": "logged",
+      "host": "web-01"
+    }
+  ],
+  "correlated_evidence": {
+    "web_access_log": [
+      {
+        "evidence_id": "web-batch-scan-001",
+        "src_ip": "203.0.113.77",
+        "timestamp": "2026-06-21T03:00:09+08:00",
+        "url": "/admin/login",
+        "status": 404,
+        "user_agent": "sqlmap/1.8.2#stable"
+      },
+      {
+        "evidence_id": "web-batch-sqli-001",
+        "src_ip": "203.0.113.10",
+        "timestamp": "2026-06-21T14:30:04+08:00",
+        "url": "/api/user?id=1' OR 1=1--",
+        "status": 403
+      },
+      {
+        "evidence_id": "web-batch-fp-001",
+        "src_ip": "198.51.100.20",
+        "timestamp": "2026-06-21T16:00:00+08:00",
+        "url": "/api/order/detail?order_id=a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "status": 200
+      }
+    ],
+    "host_exec": [],
+    "host_connect": [],
+    "host_file_op": []
+  },
+  "data_access": {
+    "fetch_mode": "live",
+    "declared_asset_ids": ["asset-web-access-web", "asset-host-exec-web"],
+    "fetch_asset_ids": ["asset-web-access-web", "asset-host-exec-web"],
+    "executed_asset_ids": ["asset-web-access-web", "asset-host-exec-web"],
+    "fetch_attempts": [
+      {
+        "asset_id": "asset-web-access-web",
+        "asset_type": "web_access_log",
+        "connector_id": "synthetic-recorded-query",
+        "status": "success",
+        "returned_event_count": 3,
+        "truncated": false
+      },
+      {
+        "asset_id": "asset-host-exec-web",
+        "asset_type": "host_exec",
+        "connector_id": "synthetic-recorded-query",
+        "status": "failed",
+        "incomplete_reasons": ["timeout"],
+        "returned_event_count": 0,
+        "truncated": false
+      }
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S4 批量混合告警与查询缺口",
+    "expected_result_count": 3,
+    "expected_batch_summary": {
+      "total": 3,
+      "false_positive": 1,
+      "scanning_or_probe": 1,
+      "confirmed_attack": 1,
+      "success_confirmed": 0
+    },
+    "expected_query_integrity_status": "incomplete"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Agent Stream（模板）",
+  "connector_type": "agent_stream",
+  "status": "draft",
+  "credentials_ref": "vault://agent/stream-readonly",
+  "description": "Agent 流式采集描述；当前主要用于注册接入关系，live fetch 需由下游 agent/stream 执行器补齐。",
+  "config": {
+    "agent": "YOUR_HOST",
+    "sink_connector_id": "YOUR_CONN_ID"
+  },
+  "constraints": {
+    "mode": "planned"
+  },
+  "tags": [
+    "template",
+    "agent-stream",
+    "planned"
+  ]
+}

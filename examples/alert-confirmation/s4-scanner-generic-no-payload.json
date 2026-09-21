@@ -1,0 +1,49 @@
+{
+  "investigation_intent": "WAF generic 规则命中但无有效 payload，判断扫描探测",
+  "scenario": "S4",
+  "params": {
+    "attacker_ip": "203.0.113.77",
+    "alert_time": "2026-06-21T03:00:00+08:00"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "alert_triage_only",
+    "confidence": 0.6,
+    "next_skill_blocked": false
+  },
+  "primary_alerts": [
+    {
+      "alert_id": "WAF-20260621-scan-001",
+      "timestamp": "2026-06-21T03:00:10+08:00",
+      "src_ip": "203.0.113.77",
+      "url": "/admin/login",
+      "method": "GET",
+      "rule_id": "900100",
+      "rule_name": "Generic Anomaly Detection",
+      "payload": "",
+      "action": "logged",
+      "user_agent": "sqlmap/1.8.2#stable",
+      "host": "web-01"
+    }
+  ],
+  "correlated_evidence": {
+    "web_access_log": [
+      {
+        "evidence_id": "web-scan-001",
+        "src_ip": "203.0.113.77",
+        "timestamp": "2026-06-21T03:00:09+08:00",
+        "url": "/admin/login",
+        "status": 404,
+        "user_agent": "sqlmap/1.8.2#stable"
+      }
+    ],
+    "host_exec": [],
+    "host_connect": [],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S4 扫描器/generic 规则无 payload",
+    "expected_alert_verdict": "scanning_or_probe",
+    "expected_attack_outcome": "success_unknown",
+    "expected_attack_success": false
+  }
+}

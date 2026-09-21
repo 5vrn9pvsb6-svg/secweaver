@@ -1,0 +1,35 @@
+{
+  "enabled": true,
+  "title_prefix": "[SecWeaver 溯源]",
+  "min_confidence": 0.0,
+  "notify_on": [
+    "confirmed_intrusion_chain",
+    "likely_intrusion_chain",
+    "initial_access_only",
+    "insufficient_evidence"
+  ],
+  "include_markdown_excerpt": true,
+  "max_actions": 5,
+  "channels": [
+    {
+      "type": "dingtalk",
+      "enabled": false,
+      "name": "soc-dingtalk",
+      "webhook_url": "https://oapi.dingtalk.com/robot/send?access_token=YOUR_TOKEN",
+      "secret": ""
+    },
+    {
+      "type": "feishu",
+      "enabled": false,
+      "name": "soc-feishu",
+      "webhook_url": "https://open.feishu.cn/open-apis/bot/v2/hook/YOUR_HOOK_ID",
+      "secret": ""
+    },
+    {
+      "type": "wecom",
+      "enabled": false,
+      "name": "soc-wecom",
+      "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_KEY"
+    }
+  ]
+}

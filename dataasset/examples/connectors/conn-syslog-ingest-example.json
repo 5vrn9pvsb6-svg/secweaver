@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-syslog-ingest-example",
+  "name": "Syslog 推送接入示例连接器",
+  "connector_type": "syslog_ingest",
+  "status": "draft",
+  "credentials_ref": "vault://syslog/ingest-token",
+  "description": "示例：描述网络设备、Linux 主机或安全网关通过 Syslog 主动推送到平台或中转管道的入口。",
+  "config": {
+    "listen_host": "0.0.0.0",
+    "listen_port": 514,
+    "protocol": "udp",
+    "sink_connector_id": "conn-sls-example",
+    "source_tag": "network-syslog"
+  },
+  "constraints": {
+    "max_message_size_kb": 64,
+    "allowed_sources": ["192.0.2.0/24", "198.51.100.0/24"]
+  },
+  "tags": ["example", "syslog", "ingest", "not-for-production"]
+}

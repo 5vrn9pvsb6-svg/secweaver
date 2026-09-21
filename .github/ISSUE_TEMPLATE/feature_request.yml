@@ -1,0 +1,52 @@
+name: Feature request
+description: Propose a framework, Skill, schema, or UX improvement
+title: "[feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For usage questions, consider the repository's Discussions area first when it is enabled.
+        Enterprise-only capabilities (RBAC, SOAR write-back, proprietary rule packs) are out of scope for the Community repo.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What security operations task is hard today without this change?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How should SecWeaver behave? Mention DataAsset / Correlation / Scenario / Skill if relevant.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - DataAsset schema / validate
+        - Connector / fetch layer
+        - Correlation Matrix
+        - Scenario Pattern
+        - Skill
+        - CLI / demos
+        - DataAsset Studio (dataasset-ui)
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Community scope check
+      options:
+        - label: This fits the open-source Community boundary (local framework, demos, sanitized examples)
+          required: true

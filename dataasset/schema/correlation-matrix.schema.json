@@ -1,0 +1,254 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/correlation-matrix.json",
+  "title": "SecWeaver Correlation Matrix",
+  "type": "object",
+  "required": ["version", "time_windows", "internal_joins", "cross_source_joins", "constraints"],
+  "properties": {
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "design_intent": { "type": "object" },
+    "field_policy": { "type": "object" },
+    "confidence_policy": {
+      "type": "object",
+      "required": ["priority_scale", "confidence_scale", "default_runtime_adjustment"],
+      "properties": {
+        "priority_scale": { "type": "string" },
+        "confidence_scale": { "type": "string" },
+        "default_runtime_adjustment": { "type": "string" },
+        "operator_reading": { "type": "string" },
+        "rules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "investigation_param_aliases": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "uniqueItems": true
+          }
+        ]
+      }
+    },
+    "trace_stage_map": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "time_windows": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": { "$ref": "#/$defs/time_window" }
+    },
+    "internal_joins": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/join" }
+    },
+    "cross_source_joins": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/join" }
+    },
+    "join_match_types": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "join_key_schema": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "time_window": {
+      "type": "object",
+      "properties": {
+        "before_minutes": { "type": "integer", "minimum": 0 },
+        "after_minutes": { "type": "integer", "minimum": 0 },
+        "before_hours": { "type": "integer", "minimum": 0 },
+        "after_hours": { "type": "integer", "minimum": 0 },
+        "use": { "type": "string" }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        { "required": ["before_minutes"] },
+        { "required": ["after_minutes"] },
+        { "required": ["before_hours"] },
+        { "required": ["after_hours"] }
+      ]
+    },
+    "join": {
+      "type": "object",
+      "required": [
+        "id",
+        "from_asset_type",
+        "to_asset_type",
+        "purpose",
+        "scenarios",
+        "skills",
+        "priority",
+        "confidence"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+        "from_asset_type": { "type": "string", "minLength": 1 },
+        "to_asset_type": { "type": "string", "minLength": 1 },
+        "join_keys": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/join_key" },
+          "minItems": 1
+        },
+        "secondary_keys": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/join_key" }
+        },
+        "path": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "anchor_keys": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/anchor_key" }
+        },
+        "time_window": { "type": "string" },
+        "priority": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "Join 调度和展示优先级，数值越高越靠前。"
+        },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "purpose": { "type": "string", "minLength": 1 },
+        "notes": { "type": "string" },
+        "scenarios": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^S[1-8]$" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "skills": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "fetch_params": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "fetch_plan": { "$ref": "#/$defs/fetch_plan" }
+      },
+      "additionalProperties": false,
+      "anyOf": [
+        { "required": ["join_keys"] },
+        { "required": ["path"] }
+      ]
+    },
+    "join_key": {
+      "type": "object",
+      "required": ["left", "right", "match"],
+      "properties": {
+        "left": { "type": "string", "minLength": 1 },
+        "right": { "type": "string", "minLength": 1 },
+        "left_variants": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "right_variants": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "match": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "path_prefix",
+            "cidr_contains",
+            "session_5tuple",
+            "hostname_to_ip_via_cmdb",
+            "dns_answer_ip"
+          ]
+        },
+        "optional": { "type": "boolean" },
+        "notes": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "anchor_key": {
+      "type": "object",
+      "properties": {
+        "from": { "type": "string" },
+        "bridge": { "type": "string" },
+        "field": { "type": "string" },
+        "field_variants": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "role": { "type": "string" }
+      },
+      "additionalProperties": false,
+      "required": ["field", "role"]
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["base", "max", "reason"],
+      "properties": {
+        "base": { "type": "number", "minimum": 0, "maximum": 1 },
+        "max": { "type": "number", "minimum": 0, "maximum": 1 },
+        "optional_key_increment": { "type": "number", "minimum": 0, "maximum": 1 },
+        "reason": { "type": "string", "minLength": 1 },
+        "signals": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "fetch_plan": {
+      "type": "object",
+      "properties": {
+        "left": { "$ref": "#/$defs/fetch_side" },
+        "right": { "$ref": "#/$defs/fetch_side" }
+      },
+      "additionalProperties": false
+    },
+    "fetch_side": {
+      "type": "object",
+      "required": ["asset_types", "template_id", "param_map"],
+      "properties": {
+        "asset_types": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "template_id": { "type": "string", "minLength": 1 },
+        "param_map": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

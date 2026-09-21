@@ -1,0 +1,294 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/data-asset.json",
+  "title": "SecWeaver DataAsset",
+  "type": "object",
+  "required": [
+    "asset_id",
+    "name",
+    "asset_type",
+    "domain",
+    "status",
+    "connector_id",
+    "schema",
+    "coverage"
+  ],
+  "properties": {
+    "asset_id": { "type": "string", "pattern": "^asset-[a-z0-9-]+$" },
+    "name": { "type": "string" },
+    "asset_type": {
+      "type": "string",
+      "enum": [
+        "waf_alert",
+        "web_access_log",
+        "host_exec",
+        "host_connect",
+        "host_file_op",
+        "host_persistence",
+		"host_process",
+		"host_socket",
+		"host_identity",
+		"host_service",
+		"host_kernel_context",
+        "windows_event_log",
+        "linux_syslog",
+        "syslog_risk_alert",
+        "ssh_auth",
+        "firewall_log",
+        "dns_log",
+        "network_traffic_audit",
+        "ids_alert",
+        "edr_event",
+        "asset_inventory",
+        "vuln_scan",
+        "db_audit",
+        "app_api_log"
+      ]
+    },
+    "domain": { "type": "string", "pattern": "^D[1-7]$" },
+    "owner_team": { "type": "string" },
+    "environment": { "enum": ["production", "staging", "development"] },
+    "status": { "enum": ["draft", "discovery", "active", "disabled"] },
+    "connector_id": { "type": "string", "pattern": "^conn-[a-z0-9-]+$" },
+    "connector_ids": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^conn-[a-z0-9-]+$" },
+      "minItems": 1,
+      "uniqueItems": true,
+      "description": "多 connector 聚合；省略时仅 fetch connector_id"
+    },
+    "aggregate": {
+      "type": "object",
+      "properties": {
+        "max_events": { "type": "integer", "minimum": 1 },
+        "dedupe_by": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^([0-9]{1,3}\\.){3}[0-9]{1,3}$|^[0-9a-fA-F:]+$"
+          },
+          "description": "日志来源主机 IP 数组；用于声明该数据源实际覆盖/上报的来源 IP，不填写 hostname、aliases、FQDN 或文字别名"
+        },
+        "zones": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "资产覆盖的逻辑区域标签；用于分组和调查范围提示"
+        },
+        "apps": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true,
+          "description": "资产覆盖的应用标识；空数组表示接入阶段尚未绑定应用"
+        }
+      },
+      "additionalProperties": false
+    },
+    "schema": {
+      "type": "object",
+      "required": ["fields", "time_field", "retention_days"],
+      "properties": {
+        "fields": { "type": "array", "items": { "type": "string" } },
+        "correlation_keys": {
+          "type": "array",
+          "items": { "type": "string" },
+          "deprecated": true,
+          "description": "已废弃：由 correlation-matrix + schema.fields 自动推导，勿手写"
+        },
+        "time_field": { "type": "string" },
+        "retention_days": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "声明后端日志运营保留天数（SLA 元数据）；完整性 Skill 校验调查窗 time_start~time_end 是否可覆盖，见 docs_dev/09-data-asset-design.md §2.3.5.1"
+        },
+        "time_correction": {
+          "type": "object",
+          "description": "fetch 归一化后对 timestamp 的时区/时钟校正；由 normalizer 在证据层应用",
+          "properties": {
+            "offset_minutes": {
+              "type": "integer",
+              "description": "归一化后在 timestamp 上加减的分钟数（时钟慢用正数，快用负数）"
+            },
+            "assume_timezone": {
+              "type": "string",
+              "description": "原始时间无时区时的解释时区：IANA（Asia/Shanghai）或固定偏移（+08:00）"
+            },
+            "reason": {
+              "type": "string",
+              "description": "运维说明，便于审计为何配置校正"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "query_template_ids": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "引用 query-templates/ 中的模板 ID"
+    },
+    "sensitivity": { "enum": ["public", "internal", "confidential", "restricted"] },
+    "masking": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "enum": ["redact", "phone", "id_card"] },
+          { "type": "string", "pattern": "^truncate_[0-9]+$" },
+          {
+            "type": "object",
+            "required": ["method"],
+            "properties": {
+              "method": {
+                "enum": ["redact", "truncate", "partial", "phone", "id_card", "idcard", "regex_replace"]
+              },
+              "limit": { "type": "integer", "minimum": 0 },
+              "keep_start": { "type": "integer", "minimum": 0 },
+              "keep_end": { "type": "integer", "minimum": 0 },
+              "mask": { "type": "string" },
+              "pattern": { "type": "string" },
+              "replacement": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        ]
+      },
+      "description": "fetch 归一化后实际执行的脱敏规则；键为字段名或点号路径，如 payload: truncate_500、request.header: { method: truncate, limit: 500 }"
+    },
+    "pii_fields": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "PII/敏感字段标注；仅用于治理/展示，不触发 runtime 脱敏；实际脱敏使用 masking"
+    },
+    "field_aliases": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "本资产级字段别名，覆盖 evidence-minimum-fields.json 全局 field_aliases（源字段 → canonical）"
+    },
+    "trace_profile_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "引用 dataasset/trace-profiles/{id}.json 声明式溯源语义模板；可与 trace_profile 内联覆盖合并"
+    },
+    "trace_profile": {
+      "$ref": "trace-profile.schema.json",
+      "description": "内联 trace_profile 片段；通常仅覆盖模板中的少量字段"
+    },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "covers_asset_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "waf_alert",
+          "web_access_log",
+          "host_exec",
+          "host_connect",
+          "host_file_op",
+          "host_persistence",
+		  "host_process",
+		  "host_socket",
+		  "host_identity",
+		  "host_service",
+		  "host_kernel_context",
+          "windows_event_log",
+          "linux_syslog",
+          "syslog_risk_alert",
+          "ssh_auth",
+          "firewall_log",
+          "dns_log",
+          "network_traffic_audit",
+          "ids_alert",
+          "edr_event",
+          "asset_inventory",
+          "vuln_scan",
+          "db_audit",
+          "app_api_log"
+        ]
+      },
+      "uniqueItems": true,
+      "description": "声明该资产在 bundle 覆盖与 Join 取数上可替代的 canonical asset_type；不得包含自身 asset_type"
+    },
+    "description": { "type": "string" },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "required_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "expected_event_type": { "type": "string" },
+        "expected_event_types": {
+          "type": "array",
+          "items": { "type": "string" },
+          "uniqueItems": true
+        },
+        "notes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false,
+      "description": "上线验收与数据质量期望；不替代 schema.fields 或 evidence minimum fields"
+    },
+    "tenant_scope": {
+      "type": "object",
+      "required": ["tenant_id"],
+      "properties": {
+        "tenant_id": { "type": ["string", "integer"] },
+        "description": { "type": "string" }
+      },
+      "additionalProperties": false,
+      "description": "私有部署的租户范围提示；真实隔离仍由查询服务端强制执行"
+    },
+    "extensions": {
+      "type": "object",
+      "description": "命名明确的厂商或部署扩展；通用字段应先进入正式 Schema",
+      "additionalProperties": true
+    },
+    "text_parser": {
+      "description": "仅当 connector 返回未解析的原始文本/JSON 字符串时填写；SLS/ES/SDK 已返回结构化字段时必须省略。值为内置 id 或 dataasset/parsers/ 下自定义 parser_id",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["syslog_auth", "nginx_combined", "json_lines", "json_lines2", "raw_only"]
+        },
+        {
+          "type": "string",
+          "minLength": 1,
+          "not": {
+            "enum": ["syslog_auth", "nginx_combined", "json_lines", "json_lines2", "raw_only"]
+          },
+          "description": "自定义 parser_id；不得与内置 parser id 重名"
+        },
+        {
+          "type": "object",
+          "required": ["line_regex"],
+          "properties": {
+            "parser_id": { "type": "string" },
+            "line_regex": { "type": "string" },
+            "timestamp_field": { "type": "string" },
+            "timestamp_formats": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

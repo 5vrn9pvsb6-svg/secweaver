@@ -1,0 +1,28 @@
+{
+  "connector_id": "conn-ssh-file-example",
+  "name": "SSH 文件日志示例连接器",
+  "connector_type": "ssh_file",
+  "status": "draft",
+  "credentials_ref": "vault://ssh/readonly-example-host",
+  "description": "示例：通过 SSH 读取远程主机上的 auth.log、syslog、nginx access 等文本日志；生产环境建议使用只读账号和命令白名单。",
+  "config": {
+    "host": "192.0.2.10",
+    "hostname": "example-host",
+    "host_id": "host-web-01",
+    "port": 22,
+    "bastion_id": "conn-ssh-bastion-dmz",
+    "transport": "sftp",
+    "log_paths": {
+      "ssh_auth": "/var/log/auth.log",
+      "linux_syslog": "/var/log/syslog",
+      "web_access_log": "/var/log/nginx/access.log"
+    }
+  },
+  "constraints": {
+    "max_file_size_mb": 100,
+    "max_lines_per_query": 10000,
+    "allowed_read_commands": ["grep", "tail", "cat"],
+    "forbidden_paths": ["/etc/shadow", "/root/.ssh"]
+  },
+  "tags": ["example", "ssh-file", "not-for-production"]
+}

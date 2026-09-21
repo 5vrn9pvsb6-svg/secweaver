@@ -1,0 +1,27 @@
+{
+  "connector_id": "conn-ssh-web-01-auth",
+  "name": "WEB-01 SSH 读 auth.log / nginx 日志",
+  "connector_type": "ssh_file",
+  "status": "draft",
+  "credentials_ref": "vault://ssh/readonly-web-01",
+  "description": "未接入 SLS 时可用；生产建议改用 conn-sls-* + agent",
+  "config": {
+    "host": "192.0.2.5",
+    "hostname": "web-01",
+    "host_id": "host-web-01",
+    "port": 22,
+    "bastion_id": "conn-ssh-bastion-dmz",
+    "transport": "sftp",
+    "log_paths": {
+      "ssh_auth": "/var/log/auth.log",
+      "web_access_log": "/var/log/nginx/access.log"
+    }
+  },
+  "constraints": {
+    "max_file_size_mb": 100,
+    "max_lines_per_query": 10000,
+    "allowed_read_commands": ["grep", "tail", "cat"],
+    "allowed_grep_patterns": ["Accepted", "Failed", "sshd", "GET", "POST"],
+    "forbidden_paths": ["/etc/shadow", "/root/.ssh"]
+  }
+}

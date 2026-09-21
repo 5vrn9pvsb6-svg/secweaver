@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# The launcher and binary share one immutable directory; mutable rollback state
+# remains under data so operators can inspect the complete installation tree.
+readonly AGENT_BIN="${SECWEAVER_AGENT_BIN:-/opt/secweaver-agent/bin/secweaver-agent}"
+readonly UPDATE_STATE_DIR="${SECWEAVER_AGENT_UPDATE_STATE_DIR:-/opt/secweaver-agent/data/update}"
+readonly HEALTH_PENDING="${UPDATE_STATE_DIR}/health.pending"
+readonly ACTIVATION_ATTEMPTED="${UPDATE_STATE_DIR}/activation.attempted"
+readonly PREVIOUS_BINARY="${UPDATE_STATE_DIR}/previous.bin"
+
+if [[ -f "${HEALTH_PENDING}" ]]; then
+  if [[ -f "${ACTIVATION_ATTEMPTED}" ]]; then
+    if [[ ! -f "${PREVIOUS_BINARY}" || -L "${PREVIOUS_BINARY}" ]]; then
+      echo "secweaver-agent automatic rollback failed: trusted previous binary is missing" >&2
+      exit 126
+    fi
+    install -m 0755 "${PREVIOUS_BINARY}" "${AGENT_BIN}.rollback"
+    mv -f "${AGENT_BIN}.rollback" "${AGENT_BIN}"
+    rm -f "${HEALTH_PENDING}" "${ACTIVATION_ATTEMPTED}"
+    echo "secweaver-agent restored the previous binary after a failed activation" >&2
+  else
+    install -d -m 0700 "${UPDATE_STATE_DIR}"
+    printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"${ACTIVATION_ATTEMPTED}"
+    chmod 0600 "${ACTIVATION_ATTEMPTED}"
+  fi
+fi
+
+exec "${AGENT_BIN}" "$@"

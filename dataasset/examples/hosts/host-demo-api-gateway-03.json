@@ -1,0 +1,30 @@
+{
+  "host_id": "host-demo-api-gateway-03",
+  "name": "Demo API Gateway 03",
+  "hostname": "demo-api-gateway-03",
+  "host_type": "gateway",
+  "host_os": "linux",
+  "host_ip": "198.51.100.24",
+  "network_id": "net-demo-log-source",
+  "aliases": [
+    "demo-api-gateway-03",
+    "198.51.100.24"
+  ],
+  "roles": [
+    "api-gateway",
+    "redirector",
+    "certificate-service"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic tertiary API gateway template.",
+  "tags": [
+    "api-gateway",
+    "certificate-service",
+    "demo",
+    "gateway",
+    "redirector",
+    "reference"
+  ]
+}

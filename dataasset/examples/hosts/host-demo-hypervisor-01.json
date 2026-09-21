@@ -1,0 +1,26 @@
+{
+  "host_id": "host-demo-hypervisor-01",
+  "name": "Demo Hypervisor 01",
+  "hostname": "demo-hypervisor-01",
+  "host_type": "server",
+  "host_os": "other",
+  "host_ip": "203.0.113.11",
+  "network_id": "net-demo-lab-core",
+  "aliases": [
+    "demo-hypervisor-01",
+    "203.0.113.11"
+  ],
+  "roles": [
+    "hypervisor"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic lab hypervisor template.",
+  "tags": [
+    "demo",
+    "hypervisor",
+    "reference",
+    "server"
+  ]
+}

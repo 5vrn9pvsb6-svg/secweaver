@@ -1,0 +1,16 @@
+{
+  "connector_id": "conn-sls-secweaver-host-state",
+  "name": "SecWeaver SLS - 主机状态快照 (/var/log/host-state-snapshot.log)",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "host-state-snapshot 统一输出；一个 Logstore 按 asset_type 区分监听端口、身份、服务和内核/容器上下文。",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "YOUR_HOST_STATE_LOGSTORE",
+    "source_log_path": "/var/log/host-state-snapshot.log"
+  },
+  "constraints": {"max_rows": 10000, "max_time_span_hours": 72, "query_language": "sls_sql"}
+}

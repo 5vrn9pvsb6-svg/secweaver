@@ -1,0 +1,23 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Redis 只读（模板）",
+  "connector_type": "redis",
+  "status": "draft",
+  "credentials_ref": "vault://redis/security-readonly",
+  "description": "Redis 只读查询模板；live fetch 需要 redis。",
+  "config": {
+    "host": "redis.example.com",
+    "port": 6379,
+    "db": 0,
+    "ssl": false
+  },
+  "constraints": {
+    "max_records_per_request": 1000,
+    "request_timeout_sec": 30
+  },
+  "tags": [
+    "template",
+    "redis",
+    "database"
+  ]
+}

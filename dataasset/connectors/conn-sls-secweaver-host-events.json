@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-sls-secweaver-host-events",
+  "name": "SecWeaver SLS - 主机命令执行审计 (/var/log/audit-port-execmon.log)",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "SecWeaver 主机事件示例；请将 project/logstore 替换为实际的阿里云 SLS 只读数据源。源文件 /var/log/audit-port-execmon.log。",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "YOUR_HOST_EVENT_LOGSTORE",
+    "source_log_path": "/var/log/audit-port-execmon.log"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72,
+    "query_language": "sls_sql"
+  }
+}

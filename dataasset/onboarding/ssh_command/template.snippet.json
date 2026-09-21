@@ -1,0 +1,20 @@
+{
+  "template_id": "YOUR_TEMPLATE_ID",
+  "asset_types": [
+    "ssh_auth"
+  ],
+  "connector_types": [
+    "ssh_command"
+  ],
+  "params": [
+    "grep_pattern",
+    "log_path",
+    "max_lines"
+  ],
+  "defaults": {
+    "grep_pattern": "ERROR|WARN|sshd",
+    "log_path": "/var/log/auth.log",
+    "max_lines": 500
+  },
+  "ssh_command": "grep -E '{grep_pattern}' {log_path} 2>/dev/null | tail -n {max_lines}"
+}

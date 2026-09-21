@@ -1,0 +1,15 @@
+{
+  "network_id": "net-demo-log-source",
+  "name": "Demo Log Source 198.51.100.0/27",
+  "cidr": "198.51.100.0/27",
+  "zone": "demo_cloud",
+  "network_type": "production",
+  "trust_level": "internal",
+  "status": "draft",
+  "description": "Synthetic log-source network template for public examples.",
+  "tags": [
+    "demo",
+    "log-source",
+    "reference"
+  ]
+}

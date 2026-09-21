@@ -1,0 +1,114 @@
+{
+  "version": "1.1",
+  "engine": "chain",
+  "owner": "security-ops",
+  "description": "host_connect 检测层规则。运营可调整端口/网段列表与 rules[] 判定逻辑。",
+  "_doc": "rules[] 按顺序评估；verdicts/actions 仅影响检测层输出，告警由 behavior-policy.md 决定。",
+  "severity_rank": {
+    "P0": 0,
+    "P1": 1,
+    "P2": 2,
+    "P3": 3
+  },
+  "web_ports": [80, 443, 8080, 8443, 8000, 8888],
+  "web_listener_processes": ["nginx", "php-fpm", "httpd", "apache"],
+  "private_cidrs": ["10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
+  "suspicious_ports": [4444, 5555, 1337, 31337, 9001, 6666, 1234],
+  "common_service_ports": [3306, 6379, 5432, 27017, 389, 636, 53, 443, 80],
+  "when_extensions": {},
+  "exec_download_pattern": "\\b(curl|wget|fetch)\\b",
+  "exec_download_flags": "i",
+  "rules": [
+    {
+      "id": "external_c2_connect",
+      "severity": "P0",
+      "enabled": true,
+      "note": "Web 监听进程主动外连公网",
+      "when": {
+        "web_context": true,
+        "dst_private": false
+      }
+    },
+    {
+      "id": "suspicious_port_connect",
+      "severity": "P0",
+      "enabled": true,
+      "note": "Web 上下文内连内网可疑端口",
+      "when": {
+        "web_context": true,
+        "dst_private": true,
+        "dst_port_in": "suspicious_ports"
+      }
+    },
+    {
+      "id": "suspicious_port_connect",
+      "severity": "P1",
+      "enabled": true,
+      "note": "非 P0 场景下的可疑端口外连",
+      "when": {
+        "dst_port_in": "suspicious_ports",
+        "severity_worse_than": "P0"
+      }
+    },
+    {
+      "id": "exec_correlated_egress",
+      "severity": "P1",
+      "enabled": true,
+      "note": "同窗 host_exec 含 curl/wget 下载",
+      "when": {
+        "exec_download_nearby": true,
+        "severity_worse_than": "P0"
+      },
+      "keep_severity_if": "P0"
+    },
+    {
+      "id": "business_whitelist_connect",
+      "severity": "P3",
+      "enabled": true,
+      "note": "内网常见业务端口、且无更高优先级命中",
+      "when": {
+        "no_matched_rules": true,
+        "dst_private": true,
+        "dst_port_in": "common_service_ports"
+      }
+    },
+    {
+      "id": "non_whitelist_egress",
+      "severity": "P2",
+      "enabled": true,
+      "note": "未命中上述规则的外连公网",
+      "when": {
+        "no_matched_rules": true,
+        "dst_private": false
+      }
+    }
+  ],
+  "risk_tags": {
+    "external_c2_connect": ["command_and_control", "active_connect"],
+    "suspicious_port_connect": ["command_and_control"],
+    "exec_correlated_egress": ["network_activity", "active_connect"],
+    "non_whitelist_egress": ["network_activity"],
+    "business_whitelist_connect": ["noise"]
+  },
+  "verdicts": {
+    "P0": "confirmed_attack",
+    "P1": "suspicious",
+    "P2": "suspicious",
+    "P3": "likely_false_positive",
+    "business_whitelist": "benign"
+  },
+  "actions": {
+    "P0": "isolate_host_and_investigate",
+    "P1": "manual_review_5m",
+    "P2": "observe",
+    "P3": "log_only"
+  },
+  "confidence_base": {
+    "P0": 0.86,
+    "P1": 0.75,
+    "P2": 0.55,
+    "P3": 0.42,
+    "exec_correlated_bonus": 0.1,
+    "chain_bonus": 0.06
+  }
+}

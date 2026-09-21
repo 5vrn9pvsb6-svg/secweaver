@@ -1,0 +1,19 @@
+{
+  "connector_id": "conn-sls-gw-prod",
+  "name": "SLS - 网关访问日志 (YOUR_SLS_PROJECT / YOUR_GATEWAY_ACCESS_LOGSTORE)",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "阿里云 SLS 网关访问日志示例；发布版本仅保留 project/logstore 占位符和只读凭证引用。",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "YOUR_GATEWAY_ACCESS_LOGSTORE"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72,
+    "query_language": "sls_sql"
+  }
+}

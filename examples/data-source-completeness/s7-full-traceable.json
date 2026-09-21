@@ -1,0 +1,62 @@
+{
+  "investigation_intent": "主机 db-01 疑似向外传输数据，检查文件、外连、DNS、流量体量和命令证据",
+  "scenarios": ["S7"],
+  "params": {
+    "host": "db-01",
+    "time_start": "2026-06-24T01:00:00+08:00",
+    "time_end": "2026-06-24T05:00:00+08:00"
+  },
+  "registered_assets": [
+    {
+      "asset_id": "asset-host-connect-db",
+      "name": "数据库主机主动连接",
+      "type": "host_connect",
+      "domain": "D2",
+      "fields": ["host", "dst_ip", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-host-file-db",
+      "name": "数据库主机文件操作",
+      "type": "host_file_op",
+      "domain": "D2",
+      "fields": ["host", "path", "action", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-dns-internal",
+      "name": "内网 DNS 查询",
+      "type": "dns_log",
+      "domain": "D1",
+      "fields": ["client_ip", "query", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-nta-egress",
+      "name": "出口全流量审计",
+      "type": "network_traffic_audit",
+      "domain": "D3",
+      "fields": ["src_ip", "dst_ip", "bytes", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-host-exec-db",
+      "name": "数据库主机命令执行",
+      "type": "host_exec",
+      "domain": "D2",
+      "fields": ["host", "command", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    }
+  ],
+  "_meta": {
+    "scenario_label": "S7 数据外传调查数据源齐全",
+    "expected_overall_verdict": "full_traceable",
+    "expected_next_skill_blocked": false,
+    "expected_next_skill": "traceability_analysis"
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/connector-catalog.json",
+  "title": "SecWeaver Built-in Connector Catalog",
+  "type": "object",
+  "required": ["version", "format_version", "description", "connectors"],
+  "properties": {
+    "version": { "type": "string", "minLength": 1 },
+    "format_version": { "const": "2.0" },
+    "description": { "type": "string", "minLength": 1 },
+    "connectors": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "pattern": "^[a-z][a-z0-9_]*$" },
+      "additionalProperties": { "$ref": "#/$defs/connector" }
+    }
+  },
+  "$defs": {
+    "connector": {
+      "type": "object",
+      "required": [
+        "source",
+        "query_key",
+        "runtime",
+        "dependency_hint",
+        "dependency_hint_zh",
+        "packages",
+        "execution_order",
+        "missing_dependency",
+        "onboarding_template",
+        "onboarding_profile"
+      ],
+      "properties": {
+        "source": { "const": "built_in" },
+        "query_key": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "runtime": {
+          "enum": ["live_fetch", "local_or_external_executor", "live_or_external_executor"]
+        },
+        "description": { "type": "string" },
+        "dependency_hint": { "type": "string", "minLength": 1 },
+        "dependency_hint_zh": { "type": "string", "minLength": 1 },
+        "packages": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "execution_order": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+          "uniqueItems": true
+        },
+        "missing_dependency": { "type": "string", "minLength": 1 },
+        "onboarding_template": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "onboarding_profile": { "$ref": "#/$defs/onboardingProfile" }
+      },
+      "additionalProperties": false
+    },
+    "onboardingProfile": {
+      "type": "object",
+      "required": ["label", "fields", "required", "defaults", "default_asset_type", "template_params", "template_defaults", "default_query", "hint"],
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "fields": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, "uniqueItems": true },
+        "required": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, "uniqueItems": true },
+        "defaults": { "type": "object" },
+        "default_asset_type": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+        "template_params": { "type": "array", "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }, "uniqueItems": true },
+        "template_defaults": { "type": "object" },
+        "default_query": { "type": "string", "minLength": 1 },
+        "hint": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

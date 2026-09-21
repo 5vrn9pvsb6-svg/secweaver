@@ -1,0 +1,975 @@
+{
+  "version": "1.0",
+  "format_version": "2.0",
+  "description": "Single source for built-in connector runtime, dependency, onboarding template, and Studio profile metadata.",
+  "connectors": {
+    "sls": {
+      "source": "built_in",
+      "query_key": "sls_query",
+      "runtime": "live_fetch",
+      "dependency_hint": "Core dependency: aliyun-log-python-sdk.",
+      "dependency_hint_zh": "核心依赖：aliyun-log-python-sdk。",
+      "packages": [
+        "aliyun-log-python-sdk"
+      ],
+      "execution_order": [
+        "aliyun_sls_sdk"
+      ],
+      "missing_dependency": "Install requirements-data-access.txt or aliyun-log-python-sdk.",
+      "onboarding_template": "sls",
+      "onboarding_profile": {
+        "label": "Aliyun SLS",
+        "fields": [
+          "project",
+          "logstore",
+          "endpoint",
+          "region",
+          "host_id"
+        ],
+        "required": [
+          "project",
+          "logstore",
+          "endpoint"
+        ],
+        "defaults": {
+          "project": "YOUR_SLS_PROJECT",
+          "logstore": "YOUR_LOGSTORE",
+          "endpoint": "cn-hangzhou.log.aliyuncs.com",
+          "region": "cn-hangzhou"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "target_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "(src_ip: {src_ip} OR client_ip: {src_ip}) | select * limit {limit}",
+        "hint": "适合阿里云 SLS 日志；填写 project、logstore 和 endpoint 后即可预览。"
+      }
+    },
+    "sls_proxy": {
+      "source": "built_in",
+      "query_key": "sls_query",
+      "runtime": "live_fetch",
+      "dependency_hint": "Core dependency: aliyun-log-python-sdk; optional project and logstore select authorized resources. Region and upstream credentials remain server-managed.",
+      "dependency_hint_zh": "核心依赖：aliyun-log-python-sdk；可选 project 与 logstore 选择获授权资源；region 和上游凭证由 SaaS 管理。",
+      "packages": [
+        "aliyun-log-python-sdk"
+      ],
+      "execution_order": [
+        "aliyun_sls_sdk",
+        "secweaver_sls_proxy"
+      ],
+      "missing_dependency": "Install requirements-data-access.txt or aliyun-log-python-sdk.",
+      "onboarding_template": "sls_proxy",
+      "onboarding_profile": {
+        "label": "SecWeaver SLS Proxy",
+        "fields": [
+          "project",
+          "logstore",
+          "endpoint",
+          "fallback_endpoint",
+          "host_id"
+        ],
+        "required": [
+          "logstore",
+          "endpoint"
+        ],
+        "defaults": {
+          "project": "",
+          "logstore": "YOUR_LOGSTORE",
+          "endpoint": "https://sls-proxy.id-net.cn:30443",
+          "fallback_endpoint": "https://sls-proxy.id-net.cn:30443"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "target_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "(src_ip: {src_ip} OR client_ip: {src_ip}) | select * limit {limit}",
+        "hint": "填写获授权的 project 和 logstore；project 留空使用服务端默认 Project。显式 Project 需要支持多 Project 的 Proxy；region 和上游凭据仍由服务端管理。默认 HTTPS 30443，无独立备用入口。"
+      }
+    },
+    "ssh_file": {
+      "source": "built_in",
+      "query_key": "ssh_command",
+      "runtime": "live_fetch",
+      "dependency_hint": "Core dependency: paramiko.",
+      "dependency_hint_zh": "核心依赖：paramiko。",
+      "packages": [
+        "paramiko"
+      ],
+      "execution_order": [
+        "paramiko_ssh"
+      ],
+      "missing_dependency": "Install requirements-data-access.txt or paramiko.",
+      "onboarding_template": "ssh_file",
+      "onboarding_profile": {
+        "label": "SSH log file",
+        "fields": [
+          "host",
+          "host_id",
+          "port"
+        ],
+        "required": [
+          "host"
+        ],
+        "defaults": {
+          "host": "YOUR_HOST",
+          "port": 22
+        },
+        "default_asset_type": "ssh_auth",
+        "template_params": [
+          "grep_pattern",
+          "max_lines"
+        ],
+        "template_defaults": {
+          "grep_pattern": "sshd",
+          "max_lines": 200
+        },
+        "default_query": "grep -E '{grep_pattern}' /var/log/auth.log | tail -n {max_lines}",
+        "hint": "适合通过 SSH 只读日志文件。"
+      }
+    },
+    "ssh_command": {
+      "source": "built_in",
+      "query_key": "ssh_command",
+      "runtime": "live_fetch",
+      "dependency_hint": "Core dependency: paramiko.",
+      "dependency_hint_zh": "核心依赖：paramiko。",
+      "packages": [
+        "paramiko"
+      ],
+      "execution_order": [
+        "paramiko_ssh"
+      ],
+      "missing_dependency": "Install requirements-data-access.txt or paramiko.",
+      "onboarding_template": "ssh_command",
+      "onboarding_profile": {
+        "label": "SSH command",
+        "fields": [
+          "host",
+          "host_id",
+          "port"
+        ],
+        "required": [
+          "host"
+        ],
+        "defaults": {
+          "host": "YOUR_HOST",
+          "port": 22
+        },
+        "default_asset_type": "linux_syslog",
+        "template_params": [
+          "grep_pattern",
+          "max_lines"
+        ],
+        "template_defaults": {
+          "grep_pattern": "error|failed|accepted",
+          "max_lines": 200
+        },
+        "default_query": "journalctl --no-pager | grep -E '{grep_pattern}' | tail -n {max_lines}",
+        "hint": "适合受控只读命令采集。"
+      }
+    },
+    "agent_stream": {
+      "source": "built_in",
+      "query_key": "stream_query",
+      "runtime": "local_or_external_executor",
+      "dependency_hint": "No vendor SDK; local samples, external executor, or planned metadata.",
+      "dependency_hint_zh": "不绑定厂商 SDK；支持本地样本、外部执行器或 planned metadata。",
+      "packages": [],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "planned_metadata"
+      ],
+      "missing_dependency": "Configure sample_file/sample_dir or connector.config.endpoint for live data.",
+      "onboarding_template": "agent_stream",
+      "onboarding_profile": {
+        "label": "Agent stream",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "stream where src_ip = '{src_ip}' limit {limit}",
+        "hint": "适合配置型新 connector_type；query key 来自 external-connectors.json。"
+      }
+    },
+    "database_ro": {
+      "source": "built_in",
+      "query_key": "sql",
+      "runtime": "live_fetch",
+      "dependency_hint": "MySQL/PostgreSQL drivers are core; Oracle/SQL Server drivers are lazy optional; SQLite uses stdlib.",
+      "dependency_hint_zh": "MySQL/PostgreSQL 驱动为核心依赖；Oracle/SQL Server 驱动 lazy import；SQLite 使用标准库。",
+      "packages": [
+        "pymysql",
+        "psycopg[binary]",
+        "oracledb (optional)",
+        "pyodbc (optional)"
+      ],
+      "execution_order": [
+        "select_only_driver",
+        "sqlite_stdlib"
+      ],
+      "missing_dependency": "Install the engine-specific driver named in the error message.",
+      "onboarding_template": "database_ro",
+      "onboarding_profile": {
+        "label": "Read-only database",
+        "fields": [
+          "engine",
+          "host",
+          "port",
+          "database",
+          "path",
+          "driver",
+          "connection_string"
+        ],
+        "required": [
+          "engine"
+        ],
+        "defaults": {
+          "engine": "mysql",
+          "host": "db.example.com",
+          "port": 3306,
+          "database": "security_logs"
+        },
+        "default_asset_type": "db_audit",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "select * from security_events where src_ip = :src_ip limit :limit",
+        "hint": "支持 MySQL、PostgreSQL、Oracle/PLSQL、SQL Server 和 SQLite；SQLite 填 path。"
+      }
+    },
+    "http_api": {
+      "source": "built_in",
+      "query_key": "http",
+      "runtime": "live_fetch",
+      "dependency_hint": "No vendor SDK; uses HTTP/REST.",
+      "dependency_hint_zh": "不需要厂商 SDK；使用 HTTP/REST。",
+      "packages": [],
+      "execution_order": [
+        "http_rest"
+      ],
+      "missing_dependency": "No SDK required.",
+      "onboarding_template": "http_api",
+      "onboarding_profile": {
+        "label": "HTTP API",
+        "fields": [
+          "base_url"
+        ],
+        "required": [
+          "base_url"
+        ],
+        "defaults": {
+          "base_url": "https://api.example.com"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "GET /events?src_ip={src_ip}&limit={limit}",
+        "hint": "适合已有 HTTP 查询接口。"
+      }
+    },
+    "es": {
+      "source": "built_in",
+      "query_key": "es_query",
+      "runtime": "live_fetch",
+      "dependency_hint": "No Elasticsearch SDK; uses the HTTP-compatible query API.",
+      "dependency_hint_zh": "不需要 Elasticsearch SDK；使用 HTTP 兼容查询 API。",
+      "packages": [],
+      "execution_order": [
+        "http_rest"
+      ],
+      "missing_dependency": "No SDK required.",
+      "onboarding_template": "es",
+      "onboarding_profile": {
+        "label": "Elasticsearch",
+        "fields": [
+          "url",
+          "index"
+        ],
+        "required": [
+          "url",
+          "index"
+        ],
+        "defaults": {
+          "url": "https://es.example.com:9200",
+          "index": "security-*"
+        },
+        "default_asset_type": "web_access_log",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "{\"query\":{\"bool\":{\"filter\":[{\"term\":{\"src_ip\":\"{src_ip}\"}}]}},\"size\":{limit}}",
+        "hint": "适合 Elasticsearch/OpenSearch 兼容查询。"
+      }
+    },
+    "local_file": {
+      "source": "built_in",
+      "query_key": "local_file_command",
+      "runtime": "live_fetch",
+      "dependency_hint": "No SDK; uses Python stdlib local file access.",
+      "dependency_hint_zh": "不需要 SDK；使用 Python 标准库读取本地文件。",
+      "packages": [],
+      "execution_order": [
+        "local_file"
+      ],
+      "missing_dependency": "No SDK required.",
+      "onboarding_template": "local_file",
+      "onboarding_profile": {
+        "label": "Local file",
+        "fields": [
+          "base_path",
+          "host"
+        ],
+        "required": [
+          "base_path"
+        ],
+        "defaults": {
+          "base_path": "examples/log-format-discovery"
+        },
+        "default_asset_type": "web_access_log",
+        "template_params": [
+          "grep_pattern",
+          "max_lines"
+        ],
+        "template_defaults": {
+          "grep_pattern": ".*",
+          "max_lines": 200
+        },
+        "default_query": "grep -E '{grep_pattern}' {base_path}/*.sample | tail -n {max_lines}",
+        "hint": "适合离线样本、PoC 和本地文件目录。"
+      }
+    },
+    "syslog_ingest": {
+      "source": "built_in",
+      "query_key": "syslog_query",
+      "runtime": "local_or_external_executor",
+      "dependency_hint": "No vendor SDK; local samples, external executor, or planned metadata.",
+      "dependency_hint_zh": "不绑定厂商 SDK；支持本地样本、外部执行器或 planned metadata。",
+      "packages": [],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "planned_metadata"
+      ],
+      "missing_dependency": "Configure sample_file/sample_dir or connector.config.endpoint for live data.",
+      "onboarding_template": "syslog_ingest",
+      "onboarding_profile": {
+        "label": "Syslog ingest",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "linux_syslog",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "src_ip:{src_ip} limit {limit}",
+        "hint": "适合配置型新 connector_type；query key 来自 external-connectors.json。"
+      }
+    },
+    "object_storage": {
+      "source": "built_in",
+      "query_key": "object_query",
+      "runtime": "local_or_external_executor",
+      "dependency_hint": "No vendor SDK; local samples, external executor, or planned metadata.",
+      "dependency_hint_zh": "不绑定厂商 SDK；支持本地样本、外部执行器或 planned metadata。",
+      "packages": [],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "planned_metadata"
+      ],
+      "missing_dependency": "Configure sample_file/sample_dir, local bucket/prefix, or connector.config.endpoint.",
+      "onboarding_template": "object_storage",
+      "onboarding_profile": {
+        "label": "Object storage",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "web_access_log",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "{\"prefix\":\"logs/\",\"filter\":{\"src_ip\":\"{src_ip}\"},\"limit\":{limit}}",
+        "hint": "适合配置型新 connector_type；query key 来自 external-connectors.json。"
+      }
+    },
+    "aws_cloudwatch": {
+      "source": "built_in",
+      "query_key": "cloudwatch_query",
+      "runtime": "live_or_external_executor",
+      "dependency_hint": "Optional lazy SDK: boto3. Core falls back to SigV4 REST or an external executor.",
+      "dependency_hint_zh": "可选 lazy SDK：boto3；核心可走 SigV4 REST fallback 或外部执行器。",
+      "packages": [
+        "boto3 (optional)"
+      ],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "boto3",
+        "sigv4_rest",
+        "planned_metadata"
+      ],
+      "missing_dependency": "boto3 is optional; without it SecWeaver tries REST fallback when credentials are present.",
+      "onboarding_template": "aws_cloudwatch",
+      "onboarding_profile": {
+        "label": "AWS CloudWatch Logs",
+        "fields": [
+          "executor_endpoint",
+          "region",
+          "log_group",
+          "log_stream_prefix",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [
+          "region",
+          "log_group"
+        ],
+        "defaults": {
+          "region": "ap-southeast-1",
+          "log_group": "/aws/cloudtrail/organization",
+          "log_stream_prefix": "2026/"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "fields @timestamp, @message | filter sourceIPAddress = '{src_ip}' | sort @timestamp desc | limit {limit}",
+        "hint": "核心包不内置 boto3；可接 examples/executors/aws_cloudwatch_executor.py。"
+      }
+    },
+    "aws_s3_logs": {
+      "source": "built_in",
+      "query_key": "object_query",
+      "runtime": "live_or_external_executor",
+      "dependency_hint": "Optional lazy SDK: boto3. Local samples and external executors are supported.",
+      "dependency_hint_zh": "可选 lazy SDK：boto3；支持本地样本和外部执行器。",
+      "packages": [
+        "boto3 (optional)"
+      ],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "boto3",
+        "planned_metadata"
+      ],
+      "missing_dependency": "boto3 is optional; configure sample_file/sample_dir or install boto3 for live S3 fetch.",
+      "onboarding_template": "aws_s3_logs",
+      "onboarding_profile": {
+        "label": "AWS S3 logs",
+        "fields": [
+          "bucket",
+          "prefix",
+          "region",
+          "executor_endpoint",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [
+          "bucket"
+        ],
+        "defaults": {
+          "bucket": "YOUR_BUCKET",
+          "prefix": "AWSLogs/",
+          "region": "ap-southeast-1"
+        },
+        "default_asset_type": "web_access_log",
+        "template_params": [
+          "src_ip",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "{\"prefix\":\"logs/\",\"filter\":{\"src_ip\":\"{src_ip}\"},\"limit\":{limit}}",
+        "hint": "填写 S3 bucket；prefix 可限制扫描范围，region 未填写时使用凭证或 SDK 默认区域。"
+      }
+    },
+    "azure_monitor": {
+      "source": "built_in",
+      "query_key": "kql",
+      "runtime": "live_or_external_executor",
+      "dependency_hint": "No Azure SDK by default; uses external executor or Log Analytics REST.",
+      "dependency_hint_zh": "默认不安装 Azure SDK；可走外部执行器或 Log Analytics REST。",
+      "packages": [],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "oauth_rest",
+        "planned_metadata"
+      ],
+      "missing_dependency": "Provide token/client credentials or wrap Azure SDK in an external executor/plugin.",
+      "onboarding_template": "azure_monitor",
+      "onboarding_profile": {
+        "label": "Azure Monitor",
+        "fields": [
+          "workspace_id",
+          "tenant_id",
+          "endpoint",
+          "executor_endpoint",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [
+          "workspace_id"
+        ],
+        "defaults": {
+          "workspace_id": "YOUR_WORKSPACE_ID"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "AzureDiagnostics | where SourceIP == '{src_ip}' | take {limit}",
+        "hint": "填写 Log Analytics workspace_id；tenant_id 仅在凭证或租户流程需要时填写。"
+      }
+    },
+    "gcp_logging": {
+      "source": "built_in",
+      "query_key": "gcp_logging_filter",
+      "runtime": "live_or_external_executor",
+      "dependency_hint": "Optional lazy dependency: google-auth for service-account token flow.",
+      "dependency_hint_zh": "可选 lazy 依赖：google-auth，用于 service-account token flow。",
+      "packages": [
+        "google-auth (optional)"
+      ],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "token_or_google_auth",
+        "cloud_logging_rest",
+        "planned_metadata"
+      ],
+      "missing_dependency": "Pre-issued token needs no SDK; service-account flow needs google-auth.",
+      "onboarding_template": "gcp_logging",
+      "onboarding_profile": {
+        "label": "GCP Logging",
+        "fields": [
+          "project_id",
+          "executor_endpoint",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [
+          "project_id"
+        ],
+        "defaults": {
+          "project_id": "YOUR_GCP_PROJECT"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "jsonPayload.src_ip=\"{src_ip}\"",
+        "hint": "填写 GCP project_id；多资源范围等高级设置可通过 connector.config 覆盖。"
+      }
+    },
+    "tencent_cls": {
+      "source": "built_in",
+      "query_key": "cls_query",
+      "runtime": "live_or_external_executor",
+      "dependency_hint": "No Tencent Cloud SDK by default; uses TC3-signed REST.",
+      "dependency_hint_zh": "默认不安装腾讯云 SDK；使用 TC3 签名 REST。",
+      "packages": [],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "tc3_rest",
+        "planned_metadata"
+      ],
+      "missing_dependency": "No SDK required; configure credentials or use an external executor/plugin.",
+      "onboarding_template": "tencent_cls",
+      "onboarding_profile": {
+        "label": "Tencent CLS",
+        "fields": [
+          "endpoint",
+          "region",
+          "topic_id",
+          "executor_endpoint",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [
+          "endpoint",
+          "topic_id"
+        ],
+        "defaults": {
+          "endpoint": "cls.tencentcloudapi.com",
+          "region": "ap-guangzhou",
+          "topic_id": "YOUR_TOPIC_ID"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "src_ip:{src_ip} | limit {limit}",
+        "hint": "填写 CLS endpoint 与 topic_id；region 用于请求签名。"
+      }
+    },
+    "huawei_lts": {
+      "source": "built_in",
+      "query_key": "lts_query",
+      "runtime": "live_or_external_executor",
+      "dependency_hint": "No Huawei SDK by default; uses token/AKSK REST.",
+      "dependency_hint_zh": "默认不安装华为云 SDK；使用 token/AKSK REST。",
+      "packages": [],
+      "execution_order": [
+        "local_sample",
+        "external_executor",
+        "token_or_aksk_rest",
+        "planned_metadata"
+      ],
+      "missing_dependency": "No SDK required; configure credentials or use an external executor/plugin.",
+      "onboarding_template": "huawei_lts",
+      "onboarding_profile": {
+        "label": "Huawei LTS",
+        "fields": [
+          "endpoint",
+          "region",
+          "project_id",
+          "log_group_id",
+          "log_stream_id",
+          "executor_endpoint",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [
+          "endpoint",
+          "log_group_id",
+          "log_stream_id"
+        ],
+        "defaults": {
+          "endpoint": "https://lts.cn-north-4.myhuaweicloud.com",
+          "region": "cn-north-4",
+          "project_id": "YOUR_PROJECT_ID",
+          "log_group_id": "YOUR_LOG_GROUP_ID",
+          "log_stream_id": "YOUR_LOG_STREAM_ID"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "src_ip:{src_ip} | limit {limit}",
+        "hint": "填写 HTTPS endpoint、log_group_id 与 log_stream_id；project_id 可由凭证或配置提供。"
+      }
+    },
+    "splunk": {
+      "source": "built_in",
+      "query_key": "splunk_search",
+      "runtime": "live_fetch",
+      "dependency_hint": "No Splunk SDK; uses Splunk Search REST API.",
+      "dependency_hint_zh": "不需要 Splunk SDK；使用 Splunk Search REST API。",
+      "packages": [],
+      "execution_order": [
+        "http_rest"
+      ],
+      "missing_dependency": "No SDK required.",
+      "onboarding_template": "splunk",
+      "onboarding_profile": {
+        "label": "Splunk",
+        "fields": [
+          "base_url",
+          "index"
+        ],
+        "required": [
+          "base_url",
+          "index"
+        ],
+        "defaults": {
+          "base_url": "https://splunk.example.com:8089",
+          "index": "security"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "search index=security src_ip={src_ip} | head {limit}",
+        "hint": "适合 Splunk Search API。"
+      }
+    },
+    "clickhouse": {
+      "source": "built_in",
+      "query_key": "sql",
+      "runtime": "live_fetch",
+      "dependency_hint": "Optional lazy driver: clickhouse-connect.",
+      "dependency_hint_zh": "可选 lazy driver：clickhouse-connect。",
+      "packages": [
+        "clickhouse-connect (optional)"
+      ],
+      "execution_order": [
+        "clickhouse_connect_driver"
+      ],
+      "missing_dependency": "Install clickhouse-connect for live ClickHouse fetch.",
+      "onboarding_template": "clickhouse",
+      "onboarding_profile": {
+        "label": "ClickHouse",
+        "fields": [
+          "host",
+          "port",
+          "database",
+          "secure"
+        ],
+        "required": [
+          "host",
+          "database"
+        ],
+        "defaults": {
+          "host": "clickhouse.example.com",
+          "port": 9000,
+          "database": "security"
+        },
+        "default_asset_type": "web_access_log",
+        "template_params": [
+          "src_ip",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "select * from web_access where src_ip = '{src_ip}' limit {limit}",
+        "hint": "适合 ClickHouse 审计/日志仓库。"
+      }
+    },
+    "hive": {
+      "source": "built_in",
+      "query_key": "sql",
+      "runtime": "live_fetch",
+      "dependency_hint": "Optional lazy driver: PyHive.",
+      "dependency_hint_zh": "可选 lazy driver：PyHive。",
+      "packages": [
+        "PyHive (optional)"
+      ],
+      "execution_order": [
+        "pyhive_driver"
+      ],
+      "missing_dependency": "Install PyHive and its transport dependencies for live Hive fetch.",
+      "onboarding_template": "hive",
+      "onboarding_profile": {
+        "label": "Hive",
+        "fields": [
+          "host",
+          "port",
+          "database"
+        ],
+        "required": [
+          "host",
+          "database"
+        ],
+        "defaults": {
+          "host": "hive.example.com",
+          "port": 10000,
+          "database": "security"
+        },
+        "default_asset_type": "web_access_log",
+        "template_params": [
+          "src_ip",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "select * from web_access where src_ip = '{src_ip}' limit {limit}",
+        "hint": "适合 Hive/数据湖查询。"
+      }
+    },
+    "mongodb": {
+      "source": "built_in",
+      "query_key": "mongo_query",
+      "runtime": "live_fetch",
+      "dependency_hint": "Optional lazy driver: pymongo.",
+      "dependency_hint_zh": "可选 lazy driver：pymongo。",
+      "packages": [
+        "pymongo (optional)"
+      ],
+      "execution_order": [
+        "pymongo_driver"
+      ],
+      "missing_dependency": "Install pymongo for live MongoDB fetch.",
+      "onboarding_template": "mongodb",
+      "onboarding_profile": {
+        "label": "MongoDB",
+        "fields": [
+          "host",
+          "port",
+          "database",
+          "collection",
+          "auth_source"
+        ],
+        "required": [
+          "database",
+          "collection"
+        ],
+        "defaults": {
+          "host": "mongodb.example.com",
+          "port": 27017,
+          "database": "security_logs",
+          "collection": "events",
+          "auth_source": "admin"
+        },
+        "default_asset_type": "web_access_log",
+        "template_params": [
+          "src_ip",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "{\"collection\":\"events\",\"filter\":{\"src_ip\":\"{src_ip}\"},\"projection\":{\"_id\":0},\"limit\":{limit}}",
+        "hint": "适合文档型日志；mongo_query 必须是 JSON object。"
+      }
+    },
+    "redis": {
+      "source": "built_in",
+      "query_key": "redis_query",
+      "runtime": "live_fetch",
+      "dependency_hint": "Optional lazy driver: redis.",
+      "dependency_hint_zh": "可选 lazy driver：redis。",
+      "packages": [
+        "redis (optional)"
+      ],
+      "execution_order": [
+        "redis_driver"
+      ],
+      "missing_dependency": "Install redis for live Redis fetch.",
+      "onboarding_template": "redis",
+      "onboarding_profile": {
+        "label": "Redis",
+        "fields": [
+          "host",
+          "port",
+          "db",
+          "ssl"
+        ],
+        "required": [
+          "host"
+        ],
+        "defaults": {
+          "host": "redis.example.com",
+          "port": 6379,
+          "db": 0,
+          "ssl": false
+        },
+        "default_asset_type": "asset_inventory",
+        "template_params": [
+          "key_pattern",
+          "limit"
+        ],
+        "template_defaults": {
+          "key_pattern": "security:*",
+          "limit": 1000
+        },
+        "default_query": "{\"command\":\"SCAN\",\"match\":\"{key_pattern}\",\"count\":100,\"limit\":{limit}}",
+        "hint": "适合只读 key/哈希/列表扫描；执行器只允许安全读命令。"
+      }
+    }
+  }
+}

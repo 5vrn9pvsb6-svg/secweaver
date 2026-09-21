@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/behavior-policy-rules.json",
+  "title": "SecWeaver BehaviorPolicyRules",
+  "description": "Machine-readable policy rules for risk-identification CLI/CI. Natural-language authority remains behavior-policy.md; this pack is interpreted by policy_engine.py.",
+  "type": "object",
+  "required": ["version", "policy_id", "default_behavior", "rules"],
+  "properties": {
+    "version": { "type": "string" },
+    "policy_id": { "type": "string" },
+    "description": { "type": "string" },
+    "md_authority": {
+      "type": "string",
+      "description": "Path to behavior-policy.md (documentation sync)"
+    },
+    "predicates": {
+      "type": "object",
+      "description": "Named condition trees reusable via {\"predicate\": \"name\"}; ops-editable without Python",
+      "additionalProperties": { "$ref": "#/$defs/condition" }
+    },
+    "default_behavior": {
+      "type": "object",
+      "required": ["rules"],
+      "properties": {
+        "rules": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/defaultRule" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "rules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/policyRule" },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "condition": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["all"],
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/condition" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["any"],
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/condition" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["not"],
+          "properties": {
+            "not": { "$ref": "#/$defs/condition" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["risk_module"],
+          "properties": {
+            "risk_module": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["matched_rules_any"],
+          "properties": {
+            "matched_rules_any": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["matched_rules_all"],
+          "properties": {
+            "matched_rules_all": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["command_regex"],
+          "properties": {
+            "command_regex": { "type": "string" },
+            "flags": { "type": "string", "default": "i" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["command_contains"],
+          "properties": {
+            "command_contains": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["event_type"],
+          "properties": {
+            "event_type": {
+              "oneOf": [
+                { "type": "string" },
+                { "type": "array", "items": { "type": "string" } }
+              ]
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["predicate"],
+          "properties": {
+            "predicate": {
+              "type": "string",
+              "description": "Named predicate from pack.predicates"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["dst_port_in"],
+          "properties": {
+            "dst_port_in": {
+              "type": "array",
+              "items": { "type": "integer" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["dst_ip_in"],
+          "properties": {
+            "dst_ip_in": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["severity_in"],
+          "properties": {
+            "severity_in": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["field_equals"],
+          "properties": {
+            "field_equals": {
+              "type": "object",
+              "required": ["field", "value"],
+              "properties": {
+                "field": { "type": "string" },
+                "value": {
+                  "oneOf": [
+                    { "type": "string" },
+                    { "type": "number" },
+                    { "type": "boolean" },
+                    { "type": "array", "items": { "type": "string" } }
+                  ]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["field_regex"],
+          "properties": {
+            "field_regex": {
+              "type": "object",
+              "required": ["field", "pattern"],
+              "properties": {
+                "field": { "type": "string" },
+                "pattern": { "type": "string" },
+                "flags": { "type": "string" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "const": "guardrail_matched" },
+            "matched_rules_any": {
+              "type": "array",
+              "items": { "type": "string" },
+              "minItems": 1
+            },
+            "skip_persistence_when": {
+              "type": "object",
+              "properties": {
+                "matched_rule": { "type": "string" },
+                "unless_predicates_any": {
+                  "type": "array",
+                  "items": { "type": "string" }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "decision": {
+      "type": "object",
+      "required": ["severity", "alert_required", "verdict", "recommended_action", "reason"],
+      "properties": {
+        "severity": { "type": "string" },
+        "severity_when": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["when", "severity"],
+            "properties": {
+              "when": { "$ref": "#/$defs/condition" },
+              "severity": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "alert_required": { "type": "boolean" },
+        "alert_suppressed": { "type": "boolean", "default": false },
+        "verdict": { "type": "string" },
+        "recommended_action": { "type": "string" },
+        "reason": { "type": "string" },
+        "inherit_severity": { "type": "boolean" },
+        "inherit_verdict": { "type": "boolean" },
+        "inherit_recommended_action": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "policyRule": {
+      "type": "object",
+      "required": ["id", "tier", "when", "decision"],
+      "properties": {
+        "id": { "type": "string" },
+        "id_template": { "type": "string" },
+        "tier": {
+          "type": "string",
+          "enum": ["hard_guardrail", "force_alert", "downgrade"]
+        },
+        "modules": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "when": { "$ref": "#/$defs/condition" },
+        "unless": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/condition" }
+        },
+        "decision": { "$ref": "#/$defs/decision" },
+        "enabled": { "type": "boolean", "default": true }
+      },
+      "additionalProperties": false
+    },
+    "defaultRule": {
+      "type": "object",
+      "required": ["id", "when", "decision"],
+      "properties": {
+        "id": { "type": "string" },
+        "when": { "$ref": "#/$defs/condition" },
+        "decision": { "$ref": "#/$defs/decision" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

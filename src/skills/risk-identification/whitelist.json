@@ -1,0 +1,129 @@
+{
+  "version": "1.1",
+  "description": "环境白名单（第三层）：behavior-policy 之后按 scope 做 suppress/downgrade。assess 默认读取本文件；禁用见 --no-whitelist 或 payload whitelist.enabled=false。",
+  "defaults": {
+    "enabled": true,
+    "mode": "post_policy",
+    "keep_evidence": true
+  },
+  "rules": [
+    {
+      "id": "wl-aliyun-metadata-region-curl",
+      "enabled": false,
+      "description": "已由 behavior-policy OPS-CLOUD-001 / is_cloud_ops 覆盖；保留条目供环境单独启用。",
+      "scope": {
+        "risk_modules": ["exec"],
+        "matched_rules_any": ["download_and_execute"],
+        "listener_process": ["sshd"],
+        "listener_ports": [22],
+        "command_regex": "100\\.100\\.100\\.200/latest/meta-data/region-id"
+      },
+      "action": "suppress",
+      "target_severity": "P3",
+      "target_verdict": "benign",
+      "target_action": "log_only",
+      "reason": "阿里云 metadata region-id 查询白名单"
+    },
+    {
+      "id": "wl-ilogtail-loongcollector-grep",
+      "enabled": false,
+      "description": "已由 behavior-policy OPS-SSH-001 覆盖；保留条目供环境单独启用。",
+      "scope": {
+        "risk_modules": ["exec"],
+        "listener_process": ["sshd"],
+        "listener_ports": [22],
+        "exe_regex": "/usr/bin/grep$",
+        "command_regex": "/usr/local/ilogtail/loongcollector"
+      },
+      "action": "suppress",
+      "target_severity": "P3",
+      "target_verdict": "benign",
+      "target_action": "log_only",
+      "reason": "LoongCollector 路径巡检白名单"
+    },
+    {
+      "id": "wl-nginx-config-test",
+      "enabled": true,
+      "description": "nginx 配置检测命令，属于正常运维行为。",
+      "scope": {
+        "risk_modules": ["exec"],
+        "command_regex": "nginx -t"
+      },
+      "action": "suppress",
+      "target_severity": "P3",
+      "target_verdict": "benign",
+      "target_action": "log_only",
+      "reason": "nginx 配置检测白名单"
+    },
+    {
+      "id": "wl-ops-exe-prefix",
+      "enabled": true,
+      "description": "运维脚本目录下的可执行文件，降级为观察。",
+      "scope": {
+        "risk_modules": ["exec"],
+        "exe_prefixes": ["/opt/ops/"],
+        "severity_at_or_above": "P1"
+      },
+      "action": "downgrade",
+      "target_severity": "P2",
+      "target_verdict": "suspicious",
+      "target_action": "observe",
+      "reason": "运维目录 exe 前缀白名单"
+    },
+    {
+      "id": "wl-sshd-interactive-noise",
+      "enabled": true,
+      "description": "SSH 22 端口登录会话中的命令，默认降级为低危记录。",
+      "scope": {
+        "risk_modules": ["exec"],
+        "listener_process": ["sshd"],
+        "listener_ports": [22],
+        "severity_at_or_above": "P1",
+        "exclude_matched_rules_any": [
+          "persistence_modify",
+          "sensitive_file_read",
+          "reverse_shell",
+          "download_and_execute",
+          "security_control_tampering",
+          "network_exfil_tools"
+        ]
+      },
+      "action": "downgrade",
+      "target_severity": "P3",
+      "target_verdict": "likely_false_positive",
+      "target_action": "log_only",
+      "reason": "SSH 登录会话默认降噪"
+    },
+    {
+      "id": "wl-listener-port-shell-exec",
+      "enabled": true,
+      "description": "22 端口监听进程直接执行 shell，默认降级（非 sshd 场景）。",
+      "scope": {
+        "risk_modules": ["exec"],
+        "listener_ports": [22],
+        "matched_rules_any": ["external_listener_shell_exec"],
+        "severity_at_or_above": "P0"
+      },
+      "action": "downgrade",
+      "target_severity": "P2",
+      "target_verdict": "suspicious",
+      "target_action": "observe",
+      "reason": "22 端口 shell 执行默认降级"
+    },
+    {
+      "id": "wl-connect-trusted-public-api",
+      "enabled": false,
+      "description": "示例：业务公网 API 外连放行。按需启用并填写 dst_cidrs。",
+      "scope": {
+        "risk_modules": ["connect"],
+        "matched_rules_any": ["external_c2_connect", "non_whitelist_egress"],
+        "dst_cidrs": ["203.0.113.0/24"]
+      },
+      "action": "suppress",
+      "target_severity": "P3",
+      "target_verdict": "benign",
+      "target_action": "log_only",
+      "reason": "业务公网 API 外连白名单"
+    }
+  ]
+}

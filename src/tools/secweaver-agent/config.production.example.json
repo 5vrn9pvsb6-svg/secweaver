@@ -1,0 +1,82 @@
+{
+  "enterprise_id": "REPLACE_WITH_16_CHAR_ID",
+  "status_path": "/opt/secweaver-agent/data/status.json",
+  "operations_report": {
+    "enabled": true,
+    "output": "/opt/secweaver-agent/logs/secweaver-agent-health.log",
+    "snapshot_interval_seconds": 300,
+    "jitter_seconds": 60,
+    "include_resource_usage": true,
+    "include_shipper_status": true
+  },
+
+  "disk_budget": {
+    "enabled": true,
+    "max_total_mb": 2048,
+    "min_free_mb": 512,
+    "check_interval_seconds": 30
+  },
+
+  "metrics": {
+    "enabled": true,
+    "listen_address": "127.0.0.1:9100",
+    "path": "/metrics"
+  },
+
+  "license": {
+    "enabled": true,
+    "protocol": "device_v2",
+    "server_url": "https://agent-gateway.id-net.cn:30443",
+    "fail_closed": true,
+    "outage_grace_seconds": 3600,
+    "check_interval_seconds": 3600,
+    "heartbeat_interval_seconds": 300
+  },
+
+  "update": {
+    "enabled": false,
+    "manifest_url": "https://updates.example.com/secweaver-agent/stable/update-manifest.json",
+    "channel": "stable",
+    "interval_seconds": 21600,
+    "initial_delay_seconds": 60,
+    "jitter_seconds": 300,
+    "retry_initial_seconds": 60,
+    "retry_max_seconds": 3600,
+    "auto_install": true,
+    "public_key": "BASE64_ED25519_PUBLIC_KEY",
+    "status_output": "/opt/secweaver-agent/logs/secweaver-agent-update.log"
+  },
+
+  "modules": {
+    "audit-port-execmon": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": ["-config", "/opt/secweaver-agent/etc/audit-port-execmon.json"]
+    },
+    "syslog-risk-json": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": ["-secure", "auto", "-messages", "auto", "-output", "/opt/secweaver-agent/logs/syslog-risk-json.log"]
+    },
+    "host-persistence": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": ["-config", "/opt/secweaver-agent/etc/host-persistence.json"]
+    },
+    "host-process-snapshot": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": ["-interval", "10m", "-full-snapshot-interval", "24h", "-state", "/opt/secweaver-agent/data/host-process-snapshot-state.json", "-output", "/opt/secweaver-agent/logs/host-process-snapshot.log"]
+    },
+    "host-state-snapshot": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": ["-socket-interval", "5m", "-output", "/opt/secweaver-agent/logs/host-state-snapshot.log"]
+    }
+  }
+}

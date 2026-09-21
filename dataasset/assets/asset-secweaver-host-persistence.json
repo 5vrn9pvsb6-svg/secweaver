@@ -1,0 +1,88 @@
+{
+  "asset_id": "asset-secweaver-host-persistence",
+  "name": "SecWeaver 主机持久化变更",
+  "asset_type": "host_persistence",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-sls-secweaver-host-persistence",
+  "description": "secweaver-agent host-persistence 模块输出的主机持久化变更日志，覆盖 cron、systemd、authorized_keys、sudoers、shell profile、ld.so.preload、kernel module 配置等。",
+  "coverage": {
+    "hosts": []
+  },
+  "field_aliases": {
+    "host_name": "host",
+    "time": "timestamp",
+    "path": "path",
+    "__source__": "log_source",
+    "log_source": "host_ip"
+  },
+  "schema": {
+    "fields": [
+      "enterprise_id",
+      "time",
+      "timestamp",
+      "host",
+      "host_name",
+      "host_ip",
+      "event_type",
+      "action",
+      "category",
+      "persistence_type",
+      "path",
+      "file_type",
+      "mode",
+      "size",
+      "mod_time",
+      "hash",
+      "previous_hash",
+      "previous_mode",
+      "previous_size",
+      "previous_mod_time",
+      "user",
+      "uid",
+      "auid",
+      "auid_name",
+      "pid",
+      "ppid",
+      "process",
+      "exe",
+      "command",
+      "audit_id",
+      "audit_syscall",
+      "actor_source",
+      "content_diff",
+      "content_diff_truncated",
+      "symlink_target",
+      "message",
+      "evidence_id"
+    ],
+    "time_field": "time",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "host_persistence_by_host_time",
+    "host_persistence_by_host_ip_time",
+    "host_persistence_by_path_time",
+    "host_persistence_by_type_time"
+  ],
+  "sensitivity": "confidential",
+  "quality": {
+    "expected_event_type": "persistence_change",
+    "notes": [
+      "首次启动默认只建立 baseline，不输出 observed 事件；需要盘点现状时可在模块配置中开启 emit_baseline。",
+      "hash 字段仅对小文件输出，默认 max_hash_bytes=1048576。",
+      "user/process/command 依赖 auditd 富化；auditd 不可用时仍输出快照差异和 content_diff。",
+      "content_diff 仅对小文本文件输出，默认 max_content_bytes=65536、max_diff_lines=200。"
+    ]
+  },
+  "tags": [
+    "secweaver",
+    "sls",
+    "host_persistence",
+    "persistence",
+    "secweaver-agent",
+    "host-persistence"
+  ]
+}

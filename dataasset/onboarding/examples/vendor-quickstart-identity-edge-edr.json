@@ -1,0 +1,105 @@
+{
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery",
+    "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+  },
+  "data_sources": [
+    {
+      "name": "demo-okta-system-log",
+      "connector_type": "okta_system_log",
+      "asset_type": "app_api_log",
+      "credentials_ref": "vault://okta/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "user", "src_ip", "action", "result", "target"],
+          "time_field": "timestamp",
+          "retention_days": 90
+        },
+        "coverage": {
+          "zones": ["identity"],
+          "apps": ["okta"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "actor.alternateId": "user",
+          "client.ipAddress": "src_ip",
+          "published": "timestamp"
+        }
+      },
+      "template": {
+        "params": ["user", "src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "okta_query": "actor.alternateId eq \"{user}\" or client.ipAddress eq \"{src_ip}\""
+      }
+    },
+    {
+      "name": "demo-cloudflare-http-requests",
+      "connector_type": "cloudflare_logs",
+      "asset_type": "web_access_log",
+      "credentials_ref": "vault://cloudflare/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "src_ip", "url", "http_method", "status", "user_agent"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "coverage": {
+          "zones": ["edge"],
+          "apps": ["cloudflare-zone"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "ClientIP": "src_ip",
+          "EdgeStartTimestamp": "timestamp",
+          "ClientRequestURI": "url"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "cloudflare_query": "ClientIP={src_ip} AND EdgeStartTimestamp >= {time_start}"
+      }
+    },
+    {
+      "name": "demo-crowdstrike-fdr",
+      "connector_type": "crowdstrike_fdr",
+      "asset_type": "edr_event",
+      "credentials_ref": "vault://crowdstrike/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "host_id", "host_name", "process_name", "cmdline", "user", "action"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "coverage": {
+          "zones": ["endpoint"],
+          "apps": ["edr"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "aid": "host_id",
+          "ComputerName": "host_name",
+          "CommandLine": "cmdline"
+        }
+      },
+      "template": {
+        "params": ["host_id", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "fdr_query": "aid:{host_id} event_simpleName:* limit {limit}"
+      }
+    }
+  ]
+}

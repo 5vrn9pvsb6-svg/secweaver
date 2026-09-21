@@ -1,0 +1,41 @@
+{
+  "investigation_intent": "web-01 nginx 配置检测命令，验证白名单抑制",
+  "scenario": "S5",
+  "risk_modules": ["exec"],
+  "params": {
+    "host": "web-01",
+    "time_start": "2026-06-21T06:00:00+08:00",
+    "time_end": "2026-06-21T07:00:00+08:00",
+    "severity_floor": "P3"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "full_traceable",
+    "confidence": 0.9,
+    "next_skill_blocked": false
+  },
+  "evidence_bundles": {
+    "host_exec": [
+      {
+        "evidence_id": "exec-nginx-t",
+        "event_type": "exec",
+        "host": "web-01",
+        "timestamp": "2026-06-21T06:30:00+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1001,
+        "pid": "1002",
+        "exe": "/usr/sbin/nginx",
+        "command": ["nginx", "-t"],
+        "comm": "nginx"
+      }
+    ],
+    "host_connect": [],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S5 nginx -t 运维白名单",
+    "expected_overall_verdict": "no_risk_detected",
+    "expected_whitelist_hit": "wl-nginx-config-test",
+    "expected_alert_required": false
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-clickhouse-example",
+  "name": "ClickHouse 日志仓库示例连接器",
+  "connector_type": "clickhouse",
+  "status": "draft",
+  "credentials_ref": "vault://clickhouse/security-readonly",
+  "description": "示例：查询 ClickHouse 中的大规模安全日志明细表；模板复用只读 sql。",
+  "config": {
+    "host": "clickhouse.example.com",
+    "port": 8443,
+    "database": "security_logs",
+    "secure": true,
+    "column_denylist": ["raw_secret", "token"]
+  },
+  "constraints": {
+    "max_records_per_request": 10000,
+    "query_timeout_sec": 60
+  },
+  "tags": ["example", "clickhouse", "warehouse", "not-for-production"]
+}

@@ -1,0 +1,70 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery"
+  },
+  "data_sources": [
+    {
+      "name": "demo-splunk-waf",
+      "connector_type": "splunk",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://splunk/security-readonly",
+      "base_url": "https://splunk.example.com:8089",
+      "index": "security_waf",
+      "asset": {
+        "coverage": {
+          "zones": ["edge"],
+          "apps": ["demo-gateway"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "clientip": "src_ip",
+          "uri_path": "url"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 500
+        },
+        "splunk_search": "sourcetype=waf (src_ip={src_ip} OR clientip={src_ip}) | head {limit}"
+      }
+    },
+    {
+      "name": "demo-clickhouse-web-access",
+      "connector_type": "clickhouse",
+      "asset_type": "web_access_log",
+      "credentials_ref": "vault://clickhouse/security-readonly",
+      "host": "clickhouse.example.com",
+      "database": "security_logs",
+      "port": 8443,
+      "connector": {
+        "config": {
+          "secure": true
+        }
+      },
+      "asset": {
+        "coverage": {
+          "zones": ["web"],
+          "apps": ["demo-web"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "remote_addr": "src_ip",
+          "request_uri": "url"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 500
+        },
+        "sql": "SELECT timestamp, remote_addr, request_uri, status FROM web_access WHERE remote_addr = '{src_ip}' AND timestamp >= parseDateTimeBestEffort('{time_start}') AND timestamp <= parseDateTimeBestEffort('{time_end}') LIMIT {limit}"
+      }
+    }
+  ]
+}

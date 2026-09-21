@@ -1,0 +1,28 @@
+{
+  "host_id": "host-web-01",
+  "name": "WEB-01",
+  "hostname": "web-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "192.0.2.5",
+  "network_id": "net-prod-web",
+  "exposure": {
+    "internet_exposed": false
+  },
+  "aliases": [
+    "portal-web-01",
+    "192.0.2.5"
+  ],
+  "roles": [
+    "web",
+    "nginx"
+  ],
+  "environment": "production",
+  "status": "active",
+  "description": "Lab Nginx web node for offline demos (SSH + execmon sample source).",
+  "tags": [
+    "demo",
+    "web",
+    "execmon"
+  ]
+}

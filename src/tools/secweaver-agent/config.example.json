@@ -1,0 +1,161 @@
+{
+  "enterprise_id": "REPLACE_WITH_16_CHAR_ID",
+  "status_path": "/opt/secweaver-agent/data/status.json",
+  "operations_report": {
+    "enabled": true,
+    "output": "/opt/secweaver-agent/logs/secweaver-agent-health.log",
+    "snapshot_interval_seconds": 300,
+    "jitter_seconds": 60,
+    "include_resource_usage": true,
+    "include_shipper_status": true
+  },
+  "disk_budget": {
+    "enabled": true,
+    "max_total_mb": 2048,
+    "min_free_mb": 512,
+    "check_interval_seconds": 30
+  },
+  "license": {
+    "enabled": false,
+    "protocol": "device_v2",
+    "server_url": "https://agent-gateway.id-net.cn:30443",
+    "state_path": "/opt/secweaver-agent/data/license-state.json",
+    "identity_key_path": "/opt/secweaver-agent/data/device-ed25519.key",
+    "check_interval_seconds": 21600,
+    "heartbeat_interval_seconds": 180,
+	"outage_grace_seconds": 86400,
+    "fail_closed": true
+  },
+  "remote_config": {
+    "enabled": false,
+    "url": "https://agent-gateway.id-net.cn:30443/api/secweaver/v1/agent/config",
+    "interval_seconds": 900,
+    "initial_delay_seconds": 60,
+    "jitter_seconds": 300,
+    "require_signature": true,
+    "public_key": "BASE64_ED25519_PUBLIC_KEY"
+  },
+  "update": {
+    "enabled": false,
+    "manifest_url": "https://updates.example.com/secweaver-agent/stable/update-manifest.json",
+    "ca_file": "/opt/secweaver-agent/shipper/ca.crt",
+    "channel": "stable",
+    "interval_seconds": 21600,
+    "initial_delay_seconds": 60,
+    "jitter_seconds": 300,
+	"retry_initial_seconds": 60,
+	"retry_max_seconds": 3600,
+    "auto_install": true,
+    "public_key": "BASE64_ED25519_PUBLIC_KEY",
+    "state_dir": "/opt/secweaver-agent/data/update",
+    "status_output": "/opt/secweaver-agent/logs/secweaver-agent-update.log",
+    "require_server_policy": true,
+    "health_timeout_seconds": 90,
+    "lock_stale_seconds": 3600,
+    "max_backups": 3,
+    "min_free_space_mb": 256
+  },
+  "modules": {
+    "audit-port-execmon": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "restart_max_delay_seconds": 300,
+      "restart_failure_limit": 8,
+      "restart_stable_seconds": 300,
+      "restart_circuit_seconds": 900,
+      "args": [
+        "-config",
+        "/opt/secweaver-agent/etc/audit-port-execmon.json"
+      ]
+    },
+    "syslog-risk-json": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": [
+        "-secure",
+        "auto",
+        "-messages",
+        "auto",
+        "-output",
+        "/opt/secweaver-agent/logs/syslog-risk-json.log",
+        "-min-level",
+        "medium"
+      ]
+    },
+    "host-persistence": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": [
+        "-config",
+        "/opt/secweaver-agent/etc/host-persistence.json"
+      ]
+    },
+    "host-process-snapshot": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": [
+        "-interval",
+        "10m",
+        "-full-snapshot-interval",
+        "24h",
+        "-state",
+        "/opt/secweaver-agent/data/host-process-snapshot-state.json",
+        "-collection-timeout",
+        "45s",
+        "-output",
+        "/opt/secweaver-agent/logs/host-process-snapshot.log"
+      ]
+    },
+    "host-state-snapshot": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": [
+        "-socket-interval",
+        "5m",
+        "-identity-interval",
+        "5m",
+        "-service-interval",
+        "5m",
+        "-kernel-interval",
+        "10m",
+        "-full-snapshot-interval",
+        "24h",
+        "-max-fd-scan",
+        "100000",
+        "-output",
+        "/opt/secweaver-agent/logs/host-state-snapshot.log",
+        "-state",
+        "/opt/secweaver-agent/data/host-state-snapshot-state.json"
+      ]
+    },
+    "windows-eventlog-risk-json": {
+      "enabled": false,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": [
+        "-channels",
+        "Security,System,Microsoft-Windows-PowerShell/Operational",
+        "-output",
+        "C:\\ProgramData\\SecWeaver\\Agent\\logs\\windows-eventlog-risk-json.log",
+        "-min-level",
+        "medium"
+      ]
+    },
+    "windows-process-execmon": {
+      "enabled": false,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": [
+        "-channels",
+        "Security,Microsoft-Windows-Sysmon/Operational",
+        "-output",
+        "C:\\ProgramData\\SecWeaver\\Agent\\logs\\windows-process-execmon.log"
+      ]
+    }
+  }
+}

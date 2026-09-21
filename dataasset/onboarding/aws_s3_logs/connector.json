@@ -1,0 +1,23 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "AWS S3 Logs（模板）",
+  "connector_type": "aws_s3_logs",
+  "status": "draft",
+  "credentials_ref": "vault://aws/s3-log-readonly",
+  "description": "S3 日志归档查询描述；默认使用内置 S3 List/GetObject fetch，也可通过 executor_endpoint 交给外部执行器。",
+  "config": {
+    "bucket": "YOUR_BUCKET",
+    "prefix": "AWSLogs/",
+    "region": "ap-southeast-1"
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 120
+  },
+  "tags": [
+    "template",
+    "aws",
+    "s3",
+    "live"
+  ]
+}

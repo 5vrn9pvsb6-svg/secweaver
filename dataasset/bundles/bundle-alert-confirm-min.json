@@ -1,0 +1,18 @@
+{
+  "bundle_id": "bundle-alert-confirm-min",
+  "name": "WEB 告警确认最小资产包",
+  "description": "brain 产品规则第 6 页：告警确认 P0/P1",
+  "status": "active",
+  "asset_ids": [
+    "asset-waf-prod-01",
+    "asset-secweaver-gateway-access",
+    "asset-secweaver-host-exec",
+    "asset-secweaver-host-connect",
+    "asset-secweaver-host-file-op",
+    "asset-secweaver-sys-risk-alert"
+  ],
+  "notes": "P0: waf + web_access；P1: host_exec/connect 证明攻击成功",
+  "investigation_scenarios": [
+    "S4"
+  ]
+}

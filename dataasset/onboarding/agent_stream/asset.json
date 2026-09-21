@@ -1,0 +1,40 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "Agent Stream（模板）资产",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "Agent 流式采集描述；当前主要用于注册接入关系，live fetch 需由下游 agent/stream 执行器补齐。",
+  "coverage": {
+    "zones": [
+      "edge"
+    ],
+    "apps": [],
+    "hosts": [
+      "YOUR_HOST"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "src_ip",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {},
+  "tags": [
+    "template",
+    "agent-stream",
+    "planned"
+  ]
+}

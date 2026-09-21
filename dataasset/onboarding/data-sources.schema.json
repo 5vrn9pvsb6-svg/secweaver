@@ -1,0 +1,222 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/dataasset-onboarding-data-sources.json",
+  "title": "SecWeaver Data Source Onboarding Config",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "output_dir": {
+      "type": "string",
+      "description": "DataAsset root. Defaults to ./dataasset."
+    },
+    "defaults": {
+      "$ref": "#/$defs/source"
+    },
+    "data_sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    }
+  },
+  "required": [
+    "data_sources"
+  ],
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "connector_type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Connector type. Built-ins live in dataasset/configure/connector-catalog.json, external config-only types are registered in dataasset/configure/external-connectors.json, and plugin types are discovered from src/dataasset/plugins/connectors/*/plugin.json."
+        },
+        "asset_type": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "asset_id": {
+          "type": "string"
+        },
+        "connector_id": {
+          "type": "string"
+        },
+        "template_id": {
+          "type": "string"
+        },
+        "credentials_ref": {
+          "type": "string",
+          "pattern": "^vault://[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*$"
+        },
+        "project": {
+          "type": "string"
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "logstore": {
+          "type": "string"
+        },
+        "index": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "host_id": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "collection": {
+          "type": "string"
+        },
+        "db": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "driver": {
+          "type": "string"
+        },
+        "connection_string": {
+          "type": "string"
+        },
+        "auth_source": {
+          "type": "string"
+        },
+        "ssl": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "secure": {
+          "type": [
+            "boolean",
+            "string"
+          ]
+        },
+        "base_url": {
+          "type": "string"
+        },
+        "owner_team": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "discovery",
+            "draft",
+            "active",
+            "disabled"
+          ]
+        },
+        "output_dir": {
+          "type": "string"
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "fallback_endpoint": {
+          "type": "string"
+        },
+        "executor_endpoint": {
+          "type": "string"
+        },
+        "external_endpoint": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "log_group": {
+          "type": "string"
+        },
+        "log_group_id": {
+          "type": "string"
+        },
+        "log_stream_id": {
+          "type": "string"
+        },
+        "log_stream_prefix": {
+          "type": "string"
+        },
+        "bucket": {
+          "type": "string"
+        },
+        "prefix": {
+          "type": "string"
+        },
+        "workspace_id": {
+          "type": "string"
+        },
+        "tenant_id": {
+          "type": "string"
+        },
+        "topic_id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "port": {
+          "type": [
+            "integer",
+            "string"
+          ]
+        },
+        "engine": {
+          "type": "string"
+        },
+        "base_path": {
+          "type": "string"
+        },
+        "sample_file": {
+          "type": "string"
+        },
+        "sample_dir": {
+          "type": "string"
+        },
+        "connector": {
+          "type": "object",
+          "description": "Deep-merged connector object override, for config, constraints, credentials_ref, status, and source-specific metadata.",
+          "additionalProperties": true
+        },
+        "asset": {
+          "type": "object",
+          "description": "Deep-merged asset object override, for schema fields, text_parser, coverage, field_aliases, tags, and lifecycle metadata.",
+          "additionalProperties": true
+        },
+        "template": {
+          "type": "object",
+          "description": "Deep-merged query template override, for params, defaults, query body, and template metadata.",
+          "additionalProperties": true
+        },
+        "overrides": {
+          "type": "object",
+          "description": "Compatibility override block. Prefer connector, asset, and template at source level for new configs.",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

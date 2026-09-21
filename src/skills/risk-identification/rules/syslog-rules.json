@@ -1,0 +1,186 @@
+{
+  "version": "1.0",
+  "engine": "chain",
+  "owner": "security-ops",
+  "description": "syslog_risk_alert 检测层规则（asset-secweaver-sys-risk-alert / syslog-risk-json）。SSH 暴破 raw 事件由 ssh 模块聚合，此处排除。",
+  "_doc": "verdicts/actions 仅影响检测层输出；告警由 behavior-policy.md 裁决。",
+  "exclude_event_types": [
+    "ssh_login_failed",
+    "auth_failure",
+    "ssh_invalid_user",
+    "ssh_auth_attempts_exceeded"
+  ],
+  "severity_rank": {
+    "P0": 0,
+    "P1": 1,
+    "P2": 2,
+    "P3": 3
+  },
+  "when_extensions": {},
+  "rules": [
+    {
+      "id": "account_created",
+      "severity": "P0",
+      "enabled": true,
+      "note": "本地账号创建",
+      "when": { "event_type": "account_created" }
+    },
+    {
+      "id": "account_modified",
+      "severity": "P1",
+      "enabled": true,
+      "note": "账号/密码变更",
+      "when": { "event_type": "account_modified" }
+    },
+    {
+      "id": "sudo_high_risk",
+      "severity": "P1",
+      "enabled": true,
+      "note": "高危 sudo（syslog-risk-json 标 high/critical）",
+      "when": {
+        "event_type": "sudo_command",
+        "risk_level_in": ["high", "critical"]
+      }
+    },
+    {
+      "id": "sudo_command",
+      "severity": "P2",
+      "enabled": true,
+      "note": "普通 sudo 命令",
+      "when": { "event_type": "sudo_command" }
+    },
+    {
+      "id": "root_ssh_login",
+      "severity": "P1",
+      "enabled": true,
+      "note": "root SSH 登录成功",
+      "when": {
+        "event_type": "ssh_login_success",
+        "risk_level_in": ["high", "critical"]
+      }
+    },
+    {
+      "id": "root_session_opened",
+      "severity": "P1",
+      "enabled": true,
+      "when": { "event_type": "root_session_opened" }
+    },
+    {
+      "id": "su_failure",
+      "severity": "P1",
+      "enabled": true,
+      "when": { "event_type": "su_failure" }
+    },
+    {
+      "id": "security_policy_denied",
+      "severity": "P1",
+      "enabled": true,
+      "when": { "event_type": "security_policy_denied" }
+    },
+    {
+      "id": "firewall_event",
+      "severity": "P1",
+      "enabled": true,
+      "when": { "event_type": "firewall_event" }
+    },
+    {
+      "id": "suspicious_cron",
+      "severity": "P1",
+      "enabled": true,
+      "when": { "event_type": "suspicious_cron_command" }
+    },
+    {
+      "id": "network_anomaly",
+      "severity": "P2",
+      "enabled": true,
+      "when": { "event_type": "network_anomaly" }
+    },
+    {
+      "id": "process_crash",
+      "severity": "P2",
+      "enabled": true,
+      "when": { "event_type": "process_crash" }
+    },
+    {
+      "id": "oom_kill",
+      "severity": "P2",
+      "enabled": false,
+      "note": "默认关闭，噪声较多；需要时设 enabled=true",
+      "when": { "event_type": "oom_kill" }
+    },
+    {
+      "id": "kernel_panic",
+      "severity": "P0",
+      "enabled": true,
+      "when": { "event_type": "kernel_panic" }
+    },
+    {
+      "id": "device_attached",
+      "severity": "P2",
+      "enabled": true,
+      "when": { "event_type": "device_attached" }
+    },
+    {
+      "id": "service_failure",
+      "severity": "P2",
+      "enabled": false,
+      "when": { "event_type": "service_failure" }
+    }
+  ],
+  "message_rules": [
+    {
+      "id": "sudo_useradd",
+      "pattern": "useradd|adduser",
+      "flags": "i",
+      "severity": "P0",
+      "enabled": true,
+      "event_types": ["sudo_command", "account_created"]
+    },
+    {
+      "id": "sudo_chpasswd",
+      "pattern": "chpasswd|passwd\\s",
+      "flags": "i",
+      "severity": "P1",
+      "enabled": true,
+      "event_types": ["sudo_command", "account_modified"]
+    }
+  ],
+  "risk_tags": {
+    "account_created": ["persistence", "credential_access"],
+    "account_modified": ["persistence", "credential_access"],
+    "sudo_high_risk": ["privilege_escalation"],
+    "sudo_command": ["privilege_escalation"],
+    "sudo_useradd": ["persistence"],
+    "sudo_chpasswd": ["credential_access"],
+    "root_ssh_login": ["initial_access"],
+    "root_session_opened": ["privilege_escalation"],
+    "su_failure": ["credential_access"],
+    "security_policy_denied": ["defense_evasion"],
+    "firewall_event": ["defense_evasion"],
+    "suspicious_cron": ["persistence"],
+    "network_anomaly": ["discovery"],
+    "process_crash": ["impact"],
+    "oom_kill": ["impact"],
+    "kernel_panic": ["impact"],
+    "device_attached": ["collection"],
+    "service_failure": ["impact"]
+  },
+  "verdicts": {
+    "P0": "confirmed_attack",
+    "P1": "suspicious",
+    "P2": "suspicious",
+    "P3": "log_only"
+  },
+  "actions": {
+    "P0": "isolate_host_and_investigate",
+    "P1": "manual_review_5m",
+    "P2": "observe",
+    "P3": "log_only"
+  },
+  "confidence_base": {
+    "P0": 0.84,
+    "P1": 0.76,
+    "P2": 0.58,
+    "P3": 0.45
+  }
+}

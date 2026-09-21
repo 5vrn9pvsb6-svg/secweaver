@@ -1,0 +1,59 @@
+{
+  "asset_id": "asset-sls-proxy-host-exec-demo",
+  "name": "SecWeaver SLS Proxy 主机命令执行示例",
+  "asset_type": "host_exec",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "development",
+  "status": "discovery",
+  "connector_id": "conn-sls-proxy-demo",
+  "description": "展示内置 sls_proxy Connector 如何复用标准 SLS 查询模板；联通真实数据并确认字段后再改为 active。",
+  "coverage": {
+    "hosts": []
+  },
+  "field_aliases": {
+    "host_name": "host",
+    "time": "timestamp",
+    "__source__": "log_source",
+    "log_source": "host_ip"
+  },
+  "schema": {
+    "fields": [
+      "enterprise_id",
+      "time",
+      "timestamp",
+      "host",
+      "host_name",
+      "host_ip",
+      "event_type",
+      "command",
+      "command_line",
+      "exe",
+      "cwd",
+      "uid",
+      "success"
+    ],
+    "time_field": "time",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "host_exec_by_host_ip_time",
+    "host_exec_by_host_name_time",
+    "host_exec_by_host_time",
+    "host_exec_by_time"
+  ],
+  "sensitivity": "internal",
+  "quality": {
+    "expected_event_type": "exec",
+    "notes": [
+      "示例默认处于 discovery，不代表已有真实数据覆盖。",
+      "region 由 SaaS 服务端管理；project 可选，用于选择获授权的 Project，省略时使用服务端默认资源。"
+    ]
+  },
+  "tags": [
+    "secweaver",
+    "sls-proxy",
+    "host_exec",
+    "example"
+  ]
+}

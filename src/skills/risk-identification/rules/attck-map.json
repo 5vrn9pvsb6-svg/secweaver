@@ -1,0 +1,325 @@
+{
+  "version": "1.0",
+  "owner": "security-ops",
+  "description": "matched_rule / policy_rule_id → MITRE ATT&CK Enterprise（检测层标签映射，运营可编辑）",
+  "_doc": "techniques[] 写入 risk_items[].mitre_attack；与 risk_tags（战术语义标签）互补。",
+  "matched_rules": {
+    "external_listener_shell_exec": {
+      "techniques": [
+        { "id": "T1059.004", "name": "Unix Shell", "tactic": "execution", "tactic_id": "TA0002" },
+        { "id": "T1190", "name": "Exploit Public-Facing Application", "tactic": "initial_access", "tactic_id": "TA0001" }
+      ]
+    },
+    "download_and_execute": {
+      "techniques": [
+        { "id": "T1105", "name": "Ingress Tool Transfer", "tactic": "command_and_control", "tactic_id": "TA0011" },
+        { "id": "T1059.004", "name": "Unix Shell", "tactic": "execution", "tactic_id": "TA0002" }
+      ]
+    },
+    "reverse_shell": {
+      "techniques": [
+        { "id": "T1059.004", "name": "Unix Shell", "tactic": "execution", "tactic_id": "TA0002" },
+        { "id": "T1571", "name": "Non-Standard Port", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "persistence_modify": {
+      "techniques": [
+        { "id": "T1543.003", "name": "Windows Service", "tactic": "persistence", "tactic_id": "TA0003" },
+        { "id": "T1136.001", "name": "Local Account", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "security_control_tampering": {
+      "techniques": [
+        { "id": "T1562.001", "name": "Disable or Modify Tools", "tactic": "defense_evasion", "tactic_id": "TA0005" }
+      ]
+    },
+    "sensitive_file_read": {
+      "techniques": [
+        { "id": "T1003.008", "name": "/etc/passwd and /etc/shadow", "tactic": "credential_access", "tactic_id": "TA0006" }
+      ]
+    },
+    "internal_recon": {
+      "techniques": [
+        { "id": "T1082", "name": "System Information Discovery", "tactic": "discovery", "tactic_id": "TA0007" },
+        { "id": "T1046", "name": "Network Service Discovery", "tactic": "discovery", "tactic_id": "TA0007" }
+      ]
+    },
+    "webshell_write": {
+      "techniques": [
+        { "id": "T1505.003", "name": "Web Shell", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "network_exfil_tools": {
+      "techniques": [
+        { "id": "T1048.003", "name": "Exfiltration Over Unencrypted Non-C2 Protocol", "tactic": "exfiltration", "tactic_id": "TA0010" }
+      ]
+    },
+    "obfuscated_exec": {
+      "techniques": [
+        { "id": "T1027", "name": "Obfuscated Files or Information", "tactic": "defense_evasion", "tactic_id": "TA0005" },
+        { "id": "T1059.004", "name": "Unix Shell", "tactic": "execution", "tactic_id": "TA0002" }
+      ]
+    },
+    "data_staging": {
+      "techniques": [
+        { "id": "T1560.001", "name": "Archive via Utility", "tactic": "collection", "tactic_id": "TA0009" }
+      ]
+    },
+    "database_dump": {
+      "techniques": [
+        { "id": "T1005", "name": "Data from Local System", "tactic": "collection", "tactic_id": "TA0009" }
+      ]
+    },
+    "noise_command": {
+      "techniques": []
+    },
+    "external_c2_connect": {
+      "techniques": [
+        { "id": "T1071.001", "name": "Web Protocols", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "suspicious_port_connect": {
+      "techniques": [
+        { "id": "T1571", "name": "Non-Standard Port", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "exec_correlated_egress": {
+      "_note": "Download-correlated egress alone does not prove data exfiltration or its direction.",
+      "techniques": []
+    },
+    "non_whitelist_egress": {
+      "_note": "A destination outside the allowlist is a review signal, not evidence of exfiltration.",
+      "techniques": []
+    },
+    "business_whitelist_connect": {
+      "techniques": []
+    },
+    "high_nxdomain_burst": {
+      "techniques": [
+        { "id": "T1568", "name": "Dynamic Resolution", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "suspected_dga_domain": {
+      "techniques": [
+        { "id": "T1568.002", "name": "Domain Generation Algorithms", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "uncommon_tld_query": {
+      "techniques": [
+        { "id": "T1568", "name": "Dynamic Resolution", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "dns_tunnel_suspected": {
+      "techniques": [
+        { "id": "T1071.004", "name": "DNS", "tactic": "command_and_control", "tactic_id": "TA0011" },
+        { "id": "T1048", "name": "Exfiltration Over Alternative Protocol", "tactic": "exfiltration", "tactic_id": "TA0010" }
+      ]
+    },
+    "doh_egress": {
+      "techniques": [
+        { "id": "T1071.004", "name": "DNS", "tactic": "command_and_control", "tactic_id": "TA0011" },
+        { "id": "T1090", "name": "Proxy", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "dot_egress": {
+      "techniques": [
+        { "id": "T1071.004", "name": "DNS", "tactic": "command_and_control", "tactic_id": "TA0011" },
+        { "id": "T1572", "name": "Protocol Tunneling", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "ssh_bruteforce": {
+      "techniques": [
+        { "id": "T1110.001", "name": "Password Guessing", "tactic": "credential_access", "tactic_id": "TA0006" }
+      ]
+    },
+    "account_created": {
+      "techniques": [
+        { "id": "T1136.001", "name": "Local Account", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "account_modified": {
+      "techniques": [
+        { "id": "T1098", "name": "Account Manipulation", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "persistence_cron_modify": {
+      "techniques": [
+        { "id": "T1053.003", "name": "Cron", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "persistence_systemd_modify": {
+      "techniques": [
+        { "id": "T1543.002", "name": "Systemd Service", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "persistence_ssh_key_modify": {
+      "techniques": [
+        { "id": "T1098.004", "name": "SSH Authorized Keys", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "persistence_profile_modify": {
+      "techniques": [
+        { "id": "T1546.004", "name": "Unix Shell Configuration Modification", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "persistence_sudoers_modify": {
+      "techniques": [
+        { "id": "T1548.003", "name": "Sudo and Sudo Caching", "tactic": "privilege_escalation", "tactic_id": "TA0004" }
+      ]
+    },
+    "persistence_kernel_module_modify": {
+      "techniques": [
+        { "id": "T1547.006", "name": "Kernel Modules and Extensions", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "persistence_ld_preload_modify": {
+      "techniques": [
+        { "id": "T1574.006", "name": "Dynamic Linker Hijacking", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "persistence_generic_change": {
+      "techniques": [
+        { "id": "T1547", "name": "Boot or Logon Autostart Execution", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "sudo_high_risk": {
+      "techniques": [
+        { "id": "T1548.003", "name": "Sudo and Sudo Caching", "tactic": "privilege_escalation", "tactic_id": "TA0004" }
+      ]
+    },
+    "sudo_command": {
+      "techniques": [
+        { "id": "T1548.003", "name": "Sudo and Sudo Caching", "tactic": "privilege_escalation", "tactic_id": "TA0004" }
+      ]
+    },
+    "sudo_useradd": {
+      "techniques": [
+        { "id": "T1136.001", "name": "Local Account", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "sudo_chpasswd": {
+      "techniques": [
+        { "id": "T1098", "name": "Account Manipulation", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "root_ssh_login": {
+      "techniques": [
+        { "id": "T1021.004", "name": "SSH", "tactic": "lateral_movement", "tactic_id": "TA0008" },
+        { "id": "T1078", "name": "Valid Accounts", "tactic": "defense_evasion", "tactic_id": "TA0005" }
+      ]
+    },
+    "root_session_opened": {
+      "techniques": [
+        { "id": "T1548.003", "name": "Sudo and Sudo Caching", "tactic": "privilege_escalation", "tactic_id": "TA0004" }
+      ]
+    },
+    "su_failure": {
+      "techniques": [
+        { "id": "T1110", "name": "Brute Force", "tactic": "credential_access", "tactic_id": "TA0006" }
+      ]
+    },
+    "security_policy_denied": {
+      "techniques": [
+        { "id": "T1562", "name": "Impair Defenses", "tactic": "defense_evasion", "tactic_id": "TA0005" }
+      ]
+    },
+    "firewall_event": {
+      "techniques": [
+        { "id": "T1562.004", "name": "Disable or Modify System Firewall", "tactic": "defense_evasion", "tactic_id": "TA0005" }
+      ]
+    },
+    "suspicious_cron": {
+      "techniques": [
+        { "id": "T1053.003", "name": "Cron", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "network_anomaly": {
+      "techniques": [
+        { "id": "T1046", "name": "Network Service Discovery", "tactic": "discovery", "tactic_id": "TA0007" }
+      ]
+    },
+    "kernel_panic": {
+      "techniques": [
+        { "id": "T1499", "name": "Endpoint Denial of Service", "tactic": "impact", "tactic_id": "TA0040" }
+      ]
+    },
+    "device_attached": {
+      "techniques": [
+        { "id": "T1052", "name": "Exfiltration Over Physical Medium", "tactic": "exfiltration", "tactic_id": "TA0010" }
+      ]
+    }
+  },
+  "policy_rules": {
+    "WEB-SHELL-001": {
+      "techniques": [
+        { "id": "T1505.003", "name": "Web Shell", "tactic": "persistence", "tactic_id": "TA0003" },
+        { "id": "T1059.004", "name": "Unix Shell", "tactic": "execution", "tactic_id": "TA0002" }
+      ]
+    },
+    "WEB-SHELL-002": {
+      "techniques": [
+        { "id": "T1505.003", "name": "Web Shell", "tactic": "persistence", "tactic_id": "TA0003" },
+        { "id": "T1105", "name": "Ingress Tool Transfer", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "LATERAL-SSH-001": {
+      "techniques": [
+        { "id": "T1021.004", "name": "SSH", "tactic": "lateral_movement", "tactic_id": "TA0008" },
+        { "id": "T1110.001", "name": "Password Guessing", "tactic": "credential_access", "tactic_id": "TA0006" }
+      ]
+    },
+    "RECON-HIGH-001": {
+      "techniques": [
+        { "id": "T1082", "name": "System Information Discovery", "tactic": "discovery", "tactic_id": "TA0007" },
+        { "id": "T1003.008", "name": "/etc/passwd and /etc/shadow", "tactic": "credential_access", "tactic_id": "TA0006" }
+      ]
+    },
+    "SSH-IMPACT-001": {
+      "techniques": [
+        { "id": "T1136.001", "name": "Local Account", "tactic": "persistence", "tactic_id": "TA0003" },
+        { "id": "T1003.008", "name": "/etc/passwd and /etc/shadow", "tactic": "credential_access", "tactic_id": "TA0006" }
+      ]
+    },
+    "DOWNLOAD-MALICIOUS-001": {
+      "techniques": [
+        { "id": "T1105", "name": "Ingress Tool Transfer", "tactic": "command_and_control", "tactic_id": "TA0011" },
+        { "id": "T1204.002", "name": "Malicious File", "tactic": "execution", "tactic_id": "TA0002" }
+      ]
+    },
+    "CONNECT-C2-001": {
+      "techniques": [
+        { "id": "T1071", "name": "Application Layer Protocol", "tactic": "command_and_control", "tactic_id": "TA0011" }
+      ]
+    },
+    "SSH-BRUTE-001": {
+      "techniques": [
+        { "id": "T1110.001", "name": "Password Guessing", "tactic": "credential_access", "tactic_id": "TA0006" }
+      ]
+    },
+    "SYS-ACCOUNT-001": {
+      "techniques": [
+        { "id": "T1136.001", "name": "Local Account", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "SYS-SUDO-001": {
+      "techniques": [
+        { "id": "T1548.003", "name": "Sudo and Sudo Caching", "tactic": "privilege_escalation", "tactic_id": "TA0004" }
+      ]
+    },
+    "SYS-FW-001": {
+      "techniques": [
+        { "id": "T1562.004", "name": "Disable or Modify System Firewall", "tactic": "defense_evasion", "tactic_id": "TA0005" }
+      ]
+    },
+    "HARD-GUARDRAIL-PERSISTENCE": {
+      "techniques": [
+        { "id": "T1136.001", "name": "Local Account", "tactic": "persistence", "tactic_id": "TA0003" }
+      ]
+    },
+    "HARD-GUARDRAIL-REVERSE-SHELL": {
+      "techniques": [
+        { "id": "T1059.004", "name": "Unix Shell", "tactic": "execution", "tactic_id": "TA0002" }
+      ]
+    }
+  }
+}

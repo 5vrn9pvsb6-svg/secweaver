@@ -1,0 +1,40 @@
+{
+  "asset_id": "asset-es-web-access-prod",
+  "name": "Elasticsearch WEB 访问日志",
+  "asset_type": "web_access_log",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-es-web-access-prod",
+  "description": "Elasticsearch 接入示例：索引 logs-nginx-access-*，模板 web_access_es_by_src_ip_time；时间字段 @timestamp 经 field_aliases 归一化为 timestamp",
+  "coverage": {
+    "hosts": [
+      "192.0.2.5"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "src_ip",
+      "timestamp",
+      "url",
+      "status",
+      "method",
+      "user_agent",
+      "host",
+      "remote_addr"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "web_access_es_by_src_ip_time"
+  ],
+  "sensitivity": "internal",
+  "tags": [
+    "es",
+    "elasticsearch",
+    "example",
+    "web-access"
+  ]
+}

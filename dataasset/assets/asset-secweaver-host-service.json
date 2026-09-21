@@ -1,0 +1,24 @@
+{
+  "asset_id": "asset-secweaver-host-service",
+  "name": "SecWeaver 主机服务与计划任务变化",
+  "asset_type": "host_service",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-host-state",
+  "description": "采集 systemd/Windows 服务、systemd timer、cron 文件和 Windows 计划任务的基线与变化。",
+  "coverage": {"hosts": []},
+  "field_aliases": {"host_name": "host", "time": "timestamp", "__source__": "log_source", "log_source": "host_ip"},
+  "schema": {
+    "fields": ["time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "entity_type", "action", "service_name", "display_name", "state", "active_state", "start_mode", "path_name", "task_name", "task_path", "task_type", "task_state", "path", "hash", "previous", "evidence_id", "enterprise_id"],
+    "time_field": "time",
+    "retention_days": 90
+  },
+  "query_template_ids": ["host_service_by_host_time", "host_service_by_name_time"],
+  "sensitivity": "internal",
+  "pii_fields": [],
+  "masking": {},
+  "quality": {"required_fields": ["host", "timestamp", "event_type", "entity_type"], "notes": ["首次启动和每 24 小时输出完整基线，其他轮次仅输出变化。"]},
+  "tags": ["secweaver", "sls", "host_service", "scheduled_task", "secweaver-agent"]
+}

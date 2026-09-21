@@ -1,0 +1,589 @@
+{
+  "version": "1.0",
+  "scenarios": {
+    "S1": {
+      "name": "外网攻击 IP 溯源",
+      "keywords": ["外网", "攻击IP", "黑客IP", "溯源", "打穿", "攻破点", "第一个攻破"],
+      "requirements": [
+        {
+          "id": "S1-P0-web",
+          "priority": "P0",
+          "asset_types": ["waf_alert", "web_access_log"],
+          "match": "any",
+          "required_fields": {
+            "waf_alert": ["src_ip", "timestamp", "url"],
+            "web_access_log": ["src_ip", "timestamp", "url"]
+          },
+          "coverage": "web_zone",
+          "label": "WEB/WAF 日志"
+        },
+        {
+          "id": "S1-P0-exec",
+          "priority": "P0",
+          "asset_types": ["host_exec"],
+          "match": "all",
+          "required_fields": {
+            "host_exec": ["host", "command", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 服务器进程命令执行"
+        },
+        {
+          "id": "S1-P0-ssh",
+          "priority": "P0",
+          "asset_types": ["syslog_risk_alert", "ssh_auth"],
+          "match": "any",
+          "required_fields": {
+            "syslog_risk_alert": ["host_ip", "src_ip", "user", "event_type", "timestamp"],
+            "ssh_auth": ["host", "src_ip", "user", "result", "timestamp"]
+          },
+          "coverage": "internal_ssh",
+          "label": "SSH/syslog 认证日志"
+        },
+        {
+          "id": "S1-P1-connect",
+          "priority": "P1",
+          "asset_types": ["host_connect"],
+          "match": "all",
+          "required_fields": {
+            "host_connect": ["host", "dst_ip", "dst_port", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 服务器主动外连"
+        },
+        {
+          "id": "S1-P1-fw",
+          "priority": "P1",
+          "asset_types": ["firewall_log", "network_traffic_audit"],
+          "match": "any",
+          "required_fields": {
+            "firewall_log": ["src_ip", "dst_ip", "timestamp"],
+            "network_traffic_audit": ["src_ip", "dst_ip", "timestamp"]
+          },
+          "coverage": "dmz_to_internal",
+          "label": "防火墙/全流量内网连接"
+        },
+        {
+          "id": "S1-P1-dns",
+          "priority": "P1",
+          "asset_types": ["dns_log"],
+          "match": "all",
+          "required_fields": {
+            "dns_log": ["client_ip", "query", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "DNS 查询日志"
+        },
+        {
+          "id": "S1-P2-file",
+          "priority": "P2",
+          "asset_types": ["host_file_op"],
+          "match": "all",
+          "required_fields": {
+            "host_file_op": ["host", "path", "action", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 服务器文件操作"
+        },
+        {
+          "id": "S1-P2-inventory",
+          "priority": "P2",
+          "asset_types": ["asset_inventory"],
+          "match": "all",
+          "required_fields": {
+            "asset_inventory": ["hostname", "ip"]
+          },
+          "coverage": "full",
+          "label": "资产清单"
+        }
+      ]
+    },
+    "S2": {
+      "name": "WEB 入侵溯源",
+      "keywords": ["WebShell", "WEB入侵", "网站被黑", "漏洞利用", "网站篡改"],
+      "requirements": [
+        {
+          "id": "S2-P0-web",
+          "priority": "P0",
+          "asset_types": ["waf_alert", "web_access_log"],
+          "match": "any",
+          "required_fields": {
+            "waf_alert": ["src_ip", "timestamp", "url", "payload"],
+            "web_access_log": ["src_ip", "timestamp", "url"]
+          },
+          "coverage": "web_zone",
+          "label": "WEB/WAF 攻击请求"
+        },
+        {
+          "id": "S2-P0-exec",
+          "priority": "P0",
+          "asset_types": ["host_exec"],
+          "match": "all",
+          "required_fields": {
+            "host_exec": ["host", "command", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 服务器命令执行"
+        },
+        {
+          "id": "S2-P0-file",
+          "priority": "P0",
+          "asset_types": ["host_file_op"],
+          "match": "all",
+          "required_fields": {
+            "host_file_op": ["host", "path", "action", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 服务器文件操作"
+        },
+        {
+          "id": "S2-P1-connect",
+          "priority": "P1",
+          "asset_types": ["host_connect"],
+          "match": "all",
+          "required_fields": {
+            "host_connect": ["host", "dst_ip", "dst_port", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 服务器主动外连"
+        },
+        {
+          "id": "S2-P1-persistence",
+          "priority": "P1",
+          "asset_types": ["host_persistence"],
+          "match": "all",
+          "required_fields": {
+            "host_persistence": ["host", "path", "action", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 服务器持久化变更"
+        },
+        {
+          "id": "S2-P2-vuln",
+          "priority": "P2",
+          "asset_types": ["vuln_scan"],
+          "match": "all",
+          "required_fields": {
+            "vuln_scan": ["host", "cve"]
+          },
+          "coverage": "any",
+          "label": "漏洞扫描"
+        }
+      ]
+    },
+    "S3": {
+      "name": "横向移动调查",
+      "keywords": ["横向", "内网扩散", "跳板", "暴力破解横向"],
+      "requirements": [
+        {
+          "id": "S3-P0-ssh",
+          "priority": "P0",
+          "asset_types": ["syslog_risk_alert", "ssh_auth"],
+          "match": "any",
+          "required_fields": {
+            "syslog_risk_alert": ["host_ip", "src_ip", "user", "event_type", "timestamp"],
+            "ssh_auth": ["host", "src_ip", "user", "result", "timestamp"]
+          },
+          "coverage": "internal_ssh",
+          "label": "SSH/syslog 认证日志"
+        },
+        {
+          "id": "S3-P1-fw",
+          "priority": "P1",
+          "asset_types": ["firewall_log", "network_traffic_audit"],
+          "match": "any",
+          "required_fields": {
+            "firewall_log": ["src_ip", "dst_ip", "timestamp"],
+            "network_traffic_audit": ["src_ip", "dst_ip", "timestamp"]
+          },
+          "coverage": "internal",
+          "label": "内网防火墙/全流量"
+        },
+        {
+          "id": "S3-P1-exec",
+          "priority": "P1",
+          "asset_types": ["host_exec"],
+          "match": "all",
+          "required_fields": {
+            "host_exec": ["host", "command", "timestamp"]
+          },
+          "coverage": "jump_hosts",
+          "label": "跳板机命令执行"
+        },
+        {
+          "id": "S3-P1-connect",
+          "priority": "P1",
+          "asset_types": ["host_connect"],
+          "match": "all",
+          "required_fields": {
+            "host_connect": ["host", "dst_ip", "dst_port", "timestamp"]
+          },
+          "coverage": "internal",
+          "label": "内网主动连接"
+        },
+        {
+          "id": "S3-P2-inventory",
+          "priority": "P2",
+          "asset_types": ["asset_inventory"],
+          "match": "all",
+          "required_fields": {
+            "asset_inventory": ["hostname", "ip"]
+          },
+          "coverage": "full",
+          "label": "资产清单"
+        }
+      ]
+    },
+    "S4": {
+      "name": "WEB 告警确认",
+      "keywords": ["告警确认", "误报", "WAF告警", "真实攻击", "有没有打穿", "SQL注入", "XSS"],
+      "requirements": [
+        {
+          "id": "S4-P0-waf",
+          "priority": "P0",
+          "asset_types": ["waf_alert"],
+          "match": "all",
+          "required_fields": {
+            "waf_alert": ["src_ip", "timestamp", "url", "payload"]
+          },
+          "coverage": "web_zone",
+          "label": "WAF 告警（含 payload）"
+        },
+        {
+          "id": "S4-P0-access",
+          "priority": "P0",
+          "asset_types": ["web_access_log"],
+          "match": "all",
+          "required_fields": {
+            "web_access_log": ["src_ip", "timestamp", "url"]
+          },
+          "coverage": "web_zone",
+          "label": "WEB 访问日志"
+        },
+        {
+          "id": "S4-P1-exec",
+          "priority": "P1",
+          "asset_types": ["host_exec"],
+          "match": "all",
+          "required_fields": {
+            "host_exec": ["host", "command", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 主机命令执行"
+        },
+        {
+          "id": "S4-P1-connect",
+          "priority": "P1",
+          "asset_types": ["host_connect"],
+          "match": "all",
+          "required_fields": {
+            "host_connect": ["host", "dst_ip", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 主机主动外连"
+        },
+        {
+          "id": "S4-P1-file",
+          "priority": "P1",
+          "asset_types": ["host_file_op"],
+          "match": "all",
+          "required_fields": {
+            "host_file_op": ["host", "path", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 主机文件操作"
+        },
+        {
+          "id": "S4-P1-persistence",
+          "priority": "P1",
+          "asset_types": ["host_persistence"],
+          "match": "all",
+          "required_fields": {
+            "host_persistence": ["host", "path", "action", "timestamp"]
+          },
+          "coverage": "web_hosts",
+          "label": "WEB 主机持久化变更"
+        }
+      ]
+    },
+    "S5": {
+      "name": "主机异常行为",
+      "keywords": ["监听进程", "命令执行", "exec", "connect", "对外端口", "nginx执行"],
+      "requirements": [
+        {
+          "id": "S5-P0-exec",
+          "priority": "P0",
+          "asset_types": ["host_exec"],
+          "match": "all",
+          "required_fields": {
+            "host_exec": ["host", "command", "timestamp"]
+          },
+          "coverage": "target_hosts",
+          "label": "主机命令执行"
+        },
+        {
+          "id": "S5-P1-connect",
+          "priority": "P1",
+          "asset_types": ["host_connect"],
+          "match": "all",
+          "required_fields": {
+            "host_connect": ["host", "dst_ip", "timestamp"]
+          },
+          "coverage": "target_hosts",
+          "label": "主机主动外连"
+        },
+        {
+          "id": "S5-P1-file",
+          "priority": "P1",
+          "asset_types": ["host_file_op"],
+          "match": "all",
+          "required_fields": {
+            "host_file_op": ["host", "path", "timestamp"]
+          },
+          "coverage": "target_hosts",
+          "label": "主机文件操作"
+        },
+        {
+          "id": "S5-P1-persistence",
+          "priority": "P1",
+          "asset_types": ["host_persistence"],
+          "match": "all",
+          "required_fields": {
+            "host_persistence": ["host", "path", "action", "timestamp"]
+          },
+          "coverage": "target_hosts",
+          "label": "主机持久化变更"
+        },
+        {
+          "id": "S5-P2-waf",
+          "priority": "P2",
+          "asset_types": ["waf_alert"],
+          "match": "all",
+          "required_fields": {
+            "waf_alert": ["src_ip", "timestamp"]
+          },
+          "coverage": "web_zone",
+          "label": "WAF 告警"
+        }
+      ],
+      "next_skill": "risk-identification"
+    },
+    "S6": {
+      "name": "账号失陷",
+      "keywords": ["账号", "登录异常", "VPN", "AD", "暴力破解", "失陷"],
+      "requirements": [
+        {
+          "id": "S6-P0-auth",
+          "priority": "P0",
+          "asset_types": ["syslog_risk_alert", "vpn_auth", "ssh_auth"],
+          "match": "any",
+          "required_fields": {
+            "syslog_risk_alert": ["host_ip", "user", "src_ip", "event_type", "timestamp"],
+            "ssh_auth": ["host", "user", "timestamp", "result"],
+            "vpn_auth": ["user", "src_ip", "timestamp", "result"]
+          },
+          "coverage": "any",
+          "label": "认证日志"
+        },
+        {
+          "id": "S6-P1-exec",
+          "priority": "P1",
+          "asset_types": ["host_exec"],
+          "match": "all",
+          "required_fields": {
+            "host_exec": ["host", "command", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "登录后命令执行"
+        },
+        {
+          "id": "S6-P1-persistence",
+          "priority": "P1",
+          "asset_types": ["host_persistence"],
+          "match": "all",
+          "required_fields": {
+            "host_persistence": ["host", "path", "action", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "登录后持久化变更"
+        },
+        {
+          "id": "S6-P1-fw",
+          "priority": "P1",
+          "asset_types": ["firewall_log"],
+          "match": "all",
+          "required_fields": {
+            "firewall_log": ["src_ip", "dst_ip", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "防火墙日志"
+        }
+      ]
+    },
+    "S7": {
+      "name": "数据外传",
+      "keywords": ["数据外传", "泄露", "外发", "大量下载", "打包外传"],
+      "requirements": [
+        {
+          "id": "S7-P0-connect",
+          "priority": "P0",
+          "asset_types": ["host_connect", "proxy_log"],
+          "match": "any",
+          "required_fields": {
+            "host_connect": ["host", "dst_ip", "timestamp"],
+            "proxy_log": ["src_ip", "dst_ip", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "外连/代理日志"
+        },
+        {
+          "id": "S7-P0-file",
+          "priority": "P0",
+          "asset_types": ["host_file_op"],
+          "match": "all",
+          "required_fields": {
+            "host_file_op": ["host", "path", "action", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "敏感文件操作"
+        },
+        {
+          "id": "S7-P1-dns",
+          "priority": "P1",
+          "asset_types": ["dns_log"],
+          "match": "all",
+          "required_fields": {
+            "dns_log": ["client_ip", "query", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "外传/C2 域名 DNS 查询"
+        },
+        {
+          "id": "S7-P1-nta",
+          "priority": "P1",
+          "asset_types": ["network_traffic_audit", "firewall_log"],
+          "match": "any",
+          "required_fields": {
+            "network_traffic_audit": ["src_ip", "dst_ip", "bytes", "timestamp"],
+            "firewall_log": ["src_ip", "dst_ip", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "外传流量体量（全流量/防火墙）"
+        },
+        {
+          "id": "S7-P1-exec",
+          "priority": "P1",
+          "asset_types": ["host_exec"],
+          "match": "all",
+          "required_fields": {
+            "host_exec": ["host", "command", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "打包/传输命令"
+        }
+      ]
+    },
+    "S8": {
+      "name": "C2 通信检测",
+      "keywords": ["C2", "C&C", "命令与控制", "回连", "反弹 Shell", "beacon", "可疑外连", "DGA"],
+      "requirements": [
+        {
+          "id": "S8-P0-connect",
+          "priority": "P0",
+          "asset_types": ["host_connect"],
+          "match": "all",
+          "required_fields": {
+            "host_connect": ["host", "dst_ip", "dst_port", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "主机主动外连"
+        },
+        {
+          "id": "S8-P1-network",
+          "priority": "P1",
+          "asset_types": ["network_traffic_audit", "proxy_log"],
+          "match": "any",
+          "required_fields": {
+            "network_traffic_audit": ["src_ip", "dst_ip", "dst_port", "bytes", "timestamp"],
+            "proxy_log": ["src_ip", "dst_ip", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "C2 流量与代理会话"
+        },
+        {
+          "id": "S8-P1-dns",
+          "priority": "P1",
+          "asset_types": ["dns_log"],
+          "match": "all",
+          "required_fields": {
+            "dns_log": ["client_ip", "query", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "C2/DGA DNS 查询"
+        },
+        {
+          "id": "S8-P1-exec",
+          "priority": "P1",
+          "asset_types": ["host_exec"],
+          "match": "all",
+          "required_fields": {
+            "host_exec": ["host", "command", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "C2 进程与命令上下文"
+        },
+        {
+          "id": "S8-P2-alert",
+          "priority": "P2",
+          "asset_types": ["syslog_risk_alert"],
+          "match": "all",
+          "required_fields": {
+            "syslog_risk_alert": ["host_ip", "event_type", "timestamp"]
+          },
+          "coverage": "any",
+          "label": "主机系统风险告警"
+        }
+      ]
+    }
+  },
+  "correlation_keys": ["src_ip", "host", "timestamp", "user", "pid", "session"],
+  "collection_hints": {
+    "host_exec": "Linux 部署 audit-port-execmon，配置 whitelist_ports 监控对外端口进程 exec",
+    "host_connect": "audit-port-execmon 开启 monitor_connect",
+    "host_file_op": "audit-port-execmon 开启 monitor_file_ops",
+    "host_persistence": "secweaver-agent 开启 host-persistence 模块，监控 cron、systemd、authorized_keys、sudoers、profile 等持久化位置",
+    "syslog_risk_alert": "secweaver-agent syslog-risk-json 采集 /var/log/secure、/var/log/auth.log、messages 并派生 SSH 认证证据",
+    "ssh_auth": "可选兼容入口：rsyslog 采集 /var/log/auth.log，保留 src_ip、user、result、timestamp",
+    "waf_alert": "接入 WAF API/syslog，确保含 payload 或 request_body",
+    "web_access_log": "接入 Nginx/Apache/IIS 访问日志，保留 src_ip、url、status",
+    "firewall_log": "防火墙 syslog 或 NetFlow，保留五元组与时间戳",
+    "network_traffic_audit": "NDR/TAP 全流量审计，保留五元组、协议、字节数/会话 ID",
+    "proxy_log": "接入 HTTP/SOCKS 代理日志，保留源/目的地址、端口、域名、动作与时间戳",
+    "dns_log": "内网 DNS 查询日志或 DNS 安全网关",
+    "asset_inventory": "CMDB 或资产清单，含 hostname、ip、zone、services"
+  },
+  "impact_templates": {
+    "host_exec": "无法确认 WebShell、curl/wget 下载、命令执行链，不能证明攻击成功",
+    "host_connect": "无法关联下载域名与 C2，攻击链缺少外连证据",
+    "host_file_op": "无法确认 WebShell 落地或异常文件写入",
+    "host_persistence": "无法确认 cron/systemd/authorized_keys 等持久化落地，攻击后留驻证据缺失",
+    "syslog_risk_alert": "无法从 syslog-risk-json 派生 SSH 登录、PAM 认证与 root 会话证据",
+    "ssh_auth": "无法追踪 SSH 横向移动与暴力破解",
+    "firewall_log": "无法可视化内网连接路径（如 WEB→SSH）",
+    "network_traffic_audit": "缺少全流量会话时难以还原非防火墙路径与外传体量",
+    "proxy_log": "无法识别经 HTTP/SOCKS 代理的 C2 通信和目的域名",
+    "waf_alert": "无法判断攻击载荷内容，只能看到规则命中",
+    "web_access_log": "缺少告警前后请求上下文，难以还原攻击序列",
+    "dns_log": "只能看到 IP 无法解析下载/C2 域名"
+  },
+  "next_skill_map": {
+    "S1": "traceability_analysis",
+    "S2": "traceability_analysis",
+    "S3": "traceability_analysis",
+    "S4": "alert_confirmation",
+    "S5": "risk-identification",
+    "S6": "traceability_analysis",
+    "S7": "traceability_analysis",
+    "S8": "risk-identification"
+  }
+}

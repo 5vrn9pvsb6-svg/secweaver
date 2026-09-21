@@ -1,0 +1,85 @@
+{
+  "investigation_intent": "外网 IP 198.18.0.99 扫描探测，确认是否打穿",
+  "scenarios": ["S1"],
+  "params": {
+    "attacker_ip": "198.18.0.99",
+    "alert_time": "2026-06-22T14:20:00+08:00",
+    "time_start": "2026-06-22T12:00:00+08:00",
+    "time_end": "2026-06-22T18:00:00+08:00",
+    "host_ips": {
+      "web-01": "10.0.1.5"
+    }
+  },
+  "completeness_precheck": {
+    "overall_verdict": "partial_traceable",
+    "confidence": 0.62,
+    "next_skill_blocked": false,
+    "data_gaps": ["host_exec 未接入或时间窗内无事件"]
+  },
+  "evidence_bundles": {
+    "waf_alert": [
+      {
+        "evidence_id": "waf-101",
+        "src_ip": "198.18.0.99",
+        "timestamp": "2026-06-22T14:20:00+08:00",
+        "url": "/.env",
+        "payload": "",
+        "action": "block",
+        "rule_id": "930120",
+        "rule_name": "OS File Access",
+        "host": "web-01"
+      },
+      {
+        "evidence_id": "waf-102",
+        "src_ip": "198.18.0.99",
+        "timestamp": "2026-06-22T14:19:55+08:00",
+        "url": "/wp-admin/setup-config.php",
+        "payload": "",
+        "action": "block",
+        "rule_id": "913100",
+        "rule_name": "Generic Scanner",
+        "host": "web-01"
+      }
+    ],
+    "web_access_log": [
+      {
+        "evidence_id": "web-101",
+        "src_ip": "198.18.0.99",
+        "timestamp": "2026-06-22T14:19:50+08:00",
+        "url": "/wp-login.php",
+        "method": "GET",
+        "status": 404,
+        "host": "web-01",
+        "user_agent": "sqlmap/1.8"
+      },
+      {
+        "evidence_id": "web-102",
+        "src_ip": "198.18.0.99",
+        "timestamp": "2026-06-22T14:20:02+08:00",
+        "url": "/.env",
+        "method": "GET",
+        "status": 403,
+        "host": "web-01",
+        "user_agent": "sqlmap/1.8"
+      }
+    ],
+    "host_exec": [],
+    "host_connect": [],
+    "host_file_op": [],
+    "ssh_auth": [],
+    "firewall_log": [],
+    "asset_inventory": [
+      {
+        "hostname": "web-01",
+        "ip": "10.0.1.5",
+        "zone": "dmz"
+      }
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S1 负例 — 仅扫描无打穿",
+    "expected_verdict": "scanning_or_attempt_only",
+    "correlation_joins": ["waf_to_web_access_by_ip"],
+    "missing_joins": ["web_access_to_host_exec"]
+  }
+}

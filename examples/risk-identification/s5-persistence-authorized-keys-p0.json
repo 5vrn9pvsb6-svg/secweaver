@@ -1,0 +1,33 @@
+{
+  "investigation_intent": "检查主机 SSH 授权密钥的持久化变更",
+  "scenario": "S5-PERSISTENCE",
+  "risk_modules": ["persistence"],
+  "params": {
+    "host": "web-01",
+    "time_start": "2026-07-01T11:00:00+08:00",
+    "time_end": "2026-07-01T12:00:00+08:00",
+    "severity_floor": "P2"
+  },
+  "evidence_bundles": {
+    "host_persistence": [
+      {
+        "evidence_id": "persist-ssh-key-01",
+        "event_type": "persistence_change",
+        "host": "web-01",
+        "timestamp": "2026-07-01T11:05:33+08:00",
+        "action": "modified",
+        "persistence_type": "ssh_key",
+        "path": "/home/app/.ssh/authorized_keys",
+        "user": "app",
+        "process": "sh"
+      }
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S5 持久化变更：修改 SSH authorized_keys",
+    "expected_overall_verdict": "high_risk_detected",
+    "expected_highest_severity": "P0",
+    "expected_risk_modules": ["persistence"],
+    "expected_matched_rules": ["persistence_ssh_key_modify"]
+  }
+}

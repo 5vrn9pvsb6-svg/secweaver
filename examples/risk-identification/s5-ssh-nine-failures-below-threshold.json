@@ -1,0 +1,33 @@
+{
+  "investigation_intent": "调查同一来源短时九次 SSH 认证失败是否足以判定暴力尝试",
+  "scenario": "S5",
+  "risk_modules": ["ssh"],
+  "params": {
+    "host": "192.0.2.92",
+    "time_start": "2026-07-01T17:00:00+08:00",
+    "time_end": "2026-07-01T17:15:00+08:00",
+    "severity_floor": "P2"
+  },
+  "evidence_bundles": {
+    "host_exec": [],
+    "ssh_auth": [
+      {"evidence_id": "auth-01", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:00+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"},
+      {"evidence_id": "auth-02", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:01+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"},
+      {"evidence_id": "auth-03", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:02+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"},
+      {"evidence_id": "auth-04", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:03+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"},
+      {"evidence_id": "auth-05", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:04+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"},
+      {"evidence_id": "auth-06", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:05+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"},
+      {"evidence_id": "auth-07", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:06+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"},
+      {"evidence_id": "auth-08", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:07+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"},
+      {"evidence_id": "auth-09", "host": "192.0.2.92", "timestamp": "2026-07-01T17:08:08+08:00", "src_ip": "192.0.2.91", "user": "devops", "event_type": "ssh_login_failed"}
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S5 SSH 同源九次认证失败，未达到十次阈值",
+    "expected_overall_verdict": "insufficient_data",
+    "expected_risk_items_exact": 0,
+    "expected_risk_modules": ["ssh"],
+    "expected_ssh_brute_waves": 0,
+    "expected_unmatched_rules": ["ssh_bruteforce"]
+  }
+}

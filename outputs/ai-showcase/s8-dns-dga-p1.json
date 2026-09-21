@@ -1,0 +1,864 @@
+{
+  "skill": "risk-identification",
+  "scenario": "S8",
+  "overall_verdict": "high_risk_detected",
+  "coverage_level": "insufficient",
+  "params": {
+    "host": "192.0.2.91",
+    "time_start": "2026-07-01T10:00:00+08:00",
+    "time_end": "2026-07-01T10:10:00+08:00",
+    "severity_floor": "P2"
+  },
+  "summary": {
+    "total_events_scanned": 1,
+    "risk_items": 1,
+    "p0": 0,
+    "p1": 1,
+    "p2": 0,
+    "p3": 0,
+    "alert_required": 1,
+    "alert_suppressed": 0,
+    "policy_hits": 1,
+    "top_incidents": 1,
+    "ssh_brute_waves": 0,
+    "top_hosts": [
+      "192.0.2.91"
+    ],
+    "top_risk_tags": [
+      "dns",
+      "dga",
+      "command_and_control",
+      "external_domain"
+    ],
+    "top_mitre_techniques": [
+      "T1568.002",
+      "T1568"
+    ]
+  },
+  "risk_items": [
+    {
+      "risk_id": "risk-dns-192-0-2-91-dns-dga-01",
+      "risk_module": "dns",
+      "alert_type": "dns_profile_anomaly",
+      "severity": "P1",
+      "confidence": 0.8,
+      "verdict": "suspicious",
+      "host": "192.0.2.91",
+      "timestamp": "2026-07-01T10:00:20+08:00",
+      "query": "a9d8f7g6h5j4k3l2m1n0p9q8.xyz",
+      "domain": "a9d8f7g6h5j4k3l2m1n0p9q8.xyz",
+      "query_type": null,
+      "rcode": "NOERROR",
+      "matched_rules": [
+        "suspected_dga_domain",
+        "uncommon_tld_query"
+      ],
+      "risk_tags": [
+        "dns",
+        "dga",
+        "command_and_control",
+        "external_domain"
+      ],
+      "recommended_action": "manual_review_5m",
+      "summary": "192.0.2.91 DNS profile matched suspected_dga_domain, uncommon_tld_query on a9d8f7g6h5j4k3l2m1n0p9q8.xyz (P1)",
+      "evidence_refs": [
+        "dns-dga-01"
+      ],
+      "client_scope": "internal",
+      "original_risk": {
+        "severity": "P1",
+        "verdict": "suspicious",
+        "recommended_action": "manual_review_5m",
+        "confidence": 0.8
+      },
+      "policy_rule_id": "DEFAULT-ALERT",
+      "policy_tier": "default",
+      "policy_reason": "第一节默认：P0/P1 需要告警",
+      "alert_required": true,
+      "alert_suppressed": false,
+      "mitre_attack": {
+        "techniques": [
+          {
+            "id": "T1568.002",
+            "name": "Domain Generation Algorithms",
+            "tactic": "command_and_control",
+            "tactic_id": "TA0011"
+          },
+          {
+            "id": "T1568",
+            "name": "Dynamic Resolution",
+            "tactic": "command_and_control",
+            "tactic_id": "TA0011"
+          }
+        ],
+        "tactics": [
+          {
+            "id": "TA0011",
+            "name": "command_and_control"
+          }
+        ],
+        "technique_ids": [
+          "T1568.002",
+          "T1568"
+        ],
+        "tactic_ids": [
+          "TA0011"
+        ]
+      }
+    }
+  ],
+  "evidence_deduplication": {
+    "host_connect": {
+      "input_count": 0,
+      "retained_count": 0,
+      "duplicates_removed": 0,
+      "aliases": []
+    },
+    "dns_log": {
+      "input_count": 1,
+      "retained_count": 1,
+      "duplicates_removed": 0,
+      "aliases": []
+    }
+  },
+  "behavior_policy": {
+    "enabled": true,
+    "path": "src/skills/risk-identification/behavior-policy.md",
+    "format": "natural_language_v1",
+    "rule_ids": [
+      "WEB-SHELL-001",
+      "WEB-SHELL-002",
+      "LATERAL-SSH-001",
+      "RECON-HIGH-001",
+      "SSH-IMPACT-001",
+      "DOWNLOAD-MALICIOUS-001",
+      "CONNECT-C2-001",
+      "SSH-BRUTE-001",
+      "SYS-ACCOUNT-001",
+      "SYS-SUDO-001",
+      "SYS-FW-001",
+      "SYS-KERNEL-001",
+      "OPS-LAB-SETUP-001",
+      "OPS-SSH-001",
+      "OPS-AGENT-001",
+      "OPS-LOCAL-CURL-001",
+      "OPS-AGENT-UNINSTALL-001",
+      "OPS-DEPLOY-001",
+      "OPS-CLOUD-001",
+      "OPS-NGINX-001",
+      "OPS-DNS-001"
+    ],
+    "document_chars": 9890,
+    "rules_pack": "src/skills/risk-identification/rules/behavior-policy.rules.json",
+    "rules_pack_id": "risk-identification-default",
+    "rules_engine": "policy_engine_v3",
+    "applied": true,
+    "hits": 1
+  },
+  "whitelist": {
+    "enabled": true,
+    "applied": true,
+    "path": "src/skills/risk-identification/whitelist.json",
+    "hits": 0
+  },
+  "detection_rules": {
+    "rules_dir": "src/skills/risk-identification/rules",
+    "exec": "src/skills/risk-identification/rules/exec-rules.json",
+    "connect": "src/skills/risk-identification/rules/connect-rules.json",
+    "dns": "src/skills/risk-identification/rules/dns-rules.json",
+    "persistence": "src/skills/risk-identification/rules/persistence-rules.json",
+    "ssh": "src/skills/risk-identification/rules/ssh-rules.json",
+    "syslog": "src/skills/risk-identification/rules/syslog-rules.json",
+    "attck": "src/skills/risk-identification/rules/attck-map.json"
+  },
+  "policy_hits": [
+    {
+      "risk_id": "risk-dns-192-0-2-91-dns-dga-01",
+      "rule_id": "DEFAULT-ALERT",
+      "tier": "default",
+      "action": "force_alert",
+      "reason": "第一节默认：P0/P1 需要告警",
+      "original_severity": "P1",
+      "final_severity": "P1"
+    }
+  ],
+  "top_incidents": [
+    {
+      "incident_id": "incident-53e1839aed",
+      "host": "192.0.2.91",
+      "risk_module": "dns",
+      "policy_rule_id": "DEFAULT-ALERT",
+      "listener_process": null,
+      "listener_port": null,
+      "severity": "P1",
+      "alert_required": true,
+      "event_count": 1,
+      "alert_count": 1,
+      "first_seen": "2026-07-01T10:00:20+08:00",
+      "last_seen": "2026-07-01T10:00:20+08:00",
+      "summary": "192.0.2.91 DNS profile matched suspected_dga_domain, uncommon_tld_query on a9d8f7g6h5j4k3l2m1n0p9q8.xyz (P1)",
+      "command_sample": null,
+      "src_ip": null,
+      "fail_count": null,
+      "sample_risk_ids": [
+        "risk-dns-192-0-2-91-dns-dga-01"
+      ],
+      "mitre_attack": {
+        "techniques": [
+          {
+            "id": "T1568.002",
+            "name": "Domain Generation Algorithms",
+            "tactic": "command_and_control",
+            "tactic_id": "TA0011"
+          },
+          {
+            "id": "T1568",
+            "name": "Dynamic Resolution",
+            "tactic": "command_and_control",
+            "tactic_id": "TA0011"
+          }
+        ],
+        "tactics": [
+          {
+            "id": "TA0011",
+            "name": "command_and_control"
+          }
+        ],
+        "technique_ids": [
+          "T1568.002",
+          "T1568"
+        ],
+        "tactic_ids": [
+          "TA0011"
+        ]
+      }
+    }
+  ],
+  "ssh_brute_waves": [],
+  "whitelist_hits": [],
+  "data_gaps": [
+    "host_connect: no events in window",
+    "network_traffic_audit: missing — DNS cannot replace session/volume evidence"
+  ],
+  "user_reminders": [
+    "【必需】进程主动外连（host_connect）在当前 host/时间窗内无事件，无法识别：公网 C2 外连、可疑端口外连、exec 关联外连、非公网白名单外连、内网业务依赖连接、DoH 外连…",
+    "【建议】缺少全流量会话（network_traffic_audit），DNS 不能替代流量体量、beacon 周期和真实会话路径验证",
+    "connect 模块未运行：缺少 进程主动外连 数据。漏检外连类风险（C2/可疑端口/exec关联外连等 7 条规则）"
+  ],
+  "data_source_status": {
+    "host_exec": {
+      "label": "进程命令执行",
+      "asset_type": "host_exec",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [
+        "exec"
+      ],
+      "enables_risk_rules": [
+        "external_listener_shell_exec",
+        "download_and_execute",
+        "reverse_shell",
+        "persistence_modify",
+        "security_control_tampering",
+        "sensitive_file_read",
+        "internal_recon",
+        "webshell_write",
+        "network_exfil_tools",
+        "obfuscated_exec",
+        "data_staging",
+        "database_dump",
+        "noise_command"
+      ],
+      "description": "对外监听进程及其子进程的命令执行事件（audit-port-execmon 等）"
+    },
+    "host_connect": {
+      "label": "进程主动外连",
+      "asset_type": "host_connect",
+      "status": "empty_in_window",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [
+        "connect"
+      ],
+      "enables_risk_rules": [
+        "external_c2_connect",
+        "suspicious_port_connect",
+        "exec_correlated_egress",
+        "non_whitelist_egress",
+        "business_whitelist_connect",
+        "doh_egress",
+        "dot_egress"
+      ],
+      "description": "对外监听进程发起的主动 TCP/UDP 连接事件"
+    },
+    "host_file_op": {
+      "label": "进程文件操作",
+      "asset_type": "host_file_op",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [],
+      "enables_risk_rules": [],
+      "description": "监听进程上下文内的文件读写/创建/删除（辅助 exec 上下文加权与攻击链）"
+    },
+    "host_persistence": {
+      "label": "主机持久化变更",
+      "asset_type": "host_persistence",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [
+        "persistence"
+      ],
+      "enables_risk_rules": [
+        "persistence_cron_modify",
+        "persistence_systemd_modify",
+        "persistence_ssh_key_modify",
+        "persistence_profile_modify",
+        "persistence_sudoers_modify",
+        "persistence_kernel_module_modify",
+        "persistence_ld_preload_modify",
+        "persistence_generic_change"
+      ],
+      "description": "cron、systemd、authorized_keys、sudoers、profile、内核模块等持久化位置变更"
+    },
+    "host_process": {
+      "label": "主机进程快照",
+      "asset_type": "host_process",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [],
+      "enables_risk_rules": [],
+      "description": "每 10 分钟采集的全量当前进程，用于补充进程存活、父子关系、用户和资源占用上下文"
+    },
+    "host_socket": {
+      "label": "主机监听端口快照",
+      "asset_type": "host_socket",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [],
+      "enables_risk_rules": [],
+      "description": "每分钟监听端口快照，用于确认异常服务暴露和进程归属"
+    },
+    "host_identity": {
+      "label": "主机登录与身份变化",
+      "asset_type": "host_identity",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [],
+      "enables_risk_rules": [],
+      "description": "账户属性变化和登录会话开始/结束，用于身份影响面确认"
+    },
+    "host_service": {
+      "label": "主机服务与计划任务变化",
+      "asset_type": "host_service",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [],
+      "enables_risk_rules": [],
+      "description": "服务、timer、cron 和计划任务基线及变化"
+    },
+    "host_kernel_context": {
+      "label": "主机内核与容器上下文",
+      "asset_type": "host_kernel_context",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [],
+      "enables_risk_rules": [],
+      "description": "内核模块、驱动、命名空间、cgroup 容器和容器运行时上下文"
+    },
+    "waf_alert": {
+      "label": "WAF 告警",
+      "asset_type": "waf_alert",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [],
+      "enables_risk_rules": [],
+      "description": "WAF 命中告警（用于主机风险与 WAF 互证建议，不独立判风险）"
+    },
+    "ssh_auth": {
+      "label": "SSH 认证日志",
+      "asset_type": "ssh_auth",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [
+        "ssh"
+      ],
+      "enables_risk_rules": [
+        "ssh_bruteforce"
+      ],
+      "description": "SSH 登录/失败/暴力破解（tigersec-sys-auth / syslog-risk-json 认证子集）"
+    },
+    "syslog_risk_alert": {
+      "label": "syslog 结构化风险报警",
+      "asset_type": "syslog_risk_alert",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [
+        "syslog"
+      ],
+      "enables_risk_rules": [
+        "account_created",
+        "account_modified",
+        "sudo_high_risk",
+        "sudo_command",
+        "root_ssh_login",
+        "security_policy_denied",
+        "firewall_event",
+        "suspicious_cron"
+      ],
+      "description": "syslog-risk-json 全量风险事件（asset-secweaver-sys-risk-alert）；SSH 暴破 raw 由 ssh 模块处理"
+    },
+    "dns_log": {
+      "label": "DNS 查询日志",
+      "asset_type": "dns_log",
+      "status": "present",
+      "event_count": 1,
+      "implemented": true,
+      "enables_modules": [
+        "dns"
+      ],
+      "enables_risk_rules": [
+        "high_nxdomain_burst",
+        "suspected_dga_domain",
+        "uncommon_tld_query",
+        "dns_tunnel_suspected"
+      ],
+      "description": "用于将主机外连关联到 C2 域名，识别 NXDOMAIN、DGA、DNS 隧道和非常见 TLD"
+    },
+    "network_traffic_audit": {
+      "label": "全流量会话",
+      "asset_type": "network_traffic_audit",
+      "status": "missing",
+      "event_count": 0,
+      "implemented": true,
+      "enables_modules": [],
+      "enables_risk_rules": [],
+      "description": "用于分析 C2 beacon 周期、流量体量和会话持续时间"
+    }
+  },
+  "risk_coverage": {
+    "available_rule_ids": [
+      "high_nxdomain_burst",
+      "suspected_dga_domain",
+      "uncommon_tld_query",
+      "dns_tunnel_suspected"
+    ],
+    "degraded_rules": [
+      {
+        "rule_id": "suspected_dga_domain",
+        "label": "疑似 DGA 域名",
+        "note": "缺少辅助数据源 进程主动外连，置信度/关联能力可能降级"
+      },
+      {
+        "rule_id": "dns_tunnel_suspected",
+        "label": "疑似 DNS 隧道",
+        "note": "无 network_traffic_audit 时只能基于查询长度/类型画像，无法验证实际隧道流量体量"
+      }
+    ],
+    "unavailable_rules": [
+      {
+        "rule_id": "external_listener_shell_exec",
+        "label": "Web 进程 Shell 执行",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "download_and_execute",
+        "label": "下载并执行",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "reverse_shell",
+        "label": "反弹 Shell",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "persistence_modify",
+        "label": "持久化/后门",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "security_control_tampering",
+        "label": "关闭审计/防火墙",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "sensitive_file_read",
+        "label": "敏感文件读取",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "internal_recon",
+        "label": "内网侦察",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "webshell_write",
+        "label": "WebShell 写入（命令特征）",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "network_exfil_tools",
+        "label": "外传工具/隧道",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "obfuscated_exec",
+        "label": "混淆执行",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "data_staging",
+        "label": "数据打包外传准备",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "database_dump",
+        "label": "数据库导出",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "noise_command",
+        "label": "运维噪声命令",
+        "reason": "缺少主数据源：进程命令执行",
+        "missing_sources": [
+          "host_exec"
+        ]
+      },
+      {
+        "rule_id": "external_c2_connect",
+        "label": "公网 C2 外连",
+        "reason": "缺少主数据源：进程主动外连",
+        "missing_sources": [
+          "host_connect"
+        ]
+      },
+      {
+        "rule_id": "suspicious_port_connect",
+        "label": "可疑端口外连",
+        "reason": "缺少主数据源：进程主动外连",
+        "missing_sources": [
+          "host_connect"
+        ]
+      },
+      {
+        "rule_id": "exec_correlated_egress",
+        "label": "exec 关联外连",
+        "reason": "缺少主数据源：进程主动外连",
+        "missing_sources": [
+          "host_connect"
+        ]
+      },
+      {
+        "rule_id": "non_whitelist_egress",
+        "label": "非公网白名单外连",
+        "reason": "缺少主数据源：进程主动外连",
+        "missing_sources": [
+          "host_connect"
+        ]
+      },
+      {
+        "rule_id": "business_whitelist_connect",
+        "label": "内网业务依赖连接",
+        "reason": "缺少主数据源：进程主动外连",
+        "missing_sources": [
+          "host_connect"
+        ]
+      },
+      {
+        "rule_id": "doh_egress",
+        "label": "DoH 外连",
+        "reason": "缺少主数据源：进程主动外连",
+        "missing_sources": [
+          "host_connect"
+        ]
+      },
+      {
+        "rule_id": "dot_egress",
+        "label": "DoT 外连",
+        "reason": "缺少主数据源：进程主动外连",
+        "missing_sources": [
+          "host_connect"
+        ]
+      },
+      {
+        "rule_id": "scan_burst_connect",
+        "label": "扫描式短连接_burst",
+        "reason": "规则尚未实现",
+        "missing_sources": [
+          "host_connect"
+        ]
+      },
+      {
+        "rule_id": "ssh_bruteforce",
+        "label": "SSH 暴力破解",
+        "reason": "缺少主数据源：SSH 认证日志",
+        "missing_sources": [
+          "ssh_auth"
+        ]
+      },
+      {
+        "rule_id": "account_created",
+        "label": "本地账号创建",
+        "reason": "缺少主数据源：syslog 结构化风险报警",
+        "missing_sources": [
+          "syslog_risk_alert"
+        ]
+      },
+      {
+        "rule_id": "account_modified",
+        "label": "账号/密码变更",
+        "reason": "缺少主数据源：syslog 结构化风险报警",
+        "missing_sources": [
+          "syslog_risk_alert"
+        ]
+      },
+      {
+        "rule_id": "sudo_high_risk",
+        "label": "高危 sudo",
+        "reason": "缺少主数据源：syslog 结构化风险报警",
+        "missing_sources": [
+          "syslog_risk_alert"
+        ]
+      },
+      {
+        "rule_id": "sudo_command",
+        "label": "sudo 命令",
+        "reason": "缺少主数据源：syslog 结构化风险报警",
+        "missing_sources": [
+          "syslog_risk_alert"
+        ]
+      },
+      {
+        "rule_id": "root_ssh_login",
+        "label": "root SSH 登录成功",
+        "reason": "缺少主数据源：syslog 结构化风险报警",
+        "missing_sources": [
+          "syslog_risk_alert"
+        ]
+      },
+      {
+        "rule_id": "security_policy_denied",
+        "label": "SELinux/AppArmor 拒绝",
+        "reason": "缺少主数据源：syslog 结构化风险报警",
+        "missing_sources": [
+          "syslog_risk_alert"
+        ]
+      },
+      {
+        "rule_id": "firewall_event",
+        "label": "防火墙变更",
+        "reason": "缺少主数据源：syslog 结构化风险报警",
+        "missing_sources": [
+          "syslog_risk_alert"
+        ]
+      },
+      {
+        "rule_id": "suspicious_cron",
+        "label": "可疑 cron",
+        "reason": "缺少主数据源：syslog 结构化风险报警",
+        "missing_sources": [
+          "syslog_risk_alert"
+        ]
+      },
+      {
+        "rule_id": "persistence_cron_modify",
+        "label": "cron 持久化变更",
+        "reason": "缺少主数据源：主机持久化变更",
+        "missing_sources": [
+          "host_persistence"
+        ]
+      },
+      {
+        "rule_id": "persistence_systemd_modify",
+        "label": "systemd 持久化变更",
+        "reason": "缺少主数据源：主机持久化变更",
+        "missing_sources": [
+          "host_persistence"
+        ]
+      },
+      {
+        "rule_id": "persistence_ssh_key_modify",
+        "label": "SSH authorized_keys 变更",
+        "reason": "缺少主数据源：主机持久化变更",
+        "missing_sources": [
+          "host_persistence"
+        ]
+      },
+      {
+        "rule_id": "persistence_profile_modify",
+        "label": "profile/bashrc/rc.local 变更",
+        "reason": "缺少主数据源：主机持久化变更",
+        "missing_sources": [
+          "host_persistence"
+        ]
+      },
+      {
+        "rule_id": "persistence_sudoers_modify",
+        "label": "sudoers 权限持久化变更",
+        "reason": "缺少主数据源：主机持久化变更",
+        "missing_sources": [
+          "host_persistence"
+        ]
+      },
+      {
+        "rule_id": "persistence_kernel_module_modify",
+        "label": "内核模块持久化变更",
+        "reason": "缺少主数据源：主机持久化变更",
+        "missing_sources": [
+          "host_persistence"
+        ]
+      },
+      {
+        "rule_id": "persistence_ld_preload_modify",
+        "label": "ld.so.preload 持久化/绕过变更",
+        "reason": "缺少主数据源：主机持久化变更",
+        "missing_sources": [
+          "host_persistence"
+        ]
+      },
+      {
+        "rule_id": "persistence_generic_change",
+        "label": "持久化路径变更",
+        "reason": "缺少主数据源：主机持久化变更",
+        "missing_sources": [
+          "host_persistence"
+        ]
+      }
+    ]
+  },
+  "scenario_requirements": {
+    "required": [
+      "host_connect"
+    ],
+    "recommended": [
+      "host_exec",
+      "dns_log",
+      "network_traffic_audit",
+      "syslog_risk_alert"
+    ],
+    "optional": []
+  },
+  "risk_modules_run": [
+    "dns"
+  ],
+  "warnings": [],
+  "completeness_precheck": null,
+  "recommended_next_skills": [],
+  "fetch_summary": {
+    "fetched_at": "2026-09-21T16:28:56.620042+08:00",
+    "query_integrity": {
+      "status": "unknown",
+      "incomplete_queries": [],
+      "absence_is_not_evidence": false
+    },
+    "evidence_readiness": {
+      "status": "evidence_observed",
+      "event_count": 1,
+      "missing_required_evidence": [],
+      "query_status": "unknown",
+      "assessment_basis": "returned_events_and_query_attempts",
+      "does_not_establish_skill_coverage": true
+    },
+    "analysis_constraints": {
+      "scope": "supplied_evidence_only",
+      "positive_findings_allowed": true,
+      "negative_conclusion_allowed": false,
+      "absence_is_not_evidence": true,
+      "recommended_confidence_ceiling": 0.85
+    },
+    "total_events": 1,
+    "total_fetched_events": 0,
+    "total_fetch_queries": 0,
+    "total_fetch_requests": 0,
+    "total_fetch_cache_hits": 0,
+    "total_deduplicated_events": 0,
+    "total_window_filtered_events": 0,
+    "failed_fetch_queries": 0,
+    "non_connector_event_count": 1,
+    "non_connector_by_asset_type": {
+      "dns_log": 1
+    },
+    "by_asset_type": {
+      "host_connect": 0,
+      "dns_log": 1
+    },
+    "asset_fetch_stats": [],
+    "asset_count": 0,
+    "asset_ids": null,
+    "declared_asset_ids": null,
+    "fetch_asset_ids": null,
+    "planned_asset_ids": null,
+    "executed_asset_ids": null,
+    "skipped_assets": [],
+    "skipped_asset_count": 0,
+    "primary_alert_count": 0,
+    "fetch_mode": null,
+    "fetch_strategy": null,
+    "bundle_id": null,
+    "plan_task_count": 0,
+    "time_window": {
+      "time_start": "2026-07-01T10:00:00+08:00",
+      "time_end": "2026-07-01T10:10:00+08:00",
+      "alert_time": null,
+      "attacker_ip": null,
+      "target_ip": null
+    },
+    "attacker_ip_log_time_range": null,
+    "truncated_asset_types": []
+  },
+  "analysis_constraints": {
+    "scope": "supplied_evidence_only",
+    "positive_findings_allowed": true,
+    "negative_conclusion_allowed": false,
+    "absence_is_not_evidence": true,
+    "recommended_confidence_ceiling": 0.85
+  },
+  "markdown_report": "# Risk Identification Report\n\n- **Scenario**: S8\n- **Verdict**: high_risk_detected\n- **Coverage**: insufficient\n- **Events scanned**: 1\n- **Risk items**: 1 (P0=0, P1=1, alerting=1)\n- **Top incidents**: 1\n\n## 数据取数统计\n\n- **实际证据 / Evidence readiness**: `evidence_observed`；资产注册评分不代表本次证据完整或技能可运行。Registry readiness does not establish runtime coverage.\n- **结论边界 / Conclusion boundary**：当前证据可支持已观察到的正向发现，但不得用未返回事件排除风险。\n- **取数模式**: — / —\n- **时间窗**: 2026-07-01T10:00:00+08:00 ~ 2026-07-01T10:10:00+08:00\n- **总事件数（最终保留）**: 1\n- **非 connector 拉取证据**: 1 （`dns_log`: 1；例如资产注册表注入）\n\n### 按 asset_type\n\n- `dns_log`: 1\n- `host_connect`: 0\n\n## Data source reminders\n- 【必需】进程主动外连（host_connect）在当前 host/时间窗内无事件，无法识别：公网 C2 外连、可疑端口外连、exec 关联外连、非公网白名单外连、内网业务依赖连接、DoH 外连…\n- 【建议】缺少全流量会话（network_traffic_audit），DNS 不能替代流量体量、beacon 周期和真实会话路径验证\n- connect 模块未运行：缺少 进程主动外连 数据。漏检外连类风险（C2/可疑端口/exec关联外连等 7 条规则）\n\n## Data source status\n- **进程命令执行** (`host_exec`): missing events=0\n- **进程主动外连** (`host_connect`): empty_in_window events=0\n- **进程文件操作** (`host_file_op`): missing events=0\n- **主机持久化变更** (`host_persistence`): missing events=0\n- **主机进程快照** (`host_process`): missing events=0\n- **主机监听端口快照** (`host_socket`): missing events=0\n- **主机登录与身份变化** (`host_identity`): missing events=0\n- **主机服务与计划任务变化** (`host_service`): missing events=0\n- **主机内核与容器上下文** (`host_kernel_context`): missing events=0\n- **WAF 告警** (`waf_alert`): missing events=0\n- **SSH 认证日志** (`ssh_auth`): missing events=0\n- **syslog 结构化风险报警** (`syslog_risk_alert`): missing events=0\n- **DNS 查询日志** (`dns_log`): present events=1\n- **全流量会话** (`network_traffic_audit`): missing events=0\n\n## Risks not detectable due to missing sources\n- Web 进程 Shell 执行 (`external_listener_shell_exec`): 缺少主数据源：进程命令执行\n- 下载并执行 (`download_and_execute`): 缺少主数据源：进程命令执行\n- 反弹 Shell (`reverse_shell`): 缺少主数据源：进程命令执行\n- 持久化/后门 (`persistence_modify`): 缺少主数据源：进程命令执行\n- 关闭审计/防火墙 (`security_control_tampering`): 缺少主数据源：进程命令执行\n- 敏感文件读取 (`sensitive_file_read`): 缺少主数据源：进程命令执行\n- 内网侦察 (`internal_recon`): 缺少主数据源：进程命令执行\n- WebShell 写入（命令特征） (`webshell_write`): 缺少主数据源：进程命令执行\n- 外传工具/隧道 (`network_exfil_tools`): 缺少主数据源：进程命令执行\n- 混淆执行 (`obfuscated_exec`): 缺少主数据源：进程命令执行\n- 数据打包外传准备 (`data_staging`): 缺少主数据源：进程命令执行\n- 数据库导出 (`database_dump`): 缺少主数据源：进程命令执行\n\n## Data gaps\n- host_connect: no events in window\n- network_traffic_audit: missing — DNS cannot replace session/volume evidence\n\n## Behavior policy hits\n- `DEFAULT-ALERT` [default] force_alert: 第一节默认：P0/P1 需要告警 risk=risk-dns-192-0-2-91-dns-dga-01 P1→P1\n\n## Top incidents\n- **P1** [dns] `DEFAULT-ALERT` 192.0.2.91 — 192.0.2.91 DNS profile matched suspected_dga_domain, uncommon_tld_query on a9d8f7g6h5j4k3l2m1n0p9q8.xyz (P1)\n  - ATT&CK: T1568.002 (Domain Generation Algorithms); T1568 (Dynamic Resolution)\n",
+  "contract_version": "1.0"
+}

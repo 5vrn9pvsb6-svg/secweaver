@@ -1,0 +1,16 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "SSH 读日志（模板）",
+  "connector_type": "ssh_file",
+  "status": "draft",
+  "credentials_ref": "vault://ssh/readonly",
+  "config": {
+    "host": "YOUR_HOST",
+    "port": 22,
+    "log_paths": {
+      "ssh_auth": "/var/log/auth.log",
+      "web_access_log": "/var/log/nginx/access.log"
+    }
+  },
+  "constraints": { "max_lines_per_query": 10000 }
+}

@@ -1,0 +1,37 @@
+{
+  "asset_id": "asset-waf-api-prod",
+  "name": "生产 WAF API 告警（备用）",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "discovery",
+  "connector_id": "conn-http-waf-api",
+  "description": "格式发现队列：WAF HTTP API 告警；映射完成后 status 改为 draft → active",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "src_ip",
+      "timestamp",
+      "url",
+      "payload",
+      "action",
+      "rule_id",
+      "host"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "waf_api_search"
+  ],
+  "sensitivity": "internal",
+  "tags": [
+    "waf",
+    "api",
+    "draft",
+    "discovery"
+  ]
+}

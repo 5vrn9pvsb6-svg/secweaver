@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/risk-identification-output.json",
+  "title": "RiskIdentificationResult",
+  "allOf": [
+    {"$ref": "https://secweaver.local/schemas/skill-envelope.json"}
+  ],
+  "type": "object",
+  "required": ["contract_version", "skill", "scenario", "overall_verdict", "summary", "risk_items"],
+  "properties": {
+    "skill": { "const": "risk-identification" },
+    "scenario": { "type": "string" },
+    "overall_verdict": {
+      "enum": ["no_risk_detected", "low_risk_only", "high_risk_detected", "insufficient_data"]
+    },
+    "coverage_level": {
+      "enum": ["full", "partial", "insufficient"],
+      "description": "数据源覆盖：full=必需+建议齐全；partial=必需齐全但缺建议源；insufficient=缺必需源"
+    },
+    "contract_version": { "const": "1.0" },
+    "analysis_constraints": { "type": "object" },
+    "fetch_summary": { "type": "object" },
+    "risk_modules_run": { "type": "array", "items": { "type": "string" } },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_events_scanned": { "type": "integer" },
+        "risk_items": { "type": "integer" },
+        "p0": { "type": "integer" },
+        "p1": { "type": "integer" },
+        "p2": { "type": "integer" },
+        "p3": { "type": "integer" },
+        "ssh_brute_waves": { "type": "integer" },
+        "top_hosts": { "type": "array", "items": { "type": "string" } },
+        "top_risk_tags": { "type": "array", "items": { "type": "string" } },
+        "top_mitre_techniques": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "risk_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "mitre_attack": {
+            "type": "object",
+            "properties": {
+              "technique_ids": { "type": "array", "items": { "type": "string" } },
+              "techniques": { "type": "array" },
+              "tactics": { "type": "array" },
+              "tactic_ids": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    },
+    "behavior_policy": {
+      "type": "object",
+      "description": "behavior-policy.md 元数据（path、rule_ids、applied）"
+    },
+    "policy_hits": {
+      "type": "array",
+      "description": "自然语言策略命中记录"
+    },
+    "top_incidents": {
+      "type": "array",
+      "description": "按签名聚合的事件摘要（默认 Top 20 alerting）"
+    },
+    "ssh_brute_waves": {
+      "type": "array",
+      "description": "All SSH brute-force bursts (victim, src_ip, wave_index, time window); one risk_item per wave"
+    },
+    "whitelist": {
+      "type": "object",
+      "description": "环境白名单层元数据（默认开启 whitelist.json）"
+    },
+    "whitelist_hits": {
+      "type": "array",
+      "description": "whitelist.json 命中明细"
+    },
+    "data_gaps": { "type": "array", "items": { "type": "string" } },
+    "user_reminders": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "面向用户的数据源缺失/降级提醒（中文）"
+    },
+    "data_source_status": {
+      "type": "object",
+      "description": "各 evidence_bundles 键的 present/missing/empty_in_window 状态"
+    },
+    "risk_coverage": {
+      "type": "object",
+      "properties": {
+        "available_rule_ids": { "type": "array" },
+        "degraded_rules": { "type": "array" },
+        "unavailable_rules": { "type": "array" }
+      }
+    },
+    "scenario_requirements": { "type": "object" },
+    "recommended_next_skills": {
+      "type": "array",
+      "description": "可选下游 Skill 提示（如 alert-confirmation）；不含溯源分析"
+    }
+  }
+}

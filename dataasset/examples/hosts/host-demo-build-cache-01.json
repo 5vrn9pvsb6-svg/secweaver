@@ -1,0 +1,26 @@
+{
+  "host_id": "host-demo-build-cache-01",
+  "name": "Demo Build Cache 01",
+  "hostname": "demo-build-cache-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "203.0.113.85",
+  "network_id": "net-demo-lab-core",
+  "aliases": [
+    "demo-build-cache-01",
+    "203.0.113.85"
+  ],
+  "roles": [
+    "build-cache"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic build cache host template.",
+  "tags": [
+    "build-cache",
+    "demo",
+    "reference",
+    "server"
+  ]
+}

@@ -1,0 +1,326 @@
+{
+  "meta": {
+    "skill": "prompt-risk-analysis",
+    "investigation": {
+      "hosts": ["10.0.0.10"],
+      "attacker_ips": ["203.0.113.50"],
+      "time_start": "2026-07-11T12:00:00+08:00",
+      "time_end": "2026-07-11T12:01:00+08:00",
+      "timezone": "Asia/Shanghai",
+      "scenario": "S4",
+      "original_params": {
+        "attacker_ip": "203.0.113.50",
+        "time_start": "2026-07-11T12:00:00+08:00",
+        "time_end": "2026-07-11T12:01:00+08:00"
+      },
+      "normalized_params": {
+        "attacker_ip": "203.0.113.50",
+        "src_ip": "203.0.113.50",
+        "target_ip": "10.0.0.10",
+        "time_start": "2026-07-11T12:00:00+08:00",
+        "time_end": "2026-07-11T12:01:00+08:00"
+      },
+      "fetch_summary": {
+        "fetch_mode": "offline",
+        "total_fetched_events": 8,
+        "total_events": 7,
+        "total_deduplicated_events": 1,
+        "failed_fetch_queries": 0,
+        "by_asset_type": {
+          "waf_alert": 1,
+          "web_access_log": 4,
+          "host_exec": 1,
+          "host_file_op": 1
+        },
+        "declared_asset_ids": ["asset-waf-prod-01"],
+        "fetch_asset_ids": [
+          "asset-waf-prod-01",
+          "asset-secweaver-gateway-access",
+          "asset-secweaver-host-exec",
+          "asset-secweaver-host-file-op"
+        ],
+        "truncated_asset_types": [],
+        "time_window": {
+          "time_start": "2026-07-11T12:00:00+08:00",
+          "time_end": "2026-07-11T12:01:00+08:00"
+        }
+      }
+    },
+    "scenario_alignment": {
+      "primary_scenario": "S4",
+      "pattern_id": "S4_alert_confirmation",
+      "label": "WAF alert confirmation and bypass review",
+      "secondary_scenarios": ["S2"],
+      "bundle_id": "bundle-alert-confirm-min",
+      "selection_reason": "The user asks whether WAF missed malicious requests; confirmed host execution adds S2 as secondary."
+    },
+    "generated_at": "2026-07-11T12:05:00+08:00",
+    "model_note": "Sanitized offline golden report"
+  },
+  "redaction": {
+    "applied": true,
+    "contains_reusable_secrets": false,
+    "masked_categories": [],
+    "notes": "The fixture contains no reusable secret values; URI and command excerpts remain non-sensitive."
+  },
+  "verdict": {
+    "severity": "P0",
+    "attack_status": "confirmed_success",
+    "confidence": "high",
+    "disposition": "alert_required",
+    "summary": "WAF blocked one upload request, but two suspicious requests bypassed WAF and were confirmed by file creation and nginx command execution."
+  },
+  "inventory": {
+    "asset_types": [
+      {
+        "asset_type": "waf_alert",
+        "raw_count": 1,
+        "retained_count": 1,
+        "deduplicated_count": 0,
+        "sampled_count": null
+      },
+      {
+        "asset_type": "web_access_log",
+        "raw_count": 5,
+        "retained_count": 4,
+        "deduplicated_count": 1,
+        "sampled_count": null
+      },
+      {
+        "asset_type": "host_exec",
+        "raw_count": 1,
+        "retained_count": 1,
+        "deduplicated_count": 0,
+        "sampled_count": null
+      },
+      {
+        "asset_type": "host_file_op",
+        "raw_count": 1,
+        "retained_count": 1,
+        "deduplicated_count": 0,
+        "sampled_count": null
+      }
+    ],
+    "counting": {
+      "raw_count": 8,
+      "retained_count": 7,
+      "deduplicated_count": 1,
+      "sampled_count": null,
+      "count_basis": "retained_events",
+      "count_inconsistency": null
+    },
+    "time_span": {
+      "first": "2026-07-11T12:00:00+08:00",
+      "last": "2026-07-11T12:00:10+08:00"
+    },
+    "chain_coverage": [
+      {
+        "join_id": "waf_to_web_access_by_ip",
+        "status": "covered",
+        "time_window": "alert_context",
+        "notes": "The blocked WAF event and gateway request share trace-block-001."
+      },
+      {
+        "join_id": "web_access_to_host_exec",
+        "status": "covered",
+        "time_window": "attack_success",
+        "notes": "The WebShell request is followed by nginx command execution on the same target."
+      },
+      {
+        "join_id": "d2_exec_file_same_host",
+        "status": "covered",
+        "time_window": "host_behavior_chain",
+        "notes": "The bypassed upload is followed by shell.phtml creation on the same host."
+      },
+      {
+        "join_id": "d2_exec_connect_same_listener",
+        "status": "missing",
+        "time_window": "host_behavior_chain",
+        "notes": "No host_connect evidence is present in this fixture."
+      }
+    ]
+  },
+  "waf_coverage": {
+    "scope": {
+      "attacker_ips": ["203.0.113.50"],
+      "hosts": ["10.0.0.10"],
+      "time_start": "2026-07-11T12:00:00+08:00",
+      "time_end": "2026-07-11T12:01:00+08:00"
+    },
+    "count_basis": "retained_events",
+    "waf_alert_count": 1,
+    "web_access_raw_count": 5,
+    "web_access_retained_count": 4,
+    "blocked_count": 1,
+    "backend_reached_count": 3,
+    "suspicious_without_waf_count": 2,
+    "confirmed_bypass_count": 2,
+    "unmatched_waf_count": 0,
+    "deduplicated_count": 1,
+    "matching_order": [
+      "trace_or_request_id",
+      "source_host_method_path_window",
+      "source_target_time_proximity"
+    ],
+    "notes": "The health request is not counted as suspicious. confirmed_bypass_count is a subset of suspicious_without_waf_count."
+  },
+  "timeline": [
+    {
+      "time": "2026-07-11T12:00:00+08:00",
+      "host": "demo.example.test",
+      "asset_type": "waf_alert",
+      "summary": "WAF blocked one upload request before it reached an upstream.",
+      "phase": "initial_access",
+      "evidence_ids": ["waf-mini-001", "web-mini-001"],
+      "join_ids": ["waf_to_web_access_by_ip"]
+    },
+    {
+      "time": "2026-07-11T12:00:05+08:00",
+      "host": "10.0.0.10",
+      "asset_type": "web_access_log",
+      "summary": "A second upload request had no WAF alert and reached the backend with status 302.",
+      "phase": "initial_access",
+      "evidence_ids": ["web-mini-002"],
+      "join_ids": ["waf_to_web_access_by_ip"]
+    },
+    {
+      "time": "2026-07-11T12:00:06+08:00",
+      "host": "10.0.0.10",
+      "asset_type": "host_file_op",
+      "summary": "Host file auditing recorded creation of shell.phtml under the web upload directory.",
+      "phase": "persistence",
+      "evidence_ids": ["file-mini-001"],
+      "join_ids": ["d2_exec_file_same_host"]
+    },
+    {
+      "time": "2026-07-11T12:00:09+08:00",
+      "host": "10.0.0.10",
+      "asset_type": "host_exec",
+      "summary": "The nginx listener executed id after a WebShell command request.",
+      "phase": "execution",
+      "evidence_ids": ["web-mini-003", "exec-mini-001"],
+      "join_ids": ["web_access_to_host_exec"]
+    }
+  ],
+  "findings": [
+    {
+      "finding_id": "WAF-BYPASS-001",
+      "severity": "P0",
+      "attack_status": "confirmed_success",
+      "disposition": "alert_required",
+      "confidence": "high",
+      "title": "Upload bypass produced a server-side script",
+      "description": "A suspicious upload without a matching WAF alert reached the backend and was followed by creation of shell.phtml.",
+      "hosts": ["10.0.0.10"],
+      "attack_techniques": ["T1505.003"],
+      "join_refs": [
+        {
+          "join_id": "d2_exec_file_same_host",
+          "time_window": "host_behavior_chain"
+        }
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "web-mini-002",
+          "source_asset_id": "asset-secweaver-gateway-access",
+          "asset_type": "web_access_log",
+          "time": "2026-07-11T12:00:05+08:00",
+          "host": "10.0.0.10",
+          "excerpt": "POST /upload.php?name=shell.phtml returned 302 and reached 10.0.0.10:80.",
+          "redacted": true
+        },
+        {
+          "evidence_id": "file-mini-001",
+          "source_asset_id": "asset-secweaver-host-file-op",
+          "asset_type": "host_file_op",
+          "time": "2026-07-11T12:00:06+08:00",
+          "host": "10.0.0.10",
+          "excerpt": "nginx file audit recorded creation of /var/www/html/uploads/shell.phtml.",
+          "redacted": true
+        }
+      ]
+    },
+    {
+      "finding_id": "WAF-BYPASS-002",
+      "severity": "P0",
+      "attack_status": "confirmed_success",
+      "disposition": "alert_required",
+      "confidence": "high",
+      "title": "WebShell command bypass resulted in nginx execution",
+      "description": "A WebShell command request had no matching WAF alert and was followed by the nginx listener executing id successfully.",
+      "hosts": ["10.0.0.10"],
+      "attack_techniques": ["T1505.003", "T1059.004"],
+      "join_refs": [
+        {
+          "join_id": "web_access_to_host_exec",
+          "time_window": "attack_success"
+        }
+      ],
+      "evidence_refs": [
+        {
+          "evidence_id": "web-mini-003",
+          "source_asset_id": "asset-secweaver-gateway-access",
+          "asset_type": "web_access_log",
+          "time": "2026-07-11T12:00:08+08:00",
+          "host": "10.0.0.10",
+          "excerpt": "GET /uploads/shell.phtml?c=id returned 200 from 10.0.0.10:80.",
+          "redacted": true
+        },
+        {
+          "evidence_id": "exec-mini-001",
+          "source_asset_id": "asset-secweaver-host-exec",
+          "asset_type": "host_exec",
+          "time": "2026-07-11T12:00:09+08:00",
+          "host": "10.0.0.10",
+          "excerpt": "nginx:80 executed sh -c id with success=yes and exit=0.",
+          "redacted": true
+        }
+      ]
+    }
+  ],
+  "narrative": {
+    "summary": "WAF blocked one upload request, but a subsequent upload and WebShell command were not alerted and were confirmed on the host by file creation and command execution.",
+    "attack_chain_confidence": "high",
+    "drill_assessment": "unknown",
+    "notes": "The benign /health request reached the backend without a WAF alert and is intentionally excluded from suspicious_without_waf_count."
+  },
+  "impact": {
+    "hosts_confirmed": ["10.0.0.10"],
+    "hosts_suspected": [],
+    "accounts": ["nginx"],
+    "data_classes": ["webroot integrity"]
+  },
+  "recommendations": [
+    {
+      "action": "Isolate 10.0.0.10 and preserve the uploaded script plus nginx process evidence.",
+      "priority": "immediate",
+      "rationale": "Host-side evidence confirms file landing and command execution."
+    },
+    {
+      "action": "Review upload and query-parameter rules for .phtml execution patterns and encoded variants.",
+      "priority": "high",
+      "rationale": "The control blocked one upload but missed a subsequent upload and command request."
+    }
+  ],
+  "data_gaps": [
+    {
+      "asset_type": "host_connect",
+      "join_id": "d2_exec_connect_same_listener",
+      "reason": "No connection evidence is available to assess callback or C2 activity.",
+      "confidence_impact": "medium"
+    }
+  ],
+  "fetch_next": [
+    {
+      "description": "Fetch connection evidence for the confirmed victim around the execution window.",
+      "bundle_id": null,
+      "asset_ids": ["asset-secweaver-host-connect"],
+      "params_hint": {
+        "host_ip": "10.0.0.10",
+        "time_start": "2026-07-11T11:55:00+08:00",
+        "time_end": "2026-07-11T12:10:00+08:00"
+      },
+      "redacted": true
+    }
+  ]
+}

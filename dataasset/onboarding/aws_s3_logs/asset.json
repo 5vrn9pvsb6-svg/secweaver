@@ -1,0 +1,41 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "AWS S3 Logs（模板）资产",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "S3 日志归档查询描述；默认使用内置 S3 List/GetObject fetch，也可通过 executor_endpoint 交给外部执行器。",
+  "coverage": {
+    "zones": [
+      "edge"
+    ],
+    "apps": [],
+    "hosts": [
+      "YOUR_HOST"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "src_ip",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {},
+  "tags": [
+    "template",
+    "aws",
+    "s3",
+    "live"
+  ]
+}

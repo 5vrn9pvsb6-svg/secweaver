@@ -1,0 +1,17 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "External Connector（模板）",
+  "connector_type": "external_generic",
+  "status": "draft",
+  "credentials_ref": "vault://http/api-readonly",
+  "description": "Generic external executor connector. The concrete connector_type is injected from config.",
+  "config": {
+    "endpoint": "",
+    "sample_file": ""
+  },
+  "constraints": {
+    "max_records_per_request": 1000,
+    "request_timeout_sec": 60
+  },
+  "tags": ["template", "external"]
+}

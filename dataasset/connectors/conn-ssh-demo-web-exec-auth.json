@@ -1,0 +1,25 @@
+{
+  "connector_id": "conn-ssh-demo-web-exec-auth",
+  "name": "203.0.113.24 SSH 读 auth.log",
+  "connector_type": "ssh_file",
+  "status": "active",
+  "credentials_ref": "vault://ssh/demo-web-exec",
+  "description": "demo-reader@203.0.113.24 SSH 直读认证日志示例",
+  "config": {
+    "host": "203.0.113.24",
+    "hostname": "demo-web-exec-01",
+    "host_id": "host-demo-web-exec-01",
+    "port": 22,
+    "log_paths": {
+      "ssh_auth": "/var/log/auth.log",
+      "web_access_log": "/var/log/nginx/access.log"
+    }
+  },
+  "constraints": {
+    "max_file_size_mb": 100,
+    "max_lines_per_query": 10000,
+    "allowed_read_commands": ["grep", "tail"],
+    "allowed_grep_patterns": ["Accepted", "Failed", "sshd", "Invalid", "Disconnected"],
+    "forbidden_paths": ["/etc/shadow", "/root/.ssh"]
+  }
+}

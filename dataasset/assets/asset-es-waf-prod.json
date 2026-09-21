@@ -1,0 +1,44 @@
+{
+  "asset_id": "asset-es-waf-prod",
+  "name": "Elasticsearch WAF 安全告警",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-es-waf-prod",
+  "description": "Elasticsearch 接入示例：索引 logs-waf-*，模板 waf_es_by_src_ip_time（Query DSL + @timestamp 范围）；与 SLS 版 asset-waf-prod-01 二选一或并存",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "src_ip",
+      "timestamp",
+      "url",
+      "payload",
+      "action",
+      "rule_id",
+      "rule_name",
+      "method",
+      "alert_id",
+      "ip",
+      "client_ip"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "waf_es_by_src_ip_time"
+  ],
+  "sensitivity": "internal",
+  "masking": {
+    "payload": "truncate_500"
+  },
+  "tags": [
+    "es",
+    "elasticsearch",
+    "example",
+    "waf"
+  ]
+}

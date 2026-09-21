@@ -1,0 +1,5 @@
+{
+  "gitlab_token": "glpat-xxFakeTokenForLabxx",
+  "registry": "registry.corp.internal:5000",
+  "deploy_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE deploy@prod"
+}

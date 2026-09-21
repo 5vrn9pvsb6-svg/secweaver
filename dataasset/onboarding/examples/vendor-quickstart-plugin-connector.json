@@ -1,0 +1,42 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery"
+  },
+  "data_sources": [
+    {
+      "name": "demo-plugin-waf",
+      "connector_type": "demo_plugin_logs",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://plugin/demo-readonly",
+      "asset": {
+        "coverage": {
+          "zones": ["plugin-demo"],
+          "apps": ["demo-gateway"],
+          "hosts": []
+        },
+        "schema": {
+          "fields": ["timestamp", "src_ip", "target_ip", "action", "severity", "message"],
+          "time_field": "timestamp",
+          "retention_days": 7
+        },
+        "field_aliases": {
+          "client_ip": "src_ip",
+          "destination_ip": "target_ip"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "limit"],
+        "defaults": {
+          "src_ip": "203.0.113.10",
+          "limit": 2
+        },
+        "demo_plugin_query": "demo plugin src_ip={src_ip} limit {limit}"
+      }
+    }
+  ]
+}

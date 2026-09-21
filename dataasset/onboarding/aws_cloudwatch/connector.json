@@ -1,0 +1,23 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "AWS CloudWatch Logs（模板）",
+  "connector_type": "aws_cloudwatch",
+  "status": "draft",
+  "credentials_ref": "vault://aws/security-readonly",
+  "description": "CloudWatch Logs 查询模板；默认使用内置 AWS Logs Insights fetch，也可通过 executor_endpoint 交给外部执行器。",
+  "config": {
+    "region": "ap-southeast-1",
+    "log_group": "/aws/cloudtrail/organization",
+    "log_stream_prefix": "2026/"
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 60
+  },
+  "tags": [
+    "template",
+    "aws",
+    "cloudwatch",
+    "live"
+  ]
+}

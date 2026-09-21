@@ -1,0 +1,39 @@
+{
+  "asset_id": "asset-cmdb-hosts",
+  "name": "CMDB 主机资产清单",
+  "asset_type": "asset_inventory",
+  "domain": "D6",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-db-sec-audit",
+  "description": "MySQL database_ro 接入示例：sec_audit.cmdb_hosts 表，模板 cmdb_all_hosts / cmdb_by_hostname",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "hostname",
+      "ip",
+      "zone",
+      "owner",
+      "services",
+      "environment"
+    ],
+    "time_field": "updated_at",
+    "retention_days": 365
+  },
+  "query_template_ids": [
+    "cmdb_all_hosts",
+    "cmdb_by_hostname"
+  ],
+  "sensitivity": "internal",
+  "tags": [
+    "cmdb"
+  ],
+  "field_aliases": {
+    "ip": "host_ip",
+    "host": "hostname",
+    "name": "hostname"
+  }
+}

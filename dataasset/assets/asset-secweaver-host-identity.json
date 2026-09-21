@@ -1,0 +1,24 @@
+{
+  "asset_id": "asset-secweaver-host-identity",
+  "name": "SecWeaver 主机登录与身份变化",
+  "asset_type": "host_identity",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-host-state",
+  "description": "采集本地账户属性和当前登录会话，输出基线以及创建、修改、删除和会话开始/结束事件。",
+  "coverage": {"hosts": []},
+  "field_aliases": {"host_name": "host", "time": "timestamp", "__source__": "log_source", "log_source": "host_ip"},
+  "schema": {
+    "fields": ["time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "entity_type", "action", "user", "uid", "gid", "sid", "groups", "enabled", "shell", "home", "tty", "source", "login_time_text", "previous", "evidence_id", "enterprise_id"],
+    "time_field": "time",
+    "retention_days": 90
+  },
+  "query_template_ids": ["host_identity_by_host_time", "host_identity_by_user_time"],
+  "sensitivity": "confidential",
+  "pii_fields": ["user", "source"],
+  "masking": {},
+  "quality": {"required_fields": ["host", "timestamp", "event_type", "user"], "notes": ["不采集口令或密码哈希；首次启动和每 24 小时输出完整基线。"]},
+  "tags": ["secweaver", "sls", "host_identity", "login_session", "account_change", "secweaver-agent"]
+}

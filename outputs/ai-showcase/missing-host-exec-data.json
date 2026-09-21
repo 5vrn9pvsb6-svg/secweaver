@@ -1,0 +1,299 @@
+{
+  "alert_type": "data_source_completeness",
+  "scenario": [
+    "S1"
+  ],
+  "scenario_summary": "外网攻击 IP 溯源",
+  "investigation_params": {
+    "attacker_ip": "203.0.113.10",
+    "time_start": "2026-06-21T08:00:00+08:00",
+    "time_end": "2026-06-21T20:00:00+08:00",
+    "hosts": [
+      "web-01"
+    ],
+    "target_ip": "web-01"
+  },
+  "overall_verdict": "not_traceable",
+  "confidence": 0.38,
+  "can_trace": false,
+  "can_confirm_breach": false,
+  "summary": "缺少关键数据源（WEB 服务器进程命令执行），当前无法完整溯源。",
+  "requirements_evaluated": [
+    {
+      "requirement_id": "S1-P0-web",
+      "label": "WEB/WAF 日志",
+      "priority": "P0",
+      "status": "ready",
+      "asset_id": "waf_01",
+      "asset_type": "waf_alert",
+      "coverage": "full",
+      "gaps": []
+    },
+    {
+      "requirement_id": "S1-P0-exec",
+      "label": "WEB 服务器进程命令执行",
+      "priority": "P0",
+      "status": "missing",
+      "asset_types": [
+        "host_exec"
+      ],
+      "gaps": [
+        "not_registered"
+      ]
+    },
+    {
+      "requirement_id": "S1-P0-ssh",
+      "label": "SSH/syslog 认证日志",
+      "priority": "P0",
+      "status": "partial",
+      "asset_id": "ssh_logs",
+      "asset_type": "ssh_auth",
+      "coverage": "partial",
+      "gaps": [
+        "coverage_partial"
+      ]
+    },
+    {
+      "requirement_id": "S1-P1-connect",
+      "label": "WEB 服务器主动外连",
+      "priority": "P1",
+      "status": "missing",
+      "asset_types": [
+        "host_connect"
+      ],
+      "gaps": [
+        "not_registered"
+      ]
+    },
+    {
+      "requirement_id": "S1-P1-fw",
+      "label": "防火墙/全流量内网连接",
+      "priority": "P1",
+      "status": "missing",
+      "asset_types": [
+        "firewall_log",
+        "network_traffic_audit"
+      ],
+      "gaps": [
+        "not_registered"
+      ]
+    },
+    {
+      "requirement_id": "S1-P1-dns",
+      "label": "DNS 查询日志",
+      "priority": "P1",
+      "status": "missing",
+      "asset_types": [
+        "dns_log"
+      ],
+      "gaps": [
+        "not_registered"
+      ]
+    },
+    {
+      "requirement_id": "S1-P2-file",
+      "label": "WEB 服务器文件操作",
+      "priority": "P2",
+      "status": "missing",
+      "asset_types": [
+        "host_file_op"
+      ],
+      "gaps": [
+        "not_registered"
+      ]
+    },
+    {
+      "requirement_id": "S1-P2-inventory",
+      "label": "资产清单",
+      "priority": "P2",
+      "status": "ready",
+      "asset_id": "cmdb",
+      "asset_type": "asset_inventory",
+      "coverage": "full",
+      "gaps": []
+    }
+  ],
+  "registered_sources": [
+    {
+      "asset_id": "waf_01",
+      "name": "WEB WAF 告警",
+      "type": "waf_alert",
+      "domain": "D1",
+      "coverage": [
+        "web_zone"
+      ],
+      "fields": [
+        "src_ip",
+        "timestamp",
+        "url",
+        "payload",
+        "action"
+      ],
+      "canonical_fields": [],
+      "effective_fields": [
+        "action",
+        "payload",
+        "src_ip",
+        "timestamp",
+        "url"
+      ],
+      "correlation_keys": [
+        "timestamp",
+        "src_ip",
+        "url"
+      ]
+    },
+    {
+      "asset_id": "ssh_logs",
+      "name": "SSH 认证日志",
+      "type": "ssh_auth",
+      "domain": "D3",
+      "coverage": [
+        "partial_internal"
+      ],
+      "fields": [
+        "host",
+        "src_ip",
+        "user",
+        "result",
+        "timestamp"
+      ],
+      "canonical_fields": [],
+      "effective_fields": [
+        "host",
+        "result",
+        "src_ip",
+        "timestamp",
+        "user"
+      ],
+      "correlation_keys": [
+        "timestamp",
+        "src_ip",
+        "host",
+        "user"
+      ]
+    },
+    {
+      "asset_id": "cmdb",
+      "name": "资产清单",
+      "type": "asset_inventory",
+      "domain": "D6",
+      "coverage": [
+        "full"
+      ],
+      "fields": [
+        "hostname",
+        "ip",
+        "zone"
+      ],
+      "canonical_fields": [
+        "host",
+        "src_ip",
+        "timestamp"
+      ],
+      "effective_fields": [
+        "host",
+        "hostname",
+        "ip",
+        "src_ip",
+        "timestamp",
+        "zone"
+      ],
+      "correlation_keys": [
+        "hostname",
+        "ip"
+      ]
+    }
+  ],
+  "missing_critical": [
+    {
+      "source_name": "WEB 服务器进程命令执行",
+      "priority": "P0",
+      "requirement_id": "S1-P0-exec",
+      "impact_if_missing": "无法确认 WebShell、curl/wget 下载、命令执行链，不能证明攻击成功"
+    },
+    {
+      "source_name": "WEB 服务器主动外连",
+      "priority": "P1",
+      "requirement_id": "S1-P1-connect",
+      "impact_if_missing": "无法关联下载域名与 C2，攻击链缺少外连证据"
+    },
+    {
+      "source_name": "防火墙/全流量内网连接",
+      "priority": "P1",
+      "requirement_id": "S1-P1-fw",
+      "impact_if_missing": "无法可视化内网连接路径（如 WEB→SSH）"
+    },
+    {
+      "source_name": "DNS 查询日志",
+      "priority": "P1",
+      "requirement_id": "S1-P1-dns",
+      "impact_if_missing": "只能看到 IP 无法解析下载/C2 域名"
+    }
+  ],
+  "recommendations": [
+    {
+      "rank": 1,
+      "source_name": "WEB 服务器进程命令执行",
+      "priority": "P0",
+      "asset_type": "host_exec",
+      "reason": "场景需要 WEB 服务器进程命令执行 支撑关联分析与溯源",
+      "impact_if_missing": "无法确认 WebShell、curl/wget 下载、命令执行链，不能证明攻击成功",
+      "collection_hint": "Linux 部署 audit-port-execmon，配置 whitelist_ports 监控对外端口进程 exec",
+      "expected_gain": "补齐后可支撑 WEB 服务器进程命令执行 相关调查环节"
+    },
+    {
+      "rank": 2,
+      "source_name": "SSH/syslog 认证日志",
+      "priority": "P0",
+      "asset_type": "ssh_auth",
+      "reason": "场景需要 SSH/syslog 认证日志 支撑关联分析与溯源",
+      "impact_if_missing": "无法追踪 SSH 横向移动与暴力破解",
+      "collection_hint": "可选兼容入口：rsyslog 采集 /var/log/auth.log，保留 src_ip、user、result、timestamp",
+      "expected_gain": "补齐后可支撑 SSH/syslog 认证日志 相关调查环节"
+    },
+    {
+      "rank": 3,
+      "source_name": "WEB 服务器主动外连",
+      "priority": "P1",
+      "asset_type": "host_connect",
+      "reason": "场景需要 WEB 服务器主动外连 支撑关联分析与溯源",
+      "impact_if_missing": "无法关联下载域名与 C2，攻击链缺少外连证据",
+      "collection_hint": "audit-port-execmon 开启 monitor_connect",
+      "expected_gain": "补齐后可支撑 WEB 服务器主动外连 相关调查环节"
+    },
+    {
+      "rank": 4,
+      "source_name": "防火墙/全流量内网连接",
+      "priority": "P1",
+      "asset_type": "firewall_log",
+      "reason": "场景需要 防火墙/全流量内网连接 支撑关联分析与溯源",
+      "impact_if_missing": "无法可视化内网连接路径（如 WEB→SSH）",
+      "collection_hint": "防火墙 syslog 或 NetFlow，保留五元组与时间戳",
+      "expected_gain": "补齐后可支撑 防火墙/全流量内网连接 相关调查环节"
+    },
+    {
+      "rank": 5,
+      "source_name": "DNS 查询日志",
+      "priority": "P1",
+      "asset_type": "dns_log",
+      "reason": "场景需要 DNS 查询日志 支撑关联分析与溯源",
+      "impact_if_missing": "只能看到 IP 无法解析下载/C2 域名",
+      "collection_hint": "内网 DNS 查询日志或 DNS 安全网关",
+      "expected_gain": "补齐后可支撑 DNS 查询日志 相关调查环节"
+    }
+  ],
+  "capability_notes": [
+    {
+      "type": "partial_traceability_boundary",
+      "severity": "warning",
+      "message": "S1/S3/S7/S8 仍受网络侧证据缺口限制：防火墙/全流量内网连接；DNS 只能补充域名解析，不能单独证明完整链路或外传体量。"
+    }
+  ],
+  "correlation_key_score": 1.0,
+  "next_skill": "traceability_analysis",
+  "next_skill_blocked": true,
+  "block_reason": "缺少 P0 数据源: WEB 服务器进程命令执行",
+  "contract_version": "1.0",
+  "skill": "data-source-completeness"
+}

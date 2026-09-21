@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/evidence-fetch-output.json",
+  "title": "EvidenceFetchResult",
+  "allOf": [
+    {"$ref": "https://secweaver.local/schemas/skill-envelope.json"}
+  ],
+  "type": "object",
+  "required": [
+    "contract_version",
+    "skill",
+    "evidence_bundles",
+    "fetch_summary",
+    "data_access"
+  ],
+  "properties": {
+    "skill": {"const": "evidence-fetch"},
+    "evidence_bundles": {
+      "type": "object",
+      "additionalProperties": {"type": "array", "items": {"type": "object"}}
+    },
+    "fetch_summary": {"type": "object"},
+    "data_access": {"type": "object"},
+    "correlation_fetch_plan": {"type": "array"}
+  },
+  "additionalProperties": true
+}

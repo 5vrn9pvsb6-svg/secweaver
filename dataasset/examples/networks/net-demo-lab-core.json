@@ -1,0 +1,15 @@
+{
+  "network_id": "net-demo-lab-core",
+  "name": "Demo Lab Core 203.0.113.0/25",
+  "cidr": "203.0.113.0/25",
+  "zone": "demo_lab",
+  "network_type": "lab",
+  "trust_level": "internal",
+  "status": "draft",
+  "description": "Synthetic lab core network template for public examples.",
+  "tags": [
+    "demo",
+    "lab-core",
+    "reference"
+  ]
+}

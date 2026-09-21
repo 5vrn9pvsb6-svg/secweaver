@@ -1,0 +1,626 @@
+{
+  "version": "1.3",
+  "engine": "pipeline",
+  "owner": "security-ops",
+  "description": "host_exec 检测层规则。运营可增删 pattern/keyword；告警/降噪仍由 behavior-policy.md 裁决。",
+  "_doc": "每条 pattern/keyword 必须带 field，显式声明对 host_exec 哪个字段匹配。verdicts/actions/confidence 仅影响检测层；告警由 behavior-policy 裁决。",
+  "web_listeners": [
+    "nginx",
+    "php-fpm",
+    "php",
+    "java",
+    "tomcat",
+    "node",
+    "httpd",
+    "apache",
+    "gunicorn",
+    "uwsgi"
+  ],
+  "shell_names": [
+    "sh",
+    "bash",
+    "dash",
+    "zsh",
+    "ksh",
+    "python",
+    "python3",
+    "perl",
+    "php",
+    "ruby",
+    "node"
+  ],
+  "shell_exe_prefixes": [
+    "/bin/sh",
+    "/bin/bash",
+    "/bin/dash",
+    "/usr/bin/python",
+    "/usr/bin/perl",
+    "/usr/bin/php",
+    "/usr/bin/ruby",
+    "/usr/bin/node"
+  ],
+  "listener_context": {
+    "empty_process_is_web": true,
+    "note": "listener_process 为空时是否视为 Web 上下文；设为 false 可减少缺字段误报"
+  },
+  "severity_rank": {
+    "P0": 0,
+    "P1": 1,
+    "P2": 2,
+    "P3": 3
+  },
+  "structural_rules": {
+    "external_listener_shell_exec": {
+      "enabled": true,
+      "severity": "P0",
+      "requires_web_listener": true,
+      "requires_shell_exe": true,
+      "note": "Web 监听进程后代执行 shell/解释器",
+      "fields": {
+        "listener_process": "对照 web_listeners 列表",
+        "exe": "对照 shell_exe_prefixes",
+        "comm": "对照 shell_names"
+      }
+    }
+  },
+  "p0_regex": [
+    {
+      "id": "download_and_execute",
+      "pattern": "\\b(curl|wget|fetch)\\b",
+      "flags": "i",
+      "enabled": true,
+      "field": "command",
+      "note": "Candidate only: engine requires interpreter pipe/substitution or execution of a saved download."
+    },
+    {
+      "id": "reverse_shell",
+      "pattern": "/dev/tcp/",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "reverse_shell",
+      "pattern": "bash -i",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "reverse_shell",
+      "pattern": "sh -i",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "reverse_shell",
+      "pattern": "nc -e",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "reverse_shell",
+      "pattern": "ncat -e",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "reverse_shell",
+      "pattern": "socat.*exec",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "reverse_shell",
+      "pattern": "python -c .*socket",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "reverse_shell",
+      "pattern": "perl -e .*socket",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "persistence_modify",
+      "pattern": "authorized_keys",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "persistence_modify",
+      "pattern": "crontab",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "persistence_modify",
+      "pattern": "/etc/systemd/system/",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "persistence_modify",
+      "pattern": "systemctl enable",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "persistence_modify",
+      "pattern": "echo .*>>.*(profile|bashrc|rc.local)",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "persistence_modify",
+      "pattern": "useradd|adduser",
+      "flags": "i",
+      "enabled": true,
+      "note": "宽匹配；演练降噪见 behavior-policy OPS-LAB-SETUP-001",
+      "field": "command"
+    },
+    {
+      "id": "security_control_tampering",
+      "pattern": "iptables -F",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "security_control_tampering",
+      "pattern": "ufw disable",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "security_control_tampering",
+      "pattern": "setenforce 0",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "security_control_tampering",
+      "pattern": "auditctl -D",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "security_control_tampering",
+      "pattern": "systemctl stop auditd",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    }
+  ],
+  "p1_regex": [
+    {
+      "id": "sensitive_file_read",
+      "pattern": "cat /etc/passwd",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "sensitive_file_read",
+      "pattern": "cat /etc/shadow",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "sensitive_file_read",
+      "pattern": "cat .*\\.env",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "sensitive_file_read",
+      "pattern": "cat .*id_rsa",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "sensitive_file_read",
+      "pattern": "cat .*config\\.(php|yml|yaml|properties)",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "pattern": "nmap ",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "pattern": "masscan ",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "pattern": "fping ",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "pattern": "ping -c ",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "pattern": "curl http://10\\.",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "pattern": "curl http://192\\.168\\.",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "pattern": "curl http://172\\.(1[6-9]|2[0-9]|3[0-1])\\.",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "webshell_write",
+      "pattern": "echo .*>>.*\\.(php|jsp|asp|aspx)",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "webshell_write",
+      "pattern": "tee .*\\.(php|jsp|asp|aspx)",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "webshell_write",
+      "pattern": "s\\.phtml|\\?c=.*\\b(id|whoami|bash|sh|sshpass)\\b",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "webshell_write",
+      "pattern": "uploads/.*\\.(php|phtml)",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "obfuscated_exec",
+      "pattern": "base64 -d",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "obfuscated_exec",
+      "pattern": "base64 --decode",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "obfuscated_exec",
+      "pattern": "python -c .*os\\.system",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "obfuscated_exec",
+      "pattern": "php -r .*system\\(",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "obfuscated_exec",
+      "pattern": "eval\\(|exec\\(|system\\(|passthru\\(",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    }
+  ],
+  "p1_keywords": [
+    {
+      "id": "internal_recon",
+      "keyword": "whoami",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "keyword": "uname -a",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "keyword": "ps aux",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "keyword": "find / -writable",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "internal_recon",
+      "keyword": "find / -perm -4000",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "network_exfil_tools",
+      "keyword": "ncat",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "network_exfil_tools",
+      "keyword": "socat",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "network_exfil_tools",
+      "keyword": "scp",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "network_exfil_tools",
+      "keyword": "rsync",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "network_exfil_tools",
+      "keyword": "sftp",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "network_exfil_tools",
+      "keyword": "ssh root@",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "network_exfil_tools",
+      "keyword": "proxychains",
+      "enabled": true,
+      "field": "command"
+    }
+  ],
+  "p1_keyword_regex": [
+    {
+      "id": "network_exfil_tools",
+      "keyword": "nc",
+      "pattern": "\\bnc\\b",
+      "flags": "i",
+      "enabled": true,
+      "field": "command"
+    }
+  ],
+  "p3_keywords": [
+    {
+      "id": "noise_command",
+      "keyword": "which",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "noise_command",
+      "keyword": "whereis",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "noise_command",
+      "keyword": "file",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "noise_command",
+      "keyword": "stat",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "noise_command",
+      "keyword": "md5sum",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "noise_command",
+      "keyword": "curl --version",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "noise_command",
+      "keyword": "wget --version",
+      "enabled": true,
+      "field": "command"
+    },
+    {
+      "id": "noise_command",
+      "keyword": "nginx -t",
+      "enabled": true,
+      "field": "command"
+    }
+  ],
+  "fallback": {
+    "plain_commands": [
+      "ls",
+      "cat",
+      "grep",
+      "tar",
+      "zip",
+      "mysql",
+      "mysqldump"
+    ],
+    "default_severity": "P2",
+    "elevations": [
+      {
+        "pattern": "/etc/shadow|\\.env|id_rsa",
+        "flags": "i",
+        "id": "sensitive_file_read",
+        "severity": "P1",
+        "enabled": true,
+        "field": "command"
+      },
+      {
+        "pattern": "tar.*(/var/www|/home).*(/tmp|/dev/shm)",
+        "flags": "i",
+        "id": "data_staging",
+        "severity": "P1",
+        "enabled": true,
+        "field": "command"
+      },
+      {
+        "id": "database_dump",
+        "keyword": "mysqldump",
+        "requires_web_listener": true,
+        "severity": "P1",
+        "enabled": true,
+        "field": "command"
+      }
+    ],
+    "field": "command"
+  },
+  "context_boost": {
+    "web_ports": [
+      443,
+      80,
+      8080
+    ],
+    "suspicious_cwd_contains": [
+      "/tmp",
+      "/dev/shm",
+      "/var/www",
+      "/upload"
+    ],
+    "suspicious_text_contains": [
+      "http://",
+      "https://",
+      "| bash",
+      "| sh",
+      "base64 -d"
+    ],
+    "text_field": "command"
+  },
+  "risk_tags": {
+    "external_listener_shell_exec": [
+      "shell_execution",
+      "web_process_abuse"
+    ],
+    "download_and_execute": [
+      "remote_download",
+      "shell_execution"
+    ],
+    "reverse_shell": [
+      "reverse_shell",
+      "shell_execution"
+    ],
+    "persistence_modify": [
+      "persistence"
+    ],
+    "security_control_tampering": [
+      "defense_evasion"
+    ],
+    "sensitive_file_read": [
+      "credential_access"
+    ],
+    "internal_recon": [
+      "discovery"
+    ],
+    "webshell_write": [
+      "persistence",
+      "webshell"
+    ],
+    "network_exfil_tools": [
+      "exfiltration"
+    ],
+    "obfuscated_exec": [
+      "defense_evasion"
+    ],
+    "data_staging": [
+      "collection",
+      "exfiltration"
+    ],
+    "database_dump": [
+      "collection"
+    ],
+    "noise_command": [
+      "noise"
+    ]
+  },
+  "verdicts": {
+    "P0": "confirmed_attack",
+    "P1": "suspicious",
+    "P2": "suspicious",
+    "P3": "log_only"
+  },
+  "actions": {
+    "P0": "isolate_host_and_investigate",
+    "P1": "manual_review_5m",
+    "P2": "observe",
+    "P3": "log_only"
+  },
+  "confidence_base": {
+    "P0": 0.85,
+    "P0_multi_match": 0.88,
+    "P1": 0.78,
+    "P2": 0.58,
+    "P3": 0.45
+  },
+  "match_fields": {
+    "command": "audit argv 空格拼接；command 为空时回退 comm",
+    "command_line": "原始 command_line 一行文本",
+    "exe": "可执行文件完整路径 ev.exe",
+    "comm": "进程短名 ev.comm",
+    "cwd": "工作目录 ev.cwd",
+    "listener_process": "对外监听进程名 ev.listener_process"
+  }
+}

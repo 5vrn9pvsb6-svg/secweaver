@@ -1,0 +1,49 @@
+{
+  "profile_id": "secweaver-syslog-risk-alert",
+  "version": "1.0.0",
+  "description": "SecWeaver syslog-risk-json (SLS): unwrap JSON-in-content, map __source__ to victim host, derive ssh_auth.",
+  "asset_types": ["syslog_risk_alert"],
+  "host_identity": {
+    "ip_fields": ["__source__", "host_ip", "_victim_host", "host"],
+    "generic_hosts": ["localhost", "localhost.localdomain", "127.0.0.1", "::1"],
+    "victim_host_fields": ["__source__", "host_ip", "_victim_host", "host", "host_name"]
+  },
+  "event_repairs": [
+    {
+      "type": "unwrap_json_in_fields",
+      "fields": ["content", "__line__", "raw_line", "message", "log", "body"],
+      "skip_if_set": "event_type"
+    },
+    {
+      "type": "fallback_timestamp",
+      "fields": ["__time___0", "__time__", "time"]
+    },
+    {
+      "type": "map_source_to_host",
+      "source_field": "__source__",
+      "set_fields": ["host_ip", "host"],
+      "generic_hosts": ["localhost", "localhost.localdomain", "127.0.0.1", "::1"],
+      "victim_marker": "_victim_host"
+    }
+  ],
+  "ssh_auth_derivation": {
+    "success_event_types": ["ssh_login_success"],
+    "failed_event_types": [
+      "ssh_login_failed",
+      "auth_failure",
+      "ssh_invalid_user",
+      "ssh_auth_attempts_exceeded"
+    ],
+    "victim_host_fields": ["__source__", "host_ip", "_victim_host", "host"],
+    "src_ip_fields": ["src_ip", "fields.src_ip"],
+    "user_fields": ["user", "fields.user"],
+    "port_fields": ["port", "fields.port"]
+  },
+  "impact_on_target_types": [
+    "ssh_login_success",
+    "root_session_opened",
+    "sudo_command",
+    "account_created",
+    "account_modified"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-huawei-lts-example",
+  "name": "华为云 LTS 示例连接器",
+  "connector_type": "huawei_lts",
+  "status": "draft",
+  "credentials_ref": "vault://huawei/lts-readonly",
+  "description": "示例：从华为云 LTS 查询安全日志或应用日志；模板使用 lts_query。",
+  "config": {
+    "endpoint": "https://lts.cn-north-4.myhuaweicloud.com",
+    "region": "cn-north-4",
+    "project_id": "example-project-id",
+    "log_group_id": "example-log-group-id",
+    "log_stream_id": "example-log-stream-id"
+  },
+  "constraints": {
+    "max_records_per_request": 5000,
+    "request_timeout_sec": 60
+  },
+  "tags": ["example", "huawei", "lts", "not-for-production"]
+}

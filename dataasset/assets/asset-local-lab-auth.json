@@ -1,0 +1,37 @@
+{
+  "asset_id": "asset-local-lab-auth",
+  "name": "Lab 本地 SSH auth（POC）",
+  "asset_type": "ssh_auth",
+  "domain": "D3",
+  "owner_team": "security-ops",
+  "environment": "development",
+  "status": "draft",
+  "connector_id": "conn-local-lab-auth",
+  "description": "本地文件 connector 示例；日志样例见 dataasset/samples/local-logs/",
+  "coverage": {
+    "hosts": [
+      "192.0.2.5"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "host",
+      "src_ip",
+      "user",
+      "result",
+      "timestamp"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 7
+  },
+  "query_template_ids": [
+    "local_file_grep_auth"
+  ],
+  "text_parser": "syslog_auth",
+  "sensitivity": "internal",
+  "tags": [
+    "local_file",
+    "lab",
+    "draft"
+  ]
+}

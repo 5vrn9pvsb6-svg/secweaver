@@ -1,0 +1,33 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "SSH 命令采集（模板）",
+  "connector_type": "ssh_command",
+  "status": "draft",
+  "credentials_ref": "vault://ssh/readonly-command-runner",
+  "description": "受控 SSH 命令采集；生产环境必须配合最小权限账号和命令白名单。",
+  "config": {
+    "host": "YOUR_HOST",
+    "hostname": "YOUR_HOST",
+    "port": 22,
+    "host_id": "YOUR_HOST_ID"
+  },
+  "constraints": {
+    "allowed_commands": [
+      "grep",
+      "tail"
+    ],
+    "forbidden_commands": [
+      "rm",
+      "scp",
+      "curl",
+      "wget",
+      "bash -i"
+    ],
+    "command_timeout_sec": 15,
+    "max_output_kb": 512
+  },
+  "tags": [
+    "template",
+    "ssh-command"
+  ]
+}

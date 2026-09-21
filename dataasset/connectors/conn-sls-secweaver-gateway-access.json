@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-sls-secweaver-gateway-access",
+  "name": "WEB 隐身盾 - 网关访问日志 (/var/log/secweaver/gateway-access.log)",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "WEB 隐身盾网关访问日志示例；请将 project/logstore 替换为实际的阿里云 SLS 只读数据源。源文件 /var/log/secweaver/gateway-access.log。",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "YOUR_GATEWAY_ACCESS_LOGSTORE",
+    "source_log_path": "/var/log/secweaver/gateway-access.log"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72,
+    "query_language": "sls_sql"
+  }
+}

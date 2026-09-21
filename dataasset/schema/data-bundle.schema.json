@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/data-bundle.json",
+  "title": "SecWeaver DataAssetBundle",
+  "type": "object",
+  "required": [
+    "bundle_id",
+    "name",
+    "asset_ids",
+    "status"
+  ],
+  "properties": {
+    "bundle_id": {
+      "type": "string",
+      "pattern": "^bundle-[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "active",
+        "disabled"
+      ]
+    },
+    "asset_ids": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^asset-[a-z0-9-]+$"
+      }
+    },
+    "investigation_scenarios": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^S[1-8]$"
+      }
+    },
+    "description": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Environment-specific operator notes that do not alter bundle execution semantics."
+    },
+    "registry_covers_asset_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "asset_inventory"
+        ]
+      },
+      "uniqueItems": true,
+      "description": "由 dataasset/hosts/ 注册表在运行时注入 evidence_bundles，替代对应 asset_type 的 fetch 资产"
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Named vendor or deployment extensions; common fields should be added to the schema.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

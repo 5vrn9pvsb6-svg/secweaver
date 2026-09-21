@@ -1,0 +1,46 @@
+{
+  "version": "1.0",
+  "output_dir": "dataasset_my",
+  "data_sources": [
+    {
+      "name": "local-agent-exec",
+      "asset_id": "asset-local-agent-exec",
+      "connector_id": "conn-local-agent-exec",
+      "template_id": "local_agent_exec_by_time",
+      "connector_type": "es",
+      "asset_type": "host_exec",
+      "status": "draft",
+      "credentials_ref": "vault://es/security-readonly",
+      "url": "https://es.example.com:9200",
+      "index": "secweaver-public-agent-exec-*",
+      "connector": {
+        "config": {
+          "time_field": "@timestamp",
+          "tls_verify": true
+        }
+      },
+      "asset": {
+        "domain": "D2",
+        "schema": {
+          "fields": ["@timestamp", "timestamp", "host", "host_ip", "event_id", "event_type", "command", "listener_port", "listener_process"],
+          "time_field": "@timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {"@timestamp": "timestamp"}
+      },
+      "template": {
+        "params": ["time_start", "time_end", "limit"],
+        "defaults": {"limit": 10},
+        "es_query": {
+          "query": {
+            "bool": {
+              "must": [{"range": {"@timestamp": {"gte": "{time_start}", "lte": "{time_end}"}}}]
+            }
+          },
+          "size": "{limit}",
+          "sort": [{"@timestamp": "desc"}]
+        }
+      }
+    }
+  ]
+}

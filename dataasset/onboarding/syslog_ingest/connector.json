@@ -1,0 +1,20 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Syslog Ingest（模板）",
+  "connector_type": "syslog_ingest",
+  "status": "draft",
+  "credentials_ref": "vault://syslog/ingest-token",
+  "description": "Syslog 接收/索引接入描述；当前用于资产注册，查询通常落到 SLS/ES/仓库 connector。",
+  "config": {
+    "endpoint": "udp://0.0.0.0:514",
+    "format": "syslog"
+  },
+  "constraints": {
+    "mode": "ingest_descriptor"
+  },
+  "tags": [
+    "template",
+    "syslog-ingest",
+    "planned"
+  ]
+}

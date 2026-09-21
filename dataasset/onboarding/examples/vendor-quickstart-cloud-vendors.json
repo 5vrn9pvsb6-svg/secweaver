@@ -1,0 +1,158 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery",
+    "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+  },
+  "data_sources": [
+    {
+      "name": "demo-azure-monitor-security",
+      "connector_type": "azure_monitor",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://azure/log-analytics-readonly",
+      "executor_endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "workspace_id": "YOUR_WORKSPACE_ID",
+          "tenant_id": "YOUR_TENANT_ID"
+        }
+      },
+      "asset": {
+        "coverage": {
+          "zones": ["cloud"],
+          "apps": ["azure-monitor"],
+          "hosts": []
+        },
+        "schema": {
+          "fields": ["timestamp", "src_ip", "target_ip", "action", "resource_id"],
+          "time_field": "TimeGenerated",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "TimeGenerated": "timestamp",
+          "SourceIP": "src_ip",
+          "ResourceId": "resource_id"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "kql": "AzureDiagnostics | where TimeGenerated between (datetime({time_start}) .. datetime({time_end})) | where SourceIP == '{src_ip}' | take {limit}"
+      }
+    },
+    {
+      "name": "demo-gcp-logging-security",
+      "connector_type": "gcp_logging",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://gcp/logging-readonly",
+      "executor_endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "project_id": "YOUR_GCP_PROJECT"
+        }
+      },
+      "asset": {
+        "coverage": {
+          "zones": ["cloud"],
+          "apps": ["gcp-logging"],
+          "hosts": []
+        },
+        "schema": {
+          "fields": ["timestamp", "src_ip", "target_ip", "action", "resource_type"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "jsonPayload.src_ip": "src_ip",
+          "resource.type": "resource_type"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "gcp_logging_filter": "timestamp >= '{time_start}' AND timestamp <= '{time_end}' AND jsonPayload.src_ip = '{src_ip}'"
+      }
+    },
+    {
+      "name": "demo-tencent-cls-security",
+      "connector_type": "tencent_cls",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://tencent/cls-readonly",
+      "region": "ap-guangzhou",
+      "executor_endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+        "topic_id": "YOUR_TOPIC_ID"
+        }
+      },
+      "asset": {
+        "coverage": {
+          "zones": ["cloud"],
+          "apps": ["tencent-cls"],
+          "hosts": []
+        },
+        "schema": {
+          "fields": ["timestamp", "src_ip", "target_ip", "action", "topic_id"],
+          "time_field": "__TIMESTAMP__",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "__TIMESTAMP__": "timestamp",
+          "client_ip": "src_ip"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "cls_query": "src_ip:{src_ip} | limit {limit}"
+      }
+    },
+    {
+      "name": "demo-huawei-lts-security",
+      "connector_type": "huawei_lts",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://huawei/lts-readonly",
+      "region": "cn-north-4",
+      "executor_endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "project_id": "YOUR_PROJECT_ID",
+          "log_group_id": "YOUR_LOG_GROUP_ID",
+          "log_stream_id": "YOUR_LOG_STREAM_ID"
+        }
+      },
+      "asset": {
+        "coverage": {
+          "zones": ["cloud"],
+          "apps": ["huawei-lts"],
+          "hosts": []
+        },
+        "schema": {
+          "fields": ["timestamp", "src_ip", "target_ip", "action", "log_stream_id"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "client_ip": "src_ip"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "lts_query": "src_ip:{src_ip} | limit {limit}"
+      }
+    }
+  ]
+}

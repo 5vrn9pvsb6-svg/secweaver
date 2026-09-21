@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>校验资产 · SecWeaver</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body data-page="validation">
+    <div class="grain"></div>
+    <header id="appTopbar" class="topbar"></header>
+
+    <section class="page-title">
+      <div>
+        <p class="eyebrow">Validation</p>
+        <h1>校验资产</h1>
+        <p class="subtitle">运行 src/dataasset/validate.py，检查资产、Connector、主机、网络、Bundle 与关联配置是否满足上线契约。</p>
+      </div>
+      <div class="tenant-card">独立页面 · validation.html</div>
+    </section>
+
+    <main class="workbench">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <section class="workspace">
+        <section class="panel">
+          <div class="section-heading">
+            <span class="section-kicker">Gate</span>
+            <h2>资产校验结果</h2>
+          </div>
+          <p class="hint">默认校验全部 dataasset 配置；严格门禁会启用 strict + only-active；同步 catalog 会追加 --sync-catalog。</p>
+          <div class="page-actions validation-actions">
+            <button id="validateBtn" class="button primary" type="button">运行校验</button>
+            <button id="strictValidateBtn" class="button secondary" type="button">严格门禁</button>
+            <button id="runtimeReadyBtn" class="button secondary" type="button">运行就绪</button>
+            <button id="syncValidateBtn" class="button ghost" type="button">校验并同步 catalog</button>
+          </div>
+          <div id="validationSummary" class="validation-summary">尚未运行校验。</div>
+          <div id="runtimeReadiness" class="validation-summary" hidden></div>
+          <div id="adviceCards" class="advice-cards"></div>
+        </section>
+        <section class="panel raw-panel">
+          <div class="panel-title-row"><h3>validate.py 原始输出</h3><span id="validateStatus" class="hint"></span></div>
+          <pre id="validateOutput" class="validation-output">等待运行...</pre>
+        </section>
+      </section>
+    </main>
+
+    <script src="./i18n.js"></script><script src="./shared-nav.js"></script>
+    <script src="./validation.js"></script>
+  </body>
+</html>

@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "engine": "aggregate",
+  "owner": "security-ops",
+  "description": "dns_log and DNS-privacy egress profiling rules. Thresholds are ops-editable.",
+  "severity_rank": {
+    "P0": 0,
+    "P1": 1,
+    "P2": 2,
+    "P3": 3
+  },
+  "nxdomain_burst": {
+    "window_sec": 300,
+    "thresholds": [
+      { "min_count": 30, "severity": "P1", "enabled": true },
+      { "min_count": 10, "severity": "P2", "enabled": true }
+    ]
+  },
+  "domain_profile": {
+    "internal_suffixes": ["local", "lan", "corp", "internal", "intranet"],
+    "uncommon_tlds": ["top", "xyz", "club", "work", "click", "monster", "mom", "rest", "fit", "gq", "tk", "ml", "cf"],
+    "dga_min_label_length": 16,
+    "dga_min_entropy": 3.6,
+    "dga_min_digit_ratio": 0.25,
+    "tunnel_min_query_length": 90,
+    "tunnel_min_label_length": 48,
+    "tunnel_query_types": ["TXT", "NULL", "ANY"]
+  },
+  "doh_dot": {
+    "dot_ports": [853],
+    "doh_ports": [443],
+    "known_doh_resolver_ips": [
+      "1.1.1.1",
+      "1.0.0.1",
+      "8.8.8.8",
+      "8.8.4.4",
+      "9.9.9.9",
+      "149.112.112.112",
+      "94.140.14.14",
+      "94.140.15.15"
+    ]
+  },
+  "rules": [
+    {
+      "id": "high_nxdomain_burst",
+      "severity": "P2",
+      "enabled": true,
+      "note": "Many NXDOMAIN responses from one client in the investigation window"
+    },
+    {
+      "id": "suspected_dga_domain",
+      "severity": "P1",
+      "enabled": true,
+      "note": "High-entropy or digit-heavy domain label"
+    },
+    {
+      "id": "uncommon_tld_query",
+      "severity": "P2",
+      "enabled": true,
+      "note": "Query to uncommon or abuse-prone TLD"
+    },
+    {
+      "id": "dns_tunnel_suspected",
+      "severity": "P1",
+      "enabled": true,
+      "note": "Very long query or TXT/NULL/ANY query with long label"
+    },
+    {
+      "id": "doh_egress",
+      "severity": "P1",
+      "enabled": true,
+      "note": "Host connects to known public DoH resolver over 443"
+    },
+    {
+      "id": "dot_egress",
+      "severity": "P1",
+      "enabled": true,
+      "note": "Host connects to DNS-over-TLS port 853"
+    }
+  ],
+  "risk_tags": {
+    "high_nxdomain_burst": ["dns", "dga", "command_and_control"],
+    "suspected_dga_domain": ["dns", "dga", "command_and_control"],
+    "uncommon_tld_query": ["dns", "external_domain"],
+    "dns_tunnel_suspected": ["dns", "tunnel", "command_and_control", "exfiltration"],
+    "doh_egress": ["dns", "doh", "command_and_control"],
+    "dot_egress": ["dns", "dot", "command_and_control"]
+  },
+  "verdicts": {
+    "P0": "confirmed_attack",
+    "P1": "suspicious",
+    "P2": "suspicious",
+    "P3": "log_only"
+  },
+  "actions": {
+    "P0": "isolate_host_and_investigate",
+    "P1": "manual_review_5m",
+    "P2": "observe",
+    "P3": "log_only"
+  },
+  "confidence_base": {
+    "P0": 0.88,
+    "P1": 0.76,
+    "P2": 0.62,
+    "P3": 0.42
+  },
+  "aggregate_bonus": 0.05
+}

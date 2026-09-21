@@ -1,0 +1,5 @@
+{
+  "_deprecated": "攻击叙事与阶段 MITRE 已迁移至 risk-identification/rules/chain-patterns.json；WebShell/下载/横向工具字面量由 exec-rules.json 经 risk_rules_bridge 派生。溯源请使用 load_trace_patterns()，勿再编辑本文件。",
+  "version": "2.0",
+  "replacement": "../risk-identification/rules/chain-patterns.json"
+}

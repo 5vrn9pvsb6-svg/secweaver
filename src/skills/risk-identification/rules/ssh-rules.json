@@ -1,0 +1,47 @@
+{
+  "version": "1.1",
+  "engine": "aggregate",
+  "owner": "security-ops",
+  "description": "ssh_auth 暴力破解检测参数、消息匹配与输出语义。",
+  "_doc": "brute_force_rule 定义 ssh_bruteforce 检测输出；policy_rule_id 须与 behavior-policy.md 一致。",
+  "brute_force": {
+    "window_sec": 300,
+    "threshold": 10,
+    "suppress_self_loop": true
+  },
+  "thresholds": [
+    { "min_count": 10, "severity": "P0", "enabled": true },
+    { "min_count": 5, "severity": "P2", "enabled": true }
+  ],
+  "brute_force_rule": {
+    "matched_rule": "ssh_bruteforce",
+    "alert_type": "ssh_bruteforce",
+    "risk_tags": ["credential_access", "brute_force"],
+    "verdict": "confirmed_attack",
+    "recommended_action": "block_src_ip_and_investigate",
+    "policy_rule_id": "SSH-BRUTE-001"
+  },
+  "fail_event_types": ["ssh_login_failed", "auth_failure"],
+  "success_event_types": ["ssh_login_success", "auth_success"],
+  "fail_message_pattern": "Failed password|Invalid user|authentication failure",
+  "success_message_pattern": "Accepted (password|publickey)|session opened",
+  "src_ip_from_message_pattern": "\\b(?:from|rhost=)\\s*(\\d+\\.\\d+\\.\\d+\\.\\d+)",
+  "user_from_message_pattern": "(?:for|user=)\\s*(\\S+)",
+  "confidence_cap": 0.92,
+  "default_severity": "P0",
+  "risk_tags": {
+    "ssh_bruteforce": ["credential_access", "brute_force"]
+  },
+  "verdicts": {
+    "P0": "confirmed_attack",
+    "P2": "suspicious"
+  },
+  "actions": {
+    "P0": "block_src_ip_and_investigate",
+    "P2": "observe"
+  },
+  "confidence_base": {
+    "P0": 0.92,
+    "P2": 0.75
+  }
+}

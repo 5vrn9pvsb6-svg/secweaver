@@ -1,0 +1,262 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery",
+    "sample_file": "examples/log-format-discovery/vendor-edr-identity.sample"
+  },
+  "data_sources": [
+    {
+      "name": "demo-microsoft-defender-xdr-device-events",
+      "connector_type": "microsoft_defender_xdr",
+      "asset_type": "edr_event",
+      "credentials_ref": "vault://microsoft/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "tenant_id": "YOUR_TENANT_ID",
+          "api_base": "https://api.security.microsoft.com",
+          "tables": ["DeviceProcessEvents", "DeviceNetworkEvents", "DeviceLogonEvents"],
+          "auth_scope": "https://api.security.microsoft.com/.default"
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "host", "host_id", "process_name", "cmdline", "user", "src_ip", "action", "file_hash"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "coverage": {
+          "zones": ["endpoint"],
+          "apps": ["microsoft-defender-xdr"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "Timestamp": "timestamp",
+          "DeviceName": "host",
+          "DeviceId": "host_id",
+          "InitiatingProcessFileName": "process_name",
+          "InitiatingProcessCommandLine": "cmdline",
+          "AccountName": "user",
+          "RemoteIP": "src_ip",
+          "ActionType": "action",
+          "SHA256": "file_hash"
+        }
+      },
+      "template": {
+        "params": ["host", "src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "defender_query": "DeviceProcessEvents | union DeviceNetworkEvents, DeviceLogonEvents | where Timestamp between (datetime({time_start}) .. datetime({time_end})) | where DeviceName == \"{host}\" or RemoteIP == \"{src_ip}\" | take {limit}"
+      }
+    },
+    {
+      "name": "demo-sentinelone-threat-events",
+      "connector_type": "sentinelone_events",
+      "asset_type": "edr_event",
+      "credentials_ref": "vault://sentinelone/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "console_url": "https://YOUR_TENANT.sentinelone.net",
+          "site_id": "YOUR_SITE_ID",
+          "account_id": "YOUR_ACCOUNT_ID"
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "host", "host_id", "process_name", "cmdline", "user", "src_ip", "action", "file_hash"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "coverage": {
+          "zones": ["endpoint"],
+          "apps": ["sentinelone"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "createdAt": "timestamp",
+          "agentComputerName": "host",
+          "agentUuid": "host_id",
+          "processName": "process_name",
+          "cmdLine": "cmdline",
+          "accountName": "user",
+          "srcIp": "src_ip",
+          "eventType": "action",
+          "sha256": "file_hash"
+        }
+      },
+      "template": {
+        "params": ["host", "src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "sentinelone_query": "agentComputerName=\"{host}\" OR srcIp=\"{src_ip}\" createdAt>=\"{time_start}\" createdAt<=\"{time_end}\" limit {limit}"
+      }
+    },
+    {
+      "name": "demo-crowdstrike-fdr-process-rollup",
+      "connector_type": "crowdstrike_fdr",
+      "asset_type": "edr_event",
+      "credentials_ref": "vault://crowdstrike/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "cloud": "us-1",
+          "bucket": "YOUR_FDR_BUCKET",
+          "prefix": "fdr/"
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "host_id", "host", "process_name", "cmdline", "user", "action"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "coverage": {
+          "zones": ["endpoint"],
+          "apps": ["crowdstrike-fdr"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "aid": "host_id",
+          "ComputerName": "host",
+          "CommandLine": "cmdline",
+          "UserName": "user",
+          "event_simpleName": "action"
+        }
+      },
+      "template": {
+        "params": ["host_id", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "fdr_query": "aid:{host_id} event_simpleName:(ProcessRollup2 OR NetworkConnectIP4 OR UserLogon) time_start:{time_start} time_end:{time_end} limit {limit}"
+      }
+    },
+    {
+      "name": "demo-okta-system-log-auth",
+      "connector_type": "okta_system_log",
+      "asset_type": "app_api_log",
+      "credentials_ref": "vault://okta/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "org_url": "https://YOUR_ORG.okta.com"
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "user", "src_ip", "action", "result", "target"],
+          "time_field": "timestamp",
+          "retention_days": 90
+        },
+        "coverage": {
+          "zones": ["identity"],
+          "apps": ["okta"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "published": "timestamp",
+          "actor.alternateId": "user",
+          "client.ipAddress": "src_ip",
+          "eventType": "action",
+          "outcome.result": "result"
+        }
+      },
+      "template": {
+        "params": ["user", "src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "okta_query": "published gt \"{time_start}\" and published lt \"{time_end}\" and (actor.alternateId eq \"{user}\" or client.ipAddress eq \"{src_ip}\")"
+      }
+    },
+    {
+      "name": "demo-google-workspace-login-audit",
+      "connector_type": "google_workspace_audit",
+      "asset_type": "app_api_log",
+      "credentials_ref": "vault://google-workspace/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "customer_id": "my_customer",
+          "application_name": "login",
+          "delegated_subject": "security-admin@example.com"
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "user", "src_ip", "action", "result", "target"],
+          "time_field": "timestamp",
+          "retention_days": 180
+        },
+        "coverage": {
+          "zones": ["identity"],
+          "apps": ["google-workspace"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "id.time": "timestamp",
+          "actor.email": "user",
+          "ipAddress": "src_ip",
+          "events.name": "action"
+        }
+      },
+      "template": {
+        "params": ["user", "src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "google_workspace_query": "applicationName=login userKey={user} ipAddress={src_ip} startTime={time_start} endTime={time_end} maxResults={limit}"
+      }
+    },
+    {
+      "name": "demo-microsoft-entra-signin",
+      "connector_type": "microsoft_entra_signin",
+      "asset_type": "app_api_log",
+      "credentials_ref": "vault://microsoft/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "tenant_id": "YOUR_TENANT_ID",
+          "workspace_id": "YOUR_LOG_ANALYTICS_WORKSPACE_ID",
+          "table": "SigninLogs"
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "user", "src_ip", "action", "result", "target"],
+          "time_field": "timestamp",
+          "retention_days": 90
+        },
+        "coverage": {
+          "zones": ["identity"],
+          "apps": ["microsoft-entra-id"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "createdDateTime": "timestamp",
+          "TimeGenerated": "timestamp",
+          "userPrincipalName": "user",
+          "UserPrincipalName": "user",
+          "ipAddress": "src_ip",
+          "IPAddress": "src_ip",
+          "appDisplayName": "target",
+          "status.errorCode": "result"
+        }
+      },
+      "template": {
+        "params": ["user", "src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "entra_query": "SigninLogs | where TimeGenerated between (datetime({time_start}) .. datetime({time_end})) | where UserPrincipalName == \"{user}\" or IPAddress == \"{src_ip}\" | project TimeGenerated, UserPrincipalName, IPAddress, AppDisplayName, ResultType, ResultDescription | take {limit}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,71 @@
+{
+  "asset_id": "asset-waf-prod-01",
+  "name": "WEB隐身盾 安全告警",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-waf-prod",
+  "description": "Sanitized SLS WAF alert example; upstream_addr is normalized to target_ip and ip is normalized to src_ip.",
+  "coverage": {
+    "zones": [
+      "web_zone"
+    ],
+    "hosts": [
+      "198.51.100.195"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "url",
+      "payload",
+      "action",
+      "rule_id",
+      "rule_name",
+      "method",
+      "level",
+      "plugin_name",
+      "event",
+      "trace_id",
+      "ip",
+      "upstream_addr",
+      "tenant_id",
+      "app_name",
+      "tenant_name",
+      "__tag__:__client_ip__"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "tenant_scope": {
+    "tenant_id": "YOUR_TENANT_ID",
+    "description": "Optional tenant scope for private deployments. Keep public examples generic and do not commit production tenant IDs."
+  },
+  "query_template_ids": [
+    "waf_gateway_plugin_by_ip_time",
+    "waf_gateway_plugin_by_target_ip_time",
+    "waf_gateway_plugin_by_trace_id",
+    "waf_gateway_plugin_by_time"
+  ],
+  "sensitivity": "internal",
+  "pii_fields": [
+    "username"
+  ],
+  "masking": {
+    "payload": "truncate_500",
+    "request.header": "truncate_500"
+  },
+  "tags": [
+    "waf",
+    "prod",
+    "waf_logstore",
+    "demo"
+  ],
+  "field_aliases": {
+    "upstream_addr": "target_ip",
+    "ip": "src_ip",
+    "trace_id": "alert_id"
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LogFormatDiscoveryResult",
+  "description": "Required LLM/Agent output after discover.py preprocessing",
+  "type": "object",
+  "required": [
+    "asset_id",
+    "asset_type",
+    "proposed_field_aliases",
+    "proposed_asset_schema",
+    "implementation_checklist",
+    "confidence"
+  ],
+  "properties": {
+    "asset_id": { "type": "string", "pattern": "^asset-[a-z0-9-]+$" },
+    "asset_type": { "type": "string" },
+    "connector_type": { "enum": ["sls", "ssh_file", "local_file", "database_ro", "http_api", "es", null] },
+    "detected_format": { "type": "string" },
+    "proposed_field_aliases": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "source_key → canonical evidence field"
+    },
+    "proposed_asset_schema": {
+      "type": "object",
+      "properties": {
+        "fields": { "type": "array", "items": { "type": "string" } },
+        "time_field": { "type": "string" },
+        "retention_days": { "type": "integer" }
+      }
+    },
+    "derived_correlation_keys": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "只读：discover.py 根据 matrix+fields 推导，勿写入 asset JSON"
+    },
+    "proposed_normalizer": {
+      "type": "object",
+      "properties": {
+        "action": { "enum": ["config_only", "custom_parser_json", "aliases_only", "extend_parser", "new_parser"] },
+        "parser_name": { "type": "string" },
+        "regex_notes": { "type": "string" }
+      }
+    },
+    "proposed_query_template": {
+      "type": ["object", "null"],
+      "description": "One reviewed snippet to add to dataasset/query-templates/templates.json; existing-template candidate lists remain in proposed_template_hint and are never applied automatically"
+    },
+    "proposed_masking": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "implementation_checklist": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence": { "enum": ["high", "medium", "low"] },
+    "open_questions": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

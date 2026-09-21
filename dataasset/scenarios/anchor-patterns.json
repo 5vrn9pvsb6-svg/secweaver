@@ -1,0 +1,260 @@
+{
+  "version": "1.1",
+  "description": "SecWeaver 调查场景编排配置。用于把 S1-S8 调查场景映射到推荐 Join 链、默认调查窗和资产包；字段关联本身仍由 assets/correlation-matrix.json 定义。",
+  "scenario_priority": [
+    [
+      "S1",
+      "S1_external_ip_trace"
+    ],
+    [
+      "S2",
+      "S2_web_breach"
+    ],
+    [
+      "S3",
+      "S3_lateral_movement"
+    ],
+    [
+      "S5",
+      "S5_host_risk"
+    ],
+    [
+      "S6",
+      "S6_account_compromise"
+    ],
+    [
+      "S7",
+      "S7_data_exfiltration"
+    ],
+    [
+      "S8",
+      "S8_c2_detection"
+    ],
+    [
+      "S4",
+      "S4_alert_confirmation"
+    ]
+  ],
+  "patterns": {
+    "S1_external_ip_trace": {
+      "label": "外网 IP 溯源",
+      "investigation_window": "trace_default",
+      "anchor": {
+        "field": "src_ip",
+        "field_variants": [
+          "ip",
+          "client_ip"
+        ],
+        "from": "params.attacker_ip",
+        "fallback_asset_types": [
+          "waf_alert",
+          "web_access_log"
+        ]
+      },
+      "recommended_chain": [
+        "waf_to_web_access_by_ip",
+        "web_access_to_host_exec",
+        "d2_exec_connect_same_listener",
+        "host_connect_to_dns",
+        "attacker_ip_to_ssh_auth",
+        "host_ip_to_ssh_auth_lateral"
+      ],
+      "optional_asset_types": [
+        "dns_log"
+      ],
+      "bundle_id": "bundle-incident-trace-default"
+    },
+    "S2_web_breach": {
+      "label": "WEB 入侵 / WebShell",
+      "investigation_window": "trace_default",
+      "anchor": {
+        "field": "url",
+        "field_variants": [
+          "request_uri",
+          "path"
+        ],
+        "from": "waf_alert",
+        "secondary": "src_ip"
+      },
+      "recommended_chain": [
+        "victim_host_to_waf_by_target_ip",
+        "victim_host_to_web_access_by_target_ip",
+        "web_access_to_host_exec",
+        "waf_to_web_access_by_ip",
+        "d2_exec_file_same_host",
+        "d2_exec_connect_same_listener",
+        "host_connect_to_dns"
+      ],
+      "optional_asset_types": [
+        "dns_log"
+      ],
+      "bundle_id": "bundle-incident-trace-default"
+    },
+    "S3_lateral_movement": {
+      "label": "横向移动追踪",
+      "investigation_window": "trace_default",
+      "anchor": {
+        "field": "host_ip",
+        "field_variants": [
+          "src_ip",
+          "host",
+          "hostname"
+        ],
+        "from": "params.host_ip",
+        "secondary": "user",
+        "fallback_asset_types": [
+          "syslog_risk_alert",
+          "host_exec"
+        ]
+      },
+      "layer1_assets": [
+        "syslog_risk_alert"
+      ],
+      "layer2_assets": [
+        "host_exec",
+        "asset_inventory"
+      ],
+      "recommended_chain": [
+        "attacker_ip_to_ssh_auth",
+        "host_ip_to_ssh_auth_lateral",
+        "ssh_auth_to_host_exec_same_host",
+        "host_to_cmdb"
+      ],
+      "bundle_id": "bundle-incident-trace-default"
+    },
+    "S4_alert_confirmation": {
+      "label": "告警确认（两层）",
+      "investigation_window": "alert_confirmation_fetch",
+      "layer1_assets": [
+        "waf_alert"
+      ],
+      "layer2_assets": [
+        "web_access_log",
+        "host_exec",
+        "host_connect",
+        "host_file_op"
+      ],
+      "recommended_chain": [
+        "waf_to_web_access_by_ip",
+        "waf_to_host_exec_direct",
+        "d2_exec_connect_same_listener",
+        "d2_exec_file_same_host"
+      ],
+      "bundle_id": "bundle-alert-confirm-min"
+    },
+    "S5_host_risk": {
+      "label": "主机行为风险识别",
+      "anchor": {
+        "field": "host",
+        "field_variants": [
+          "host_name",
+          "host_ip"
+        ],
+        "from": "params.host"
+      },
+      "recommended_chain": [
+        "d2_exec_connect_same_listener",
+        "d2_exec_file_same_host"
+      ],
+      "bundle_id": "bundle-host-risk-default"
+    },
+    "S6_account_compromise": {
+      "label": "账号失陷追踪",
+      "investigation_window": "trace_default",
+      "anchor": {
+        "field": "user",
+        "field_variants": [
+          "username",
+          "uid_name",
+          "account"
+        ],
+        "from": "params.user",
+        "secondary": "src_ip",
+        "fallback_asset_types": [
+          "ssh_auth",
+          "host_exec"
+        ]
+      },
+      "layer1_assets": [
+        "ssh_auth"
+      ],
+      "layer2_assets": [
+        "host_exec"
+      ],
+      "recommended_chain": [
+        "attacker_ip_to_ssh_auth",
+        "ssh_auth_to_host_exec_same_host"
+      ],
+      "bundle_id": "bundle-incident-trace-default"
+    },
+    "S7_data_exfiltration": {
+      "label": "数据外传追踪",
+      "investigation_window": "trace_default",
+      "anchor": {
+        "field": "host",
+        "field_variants": [
+          "host_ip",
+          "dst_ip",
+          "domain"
+        ],
+        "from": "params.host",
+        "secondary": "dst_ip",
+        "fallback_asset_types": [
+          "host_connect",
+          "dns_log",
+          "network_traffic_audit",
+          "db_audit"
+        ]
+      },
+      "layer1_assets": [
+        "host_connect",
+        "dns_log",
+        "network_traffic_audit"
+      ],
+      "layer2_assets": [
+        "db_audit"
+      ],
+      "recommended_chain": [
+        "host_connect_to_dns",
+        "nta_session_correlation"
+      ],
+      "bundle_id": "bundle-data-exfiltration-default"
+    },
+    "S8_c2_detection": {
+      "label": "C2 通信检测",
+      "investigation_window": "trace_default",
+      "anchor": {
+        "field": "host",
+        "field_variants": [
+          "host_ip",
+          "dst_ip",
+          "domain"
+        ],
+        "from": "params.host",
+        "secondary": "dst_ip",
+        "fallback_asset_types": [
+          "host_connect",
+          "dns_log",
+          "host_exec",
+          "syslog_risk_alert"
+        ]
+      },
+      "layer1_assets": [
+        "host_connect",
+        "dns_log"
+      ],
+      "layer2_assets": [
+        "host_exec",
+        "syslog_risk_alert"
+      ],
+      "recommended_chain": [
+        "d2_exec_connect_same_listener",
+        "host_connect_to_dns"
+      ],
+      "optional_asset_types": [
+        "dns_log"
+      ],
+      "bundle_id": "bundle-c2-detection-default"
+    }
+  }
+}

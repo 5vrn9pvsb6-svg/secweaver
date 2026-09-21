@@ -1,0 +1,23 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Azure Monitor（模板）",
+  "connector_type": "azure_monitor",
+  "status": "draft",
+  "credentials_ref": "vault://azure/log-analytics-readonly",
+  "description": "Azure Log Analytics / Monitor 查询模板；默认使用内置 Log Analytics API fetch，也可通过 executor_endpoint 交给外部执行器。",
+  "config": {
+    "workspace_id": "YOUR_WORKSPACE_ID",
+    "tenant_id": "YOUR_TENANT_ID",
+    "endpoint": ""
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 60
+  },
+  "tags": [
+    "template",
+    "azure",
+    "monitor",
+    "live"
+  ]
+}

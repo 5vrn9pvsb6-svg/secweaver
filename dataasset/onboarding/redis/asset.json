@@ -1,0 +1,28 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "Redis 键空间（模板）",
+  "asset_type": "asset_inventory",
+  "domain": "D6",
+  "status": "draft",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "Redis 只读接入示例；通过 redis_query JSON 描述 GET/MGET/HGETALL/LRANGE/ZRANGE/SCAN。",
+  "coverage": {
+    "zones": [
+      "internal"
+    ],
+    "apps": [],
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "key",
+      "value"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 7
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {}
+}

@@ -1,0 +1,34 @@
+name: Agent real-service upgrade
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/tools/secweaver-agent/**"
+      - ".github/workflows/agent-service-upgrade.yml"
+
+jobs:
+  linux-systemd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/tools/secweaver-agent/go.mod
+          cache-dependency-path: src/tools/secweaver-agent/go.sum
+      - name: N-1 to N health failure and rollback under systemd
+        working-directory: src/tools/secweaver-agent
+        run: sudo --preserve-env=PATH ./integration/service-upgrade/linux-systemd.sh
+
+  windows-scm:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: src/tools/secweaver-agent/go.mod
+          cache-dependency-path: src/tools/secweaver-agent/go.sum
+      - name: N-1 to N health failure and rollback under Windows SCM
+        working-directory: src/tools/secweaver-agent
+        shell: powershell
+        run: .\integration\service-upgrade\windows-scm.ps1

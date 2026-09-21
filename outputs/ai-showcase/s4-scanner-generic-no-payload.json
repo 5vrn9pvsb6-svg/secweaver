@@ -1,0 +1,256 @@
+{
+  "alert_type": "alert_confirmation",
+  "alert_id": "WAF-20260621-scan-001",
+  "scenario": "S4",
+  "timestamp": "2026-06-21T03:00:10+08:00",
+  "src_ip": "203.0.113.77",
+  "target_ip": null,
+  "host": "web-01",
+  "url": "/admin/login",
+  "method": "GET",
+  "rule_id": "900100",
+  "rule_name": "Generic Anomaly Detection",
+  "confirmation_mode": "triage_only",
+  "alert_verdict": "scanning_or_probe",
+  "attack_type": "unknown",
+  "attack_type_label": "未知类型",
+  "payload_analysis": {
+    "has_payload": false,
+    "payload_snippet": null,
+    "technique": "generic_rule",
+    "validity": "insufficient",
+    "notes": "无有效 payload，仅规则/generic 命中"
+  },
+  "layer1_upgrade": null,
+  "attack_outcome": "success_unknown",
+  "attack_success": false,
+  "confidence": 0.6,
+  "confidence_ceiling": 0.6,
+  "waf_action": "logged",
+  "summary": "扫描/探测（未知类型）；无有效 payload，仅规则/generic 命中；无法确认是否攻击成功；WAF 动作: logged。",
+  "gateway_success_hint": null,
+  "gateway_access_coverage": {
+    "status": "matched",
+    "reason": "gateway_log_matched",
+    "message": "已找到对应网关访问日志。",
+    "observed_gateway_events": 1,
+    "scoped_gateway_events": 1,
+    "matching_count": 1,
+    "evidence_refs": [
+      "web-scan-001"
+    ]
+  },
+  "gateway_miss_scan": {
+    "enabled": true,
+    "count": 1,
+    "items": [
+      {
+        "reason": "gateway_exploit_no_waf_alert",
+        "reason_label": "网关命中攻击 URL 特征但无对应 WAF 告警",
+        "severity": "low",
+        "evidence_ref": "web-scan-001",
+        "src_ip": "203.0.113.77",
+        "url": "/admin/login",
+        "status": 404,
+        "pattern_hits": [
+          "/admin"
+        ],
+        "timestamp": "2026-06-21T03:00:09+08:00"
+      }
+    ],
+    "summary": {
+      "top_patterns": [
+        "/admin"
+      ],
+      "top_src_ips": [
+        "203.0.113.77"
+      ],
+      "by_reason": {
+        "gateway_exploit_no_waf_alert": 1
+      },
+      "by_severity": {
+        "low": 1
+      },
+      "reason_label": "网关命中攻击 URL 特征但无对应 WAF 告警"
+    }
+  },
+  "alert_success": {
+    "scope": "alert",
+    "attack_success": false,
+    "attack_outcome": "success_unknown",
+    "evidence_refs": [],
+    "indicator": null
+  },
+  "campaign_success": {
+    "scope": "campaign",
+    "attack_success": false,
+    "attack_outcome": "success_unknown",
+    "evidence_refs": [],
+    "supporting_refs": [],
+    "uncorrelated_d2_refs": [],
+    "uncorrelated_d2_count": 0,
+    "related_gateway_miss_refs": [],
+    "indicators": [],
+    "attribution": {
+      "d2_correlation": "uncorrelated",
+      "target_keys": [],
+      "reason": "no_gateway_upstream_target",
+      "scoped_gateway_events": 1,
+      "upstream_gateway_events": 0
+    },
+    "recommended_action": "log_and_monitor",
+    "next_skill": null,
+    "note": "活动级成功信号，不等同于每条 WAF 告警均已打穿"
+  },
+  "attacker_ip_profile": {
+    "ip": "203.0.113.77",
+    "scope": "private",
+    "evidence_geo": {
+      "event_count": 2,
+      "country": null,
+      "province": null,
+      "city": null,
+      "geo_info": null,
+      "evidence_refs": [
+        "web-scan-001"
+      ],
+      "source_bundles": [
+        "waf_alert",
+        "web_access_log"
+      ]
+    },
+    "online_lookup": {
+      "status": "not_attempted",
+      "reason": "ip_intel_online_not_enabled"
+    },
+    "threat_intel": {},
+    "attributes": [
+      "内网地址"
+    ],
+    "summary": "内网地址"
+  },
+  "ip_action_guard": null,
+  "evidence": {
+    "alert": [
+      "WAF-20260621-scan-001"
+    ],
+    "supporting": [
+      "web-scan-001"
+    ],
+    "success_proof": [],
+    "gateway_hint": [],
+    "false_positive_indicators": []
+  },
+  "matched_rules": [],
+  "recommended_action": "log_only",
+  "recommended_action_label": "仅记录，扫描探测",
+  "next_skill": null,
+  "next_skill_reason": "",
+  "data_gaps_impact": [
+    "无 host_exec/connect/file_op/host_persistence，无法确认是否打穿或留驻",
+    "告警缺少 payload 字段"
+  ],
+  "join_edges": [
+    {
+      "join_id": "waf_to_web_access_by_ip",
+      "left_ref": "unknown",
+      "right_ref": "web-scan-001",
+      "match_keys": {
+        "src_ip": "203.0.113.77",
+        "url": "/admin/login"
+      },
+      "time_window": "alert_context",
+      "confidence": 0.91,
+      "from_asset_type": "waf_alert",
+      "to_asset_type": "web_access_log",
+      "priority": 90,
+      "confidence_base": 0.86,
+      "confidence_ceiling": 0.95,
+      "confidence_reason": "WAF 与 WEB 访问按攻击源 IP 对齐，并可用 URL/target_ip 二级键提升可信度。"
+    }
+  ],
+  "analyst_questions": [
+    "WEB 服务器是否已部署 audit-port-execmon？"
+  ],
+  "fetch_summary": {
+    "fetched_at": "2026-09-21T16:28:54.158552+08:00",
+    "query_integrity": {
+      "status": "unknown",
+      "incomplete_queries": [],
+      "absence_is_not_evidence": false
+    },
+    "evidence_readiness": {
+      "status": "evidence_observed",
+      "event_count": 2,
+      "missing_required_evidence": [],
+      "query_status": "unknown",
+      "assessment_basis": "returned_events_and_query_attempts",
+      "does_not_establish_skill_coverage": true
+    },
+    "analysis_constraints": {
+      "scope": "supplied_evidence_only",
+      "positive_findings_allowed": true,
+      "negative_conclusion_allowed": false,
+      "absence_is_not_evidence": true,
+      "recommended_confidence_ceiling": 0.85
+    },
+    "total_events": 2,
+    "total_fetched_events": 0,
+    "total_fetch_queries": 0,
+    "total_fetch_requests": 0,
+    "total_fetch_cache_hits": 0,
+    "total_deduplicated_events": 0,
+    "total_window_filtered_events": 0,
+    "failed_fetch_queries": 0,
+    "non_connector_event_count": 2,
+    "non_connector_by_asset_type": {
+      "web_access_log": 1,
+      "waf_alert": 1
+    },
+    "by_asset_type": {
+      "web_access_log": 1,
+      "host_exec": 0,
+      "host_connect": 0,
+      "host_file_op": 0,
+      "waf_alert": 1
+    },
+    "asset_fetch_stats": [],
+    "asset_count": 0,
+    "asset_ids": null,
+    "declared_asset_ids": null,
+    "fetch_asset_ids": null,
+    "planned_asset_ids": null,
+    "executed_asset_ids": null,
+    "skipped_assets": [],
+    "skipped_asset_count": 0,
+    "primary_alert_count": 1,
+    "fetch_mode": null,
+    "fetch_strategy": null,
+    "bundle_id": null,
+    "plan_task_count": 0,
+    "time_window": {
+      "time_start": null,
+      "time_end": null,
+      "alert_time": "2026-06-21T03:00:00+08:00",
+      "attacker_ip": "203.0.113.77",
+      "target_ip": null
+    },
+    "attacker_ip_log_time_range": {
+      "attacker_ip": "203.0.113.77",
+      "event_count": 2,
+      "timestamped_event_count": 2,
+      "source_bundles": [
+        "web_access_log",
+        "waf_alert"
+      ],
+      "first_seen": "2026-06-21T03:00:09+08:00",
+      "last_seen": "2026-06-21T03:00:10+08:00",
+      "first_seen_asset_type": "web_access_log",
+      "last_seen_asset_type": "waf_alert"
+    },
+    "truncated_asset_types": []
+  },
+  "markdown_report": "# Alert Confirmation Report\n\n## 数据取数统计\n\n- **实际证据 / Evidence readiness**: `evidence_observed`；资产注册评分不代表本次证据完整或技能可运行。Registry readiness does not establish runtime coverage.\n- **结论边界 / Conclusion boundary**：当前证据可支持已观察到的正向发现，但不得用未返回事件排除风险。\n- **取数模式**: — / —\n- **攻击源 IP**: 203.0.113.77\n- **锚定告警时间**: 2026-06-21T03:00:00+08:00\n- **该 IP 日志时间范围**: 2026-06-21T03:00:09+08:00 ~ 2026-06-21T03:00:10+08:00 （匹配 2 条，带时间戳 2 条，来源 `web_access_log`, `waf_alert`）\n- **总事件数（最终保留）**: 2\n- **非 connector 拉取证据**: 2 （`waf_alert`: 1, `web_access_log`: 1；例如资产注册表注入）\n- **WAF 主告警数**: 1\n\n### 按 asset_type\n\n- `waf_alert`: 1\n- `web_access_log`: 1\n- `host_connect`: 0\n- `host_exec`: 0\n- `host_file_op`: 0\n",
+  "contract_version": "1.0",
+  "skill": "alert-confirmation"
+}

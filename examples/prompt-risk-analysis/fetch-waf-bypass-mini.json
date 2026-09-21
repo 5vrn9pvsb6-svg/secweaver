@@ -1,0 +1,168 @@
+{
+  "contract_version": "1.0",
+  "skill": "evidence-fetch",
+  "investigation_intent": "Offline S4 example: distinguish blocked WAF traffic from confirmed WAF bypass",
+  "params": {
+    "attacker_ip": "203.0.113.50",
+    "src_ip": "203.0.113.50",
+    "time_start": "2026-07-11T12:00:00+08:00",
+    "time_end": "2026-07-11T12:01:00+08:00"
+  },
+  "correlation_anchor_pattern": "S4_alert_confirmation",
+  "data_access": {
+    "source": "offline_fixture",
+    "fetch_mode": "offline",
+    "declared_asset_ids": ["asset-waf-prod-01"],
+    "fetch_asset_ids": [
+      "asset-waf-prod-01",
+      "asset-secweaver-gateway-access",
+      "asset-secweaver-host-exec",
+      "asset-secweaver-host-file-op"
+    ]
+  },
+  "fetch_summary": {
+    "fetch_mode": "offline",
+    "total_fetched_events": 8,
+    "total_events": 7,
+    "total_deduplicated_events": 1,
+    "failed_fetch_queries": 0,
+    "by_asset_type": {
+      "waf_alert": 1,
+      "web_access_log": 4,
+      "host_exec": 1,
+      "host_file_op": 1
+    },
+    "declared_asset_ids": ["asset-waf-prod-01"],
+    "fetch_asset_ids": [
+      "asset-waf-prod-01",
+      "asset-secweaver-gateway-access",
+      "asset-secweaver-host-exec",
+      "asset-secweaver-host-file-op"
+    ],
+    "truncated_asset_types": [],
+    "time_window": {
+      "time_start": "2026-07-11T12:00:00+08:00",
+      "time_end": "2026-07-11T12:01:00+08:00"
+    }
+  },
+  "evidence_bundles": {
+    "waf_alert": [
+      {
+        "evidence_id": "waf-mini-001",
+        "_source_asset_id": "asset-waf-prod-01",
+        "timestamp": "2026-07-11T12:00:00+08:00",
+        "src_ip": "203.0.113.50",
+        "http_host": "demo.example.test",
+        "method": "POST",
+        "url": "https://demo.example.test/upload.php",
+        "rule_id": "request_blocker",
+        "rule_name": "Dangerous file upload",
+        "action": "block",
+        "level": "HIGH",
+        "trace_id": "trace-block-001"
+      }
+    ],
+    "web_access_log": [
+      {
+        "evidence_id": "web-mini-001",
+        "_source_asset_id": "asset-secweaver-gateway-access",
+        "timestamp": "2026-07-11T12:00:00+08:00",
+        "src_ip": "203.0.113.50",
+        "http_host": "demo.example.test",
+        "method": "POST",
+        "request_uri": "/upload.php",
+        "status": "403",
+        "target_ip": "-",
+        "upstream_addr": "-",
+        "trace_id": "trace-block-001"
+      },
+      {
+        "evidence_id": "web-mini-002",
+        "_source_asset_id": "asset-secweaver-gateway-access",
+        "timestamp": "2026-07-11T12:00:05+08:00",
+        "src_ip": "203.0.113.50",
+        "http_host": "demo.example.test",
+        "method": "POST",
+        "request_uri": "/upload.php?name=shell.phtml",
+        "status": "302",
+        "target_ip": "10.0.0.10",
+        "upstream_addr": "10.0.0.10:80",
+        "trace_id": "trace-bypass-002"
+      },
+      {
+        "evidence_id": "web-mini-003",
+        "_source_asset_id": "asset-secweaver-gateway-access",
+        "timestamp": "2026-07-11T12:00:08+08:00",
+        "src_ip": "203.0.113.50",
+        "http_host": "demo.example.test",
+        "method": "GET",
+        "request_uri": "/uploads/shell.phtml?c=id",
+        "status": "200",
+        "target_ip": "10.0.0.10",
+        "upstream_addr": "10.0.0.10:80",
+        "trace_id": "trace-bypass-003"
+      },
+      {
+        "evidence_id": "web-mini-004",
+        "_source_asset_id": "asset-secweaver-gateway-access",
+        "timestamp": "2026-07-11T12:00:10+08:00",
+        "src_ip": "203.0.113.50",
+        "http_host": "demo.example.test",
+        "method": "GET",
+        "request_uri": "/health",
+        "status": "200",
+        "target_ip": "10.0.0.10",
+        "upstream_addr": "10.0.0.10:80",
+        "trace_id": "trace-benign-004"
+      }
+    ],
+    "host_file_op": [
+      {
+        "evidence_id": "file-mini-001",
+        "_source_asset_id": "asset-secweaver-host-file-op",
+        "timestamp": "2026-07-11T12:00:06+08:00",
+        "host_ip": "10.0.0.10",
+        "host_name": "web-mini-01",
+        "listener_process": "nginx",
+        "listener_port": "80",
+        "user": "nginx",
+        "file_action": "create",
+        "file_paths": ["/var/www/html/uploads/shell.phtml"],
+        "success": "yes"
+      }
+    ],
+    "host_exec": [
+      {
+        "evidence_id": "exec-mini-001",
+        "_source_asset_id": "asset-secweaver-host-exec",
+        "timestamp": "2026-07-11T12:00:09+08:00",
+        "host_ip": "10.0.0.10",
+        "host_name": "web-mini-01",
+        "listener_process": "nginx",
+        "listener_port": "80",
+        "user": "nginx",
+        "command": "id",
+        "command_line": "sh -c id",
+        "success": "yes",
+        "exit": "0"
+      }
+    ]
+  },
+  "fixture_expectations": {
+    "primary_scenario": "S4",
+    "secondary_scenarios": ["S2"],
+    "attack_status": "confirmed_success",
+    "highest_severity": "P0",
+    "waf_coverage": {
+      "waf_alert_count": 1,
+      "web_access_raw_count": 5,
+      "web_access_retained_count": 4,
+      "blocked_count": 1,
+      "backend_reached_count": 3,
+      "suspicious_without_waf_count": 2,
+      "confirmed_bypass_count": 2,
+      "unmatched_waf_count": 0,
+      "deduplicated_count": 1
+    }
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "host_id": "host-demo-control-gateway-01",
+  "name": "Demo Control Gateway 01",
+  "hostname": "demo-control-gateway-01",
+  "host_type": "gateway",
+  "host_os": "linux",
+  "host_ip": "192.0.2.75",
+  "network_id": "net-demo-control-plane",
+  "exposure": {
+    "internet_exposed": true,
+    "internet_ip": "203.0.113.11",
+    "exposed_ports": [
+      443,
+      53,
+      80
+    ]
+  },
+  "aliases": [
+    "demo-control-gateway-01",
+    "192.0.2.75"
+  ],
+  "roles": [
+    "control-plane-gateway",
+    "edge-proxy"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic control-plane gateway template.",
+  "tags": [
+    "control-plane-gateway",
+    "demo",
+    "edge-proxy",
+    "gateway",
+    "reference"
+  ]
+}

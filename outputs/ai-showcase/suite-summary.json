@@ -1,0 +1,441 @@
+{
+  "ok": true,
+  "offline": true,
+  "mode": "all",
+  "total": 27,
+  "passed": 27,
+  "failed": 0,
+  "results": [
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "webshell-attack-confirmation",
+      "skill": "alert-confirmation",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/webshell-attack-confirmation.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/webshell-attack-confirmation.md",
+      "report_kind": "structured_result",
+      "verdict": "规则判为真实攻击（confirmed_attack） / 确认成功（success_confirmed）",
+      "limitations": [],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "false-positive-parameter",
+      "skill": "alert-confirmation",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/false-positive-parameter.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/false-positive-parameter.md",
+      "report_kind": "structured_result",
+      "verdict": "误报（false_positive） / 不适用（not_applicable）",
+      "limitations": [
+        "无 host_exec/connect/file_op/host_persistence，无法确认是否打穿或留驻"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "webshell-to-ssh-lateral",
+      "skill": "traceability-analysis",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/webshell-to-ssh-lateral.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/webshell-to-ssh-lateral.md",
+      "report_kind": "structured_result",
+      "verdict": "观察到主机执行及横向证据，入口因果关系仍需复核（confirmed_intrusion_chain）",
+      "limitations": [
+        "no_match:web_access_to_host_exec (WEB 请求落到主机命令执行（攻击是否成功）)",
+        "no_match:attacker_ip_to_ssh_auth (外网攻击 IP 是否尝试/成功 SSH 登录)",
+        "no_match:victim_host_to_waf_by_target_ip (已知受害 host_ip（params.target_ip），反查 WAF 告警（upstream_addr→target_ip）并还原攻击源 src_ip)",
+        "no_match:victim_host_to_web_access_by_target_ip (已知受害 host_ip，反查网关 access（upstream_addr→target_ip）并关联 web_access_to_host_exec)",
+        "no_match:ssh_auth_to_host_exec_same_host (SSH 登录成功后主机上的命令执行)",
+        "no_match:host_to_cmdb (主机行为映射到资产清单（区域、负责人、服务）)",
+        "横向结论基于部分 SSH 覆盖，需标注「至少」"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "reverse-shell-risk",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/reverse-shell-risk.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/reverse-shell-risk.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "missing-host-exec-data",
+      "skill": "data-source-completeness",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/missing-host-exec-data.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/missing-host-exec-data.md",
+      "report_kind": "structured_result",
+      "verdict": "缺少关键数据源，溯源受阻（not_traceable）",
+      "limitations": [
+        "缺少 P0 数据源: WEB 服务器进程命令执行",
+        "WEB 服务器进程命令执行: missing ['not_registered']",
+        "SSH/syslog 认证日志: partial ['coverage_partial']",
+        "WEB 服务器主动外连: missing ['not_registered']",
+        "防火墙/全流量内网连接: missing ['not_registered']",
+        "DNS 查询日志: missing ['not_registered']",
+        "WEB 服务器文件操作: missing ['not_registered']",
+        "S1/S3/S7/S8 仍受网络侧证据缺口限制：防火墙/全流量内网连接；DNS 只能补充域名解析，不能单独证明完整链路或外传体量。"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s1-full-traceable",
+      "skill": "data-source-completeness",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s1-full-traceable.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s1-full-traceable.md",
+      "report_kind": "structured_result",
+      "verdict": "登记数据源齐备，可开始取证（full_traceable）",
+      "limitations": [
+        "DNS 查询日志已参与域名/C2/DGA 解释，但不能替代 firewall/NTA/proxy 的会话路径、方向、字节数和代理动作证据。"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s4-alert-triage-only",
+      "skill": "data-source-completeness",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-alert-triage-only.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-alert-triage-only.md",
+      "report_kind": "structured_result",
+      "verdict": "仅能做告警分类，不能确认攻击成功（alert_triage_only）",
+      "limitations": [
+        "WEB 主机命令执行: missing ['not_registered']",
+        "WEB 主机主动外连: missing ['not_registered']",
+        "WEB 主机文件操作: missing ['not_registered']",
+        "WEB 主机持久化变更: missing ['not_registered']"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s4-partial-missing-connect",
+      "skill": "data-source-completeness",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-partial-missing-connect.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-partial-missing-connect.md",
+      "report_kind": "structured_result",
+      "verdict": "数据源部分齐备，结论受缺口限制（partial_traceable）",
+      "limitations": [
+        "WEB 主机主动外连: missing ['not_registered']",
+        "WEB 主机持久化变更: missing ['not_registered']"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s4-scanner-generic-no-payload",
+      "skill": "alert-confirmation",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-scanner-generic-no-payload.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-scanner-generic-no-payload.md",
+      "report_kind": "structured_result",
+      "verdict": "扫描／探测（scanning_or_probe） / 成功与否未知（success_unknown）",
+      "limitations": [
+        "无 host_exec/connect/file_op/host_persistence，无法确认是否打穿或留驻",
+        "告警缺少 payload 字段"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s4-sqli-blocked-no-breach",
+      "skill": "alert-confirmation",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-sqli-blocked-no-breach.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-sqli-blocked-no-breach.md",
+      "report_kind": "structured_result",
+      "verdict": "规则判为真实攻击（confirmed_attack） / 已拦截（blocked）",
+      "limitations": [
+        "host_connect not registered",
+        "无 host_exec/connect/file_op/host_persistence，无法确认是否打穿或留驻"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s1-scan-only-no-host-exec",
+      "skill": "traceability-analysis",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s1-scan-only-no-host-exec.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s1-scan-only-no-host-exec.md",
+      "report_kind": "structured_result",
+      "verdict": "仅观察到扫描或尝试（scanning_or_attempt_only）",
+      "limitations": [
+        "host_exec 未接入或时间窗内无事件",
+        "no_match:web_access_to_host_exec (WEB 请求落到主机命令执行（攻击是否成功）)",
+        "no_match:d2_exec_connect_same_listener (同一对外入口进程下的命令执行与外连)",
+        "no_match:host_connect_to_dns (外连 IP 解析对应域名（C2/下载站）)",
+        "no_match:attacker_ip_to_ssh_auth (外网攻击 IP 是否尝试/成功 SSH 登录)",
+        "no_match:host_ip_to_ssh_auth_lateral (受害主机作为跳板对内网 SSH 横向)",
+        "not_evaluated:host_connect_to_dns (missing asset_type: dns_log)"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s2-initial-access-no-lateral",
+      "skill": "traceability-analysis",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s2-initial-access-no-lateral.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s2-initial-access-no-lateral.md",
+      "report_kind": "structured_result",
+      "verdict": "观察到主机执行，未确认横向成功（initial_access_only）",
+      "limitations": [
+        "ssh_auth 覆盖不全，无法确认横向",
+        "no_match:victim_host_to_waf_by_target_ip (已知受害 host_ip（params.target_ip），反查 WAF 告警（upstream_addr→target_ip）并还原攻击源 src_ip)",
+        "no_match:victim_host_to_web_access_by_target_ip (已知受害 host_ip，反查网关 access（upstream_addr→target_ip）并关联 web_access_to_host_exec)",
+        "no_match:web_access_to_host_exec (WEB 请求落到主机命令执行（攻击是否成功）)",
+        "no_match:host_connect_to_dns (外连 IP 解析对应域名（C2/下载站）)",
+        "no_match:attacker_ip_to_ssh_auth (外网攻击 IP 是否尝试/成功 SSH 登录)",
+        "no_match:ssh_auth_to_host_exec_same_host (SSH 登录成功后主机上的命令执行)",
+        "no_match:host_to_cmdb (主机行为映射到资产清单（区域、负责人、服务）)",
+        "not_evaluated:host_connect_to_dns (missing asset_type: dns_log)"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s5-curl-download-exec-p0",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-curl-download-exec-p0.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-curl-download-exec-p0.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s5-external-connect-p0",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-external-connect-p0.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-external-connect-p0.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [
+        "host_exec sparse",
+        "host_exec: no events in window",
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s5-nginx-config-test-whitelisted",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-nginx-config-test-whitelisted.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-nginx-config-test-whitelisted.md",
+      "report_kind": "structured_result",
+      "verdict": "本例没有需要告警的风险项（no_risk_detected）",
+      "limitations": [
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s5-persistence-authorized-keys-p0",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-persistence-authorized-keys-p0.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-persistence-authorized-keys-p0.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s5-ssh-bruteforce-p0",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-ssh-bruteforce-p0.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-ssh-bruteforce-p0.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [
+        "host_exec: no events in window",
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s5-ssh-nine-failures-below-threshold",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-ssh-nine-failures-below-threshold.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-ssh-nine-failures-below-threshold.md",
+      "report_kind": "structured_result",
+      "verdict": "证据不足或未达规则阈值（insufficient_data）",
+      "limitations": [
+        "host_exec: no events in window",
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s5-whoami-recon-p0",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-whoami-recon-p0.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s5-whoami-recon-p0.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s8-dns-dga-p1",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s8-dns-dga-p1.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s8-dns-dga-p1.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [
+        "host_connect: no events in window",
+        "network_traffic_audit: missing — DNS cannot replace session/volume evidence"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s6-full-traceable",
+      "skill": "data-source-completeness",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s6-full-traceable.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s6-full-traceable.md",
+      "report_kind": "structured_result",
+      "verdict": "登记数据源齐备，可开始取证（full_traceable）",
+      "limitations": [],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s6-not-traceable-missing-auth",
+      "skill": "data-source-completeness",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s6-not-traceable-missing-auth.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s6-not-traceable-missing-auth.md",
+      "report_kind": "structured_result",
+      "verdict": "缺少关键数据源，溯源受阻（not_traceable）",
+      "limitations": [
+        "缺少 P0 数据源: 认证日志",
+        "认证日志: missing ['not_registered']",
+        "防火墙日志: missing ['not_registered']"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s7-full-traceable",
+      "skill": "data-source-completeness",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s7-full-traceable.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s7-full-traceable.md",
+      "report_kind": "structured_result",
+      "verdict": "登记数据源齐备，可开始取证（full_traceable）",
+      "limitations": [
+        "DNS 查询日志已参与域名/C2/DGA 解释，但不能替代 firewall/NTA/proxy 的会话路径、方向、字节数和代理动作证据。"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s7-partial-missing-traffic-volume",
+      "skill": "data-source-completeness",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s7-partial-missing-traffic-volume.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s7-partial-missing-traffic-volume.md",
+      "report_kind": "structured_result",
+      "verdict": "数据源部分齐备，结论受缺口限制（partial_traceable）",
+      "limitations": [
+        "外传流量体量（全流量/防火墙）: missing ['not_registered']",
+        "DNS 查询日志已参与域名/C2/DGA 解释，但不能替代 firewall/NTA/proxy 的会话路径、方向、字节数和代理动作证据。",
+        "S1/S3/S7/S8 仍受网络侧证据缺口限制：外传流量体量（全流量/防火墙）；DNS 只能补充域名解析，不能单独证明完整链路或外传体量。"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s4-batch-mixed-with-query-gap",
+      "skill": "alert-confirmation",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-batch-mixed-with-query-gap.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s4-batch-mixed-with-query-gap.md",
+      "report_kind": "structured_result",
+      "verdict": "批量告警 3 条；误报 1；扫描 1；真实攻击 1；确认成功 0",
+      "limitations": [
+        "host_exec query failed",
+        "无 host_exec/connect/file_op/host_persistence，无法确认是否打穿或留驻",
+        "告警缺少 payload 字段"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s6-root-ssh-login-p1",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s6-root-ssh-login-p1.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s6-root-ssh-login-p1.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [
+        "host_exec missing",
+        "host_exec: missing — required for scenario S6",
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    },
+    {
+      "ok": true,
+      "offline": true,
+      "case_id": "s7-data-staging-and-scp-p0",
+      "skill": "risk-identification",
+      "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s7-data-staging-and-scp-p0.json",
+      "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/s7-data-staging-and-scp-p0.md",
+      "report_kind": "structured_result",
+      "verdict": "检测到需调查的风险行为（high_risk_detected）",
+      "limitations": [
+        "network_traffic_audit missing",
+        "host_file_op: missing — exec context boost degraded",
+        "host_persistence: missing — persistence risks degraded"
+      ],
+      "expected_verdict_matched": true
+    }
+  ],
+  "output": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/suite-summary.json",
+  "report": "/Users/op/Desktop/项目/secweaver-community-0.3.21/outputs/ai-showcase/suite-summary.md",
+  "report_kind": "structured_result"
+}

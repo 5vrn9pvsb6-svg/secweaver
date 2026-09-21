@@ -1,0 +1,17 @@
+{
+  "connector_id": "conn-agent-web-01-exec",
+  "name": "WEB-01 audit-port-execmon → SLS",
+  "connector_type": "agent_stream",
+  "status": "active",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "Agent 采集配置见 src/tools/secweaver-agent；日志写入 SLS host-exec/connect logstore",
+  "config": {
+    "agent": "audit-port-execmon",
+    "host": "web-01",
+    "host_ip": "192.0.2.5",
+    "host_id": "host-web-01",
+    "sink": "sls",
+    "sink_connector_id": "conn-sls-secweaver-host-events",
+    "event_types": ["exec", "active_connect", "file_op"]
+  }
+}

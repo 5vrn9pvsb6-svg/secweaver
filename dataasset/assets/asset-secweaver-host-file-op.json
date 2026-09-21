@@ -1,0 +1,60 @@
+{
+  "asset_id": "asset-secweaver-host-file-op",
+  "name": "SecWeaver 主机文件操作",
+  "asset_type": "host_file_op",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-host-events",
+  "description": "与 secweaver-host-exec 同 logstore；audit-port-execmon 的 file_op 事件，按 event_type 过滤。",
+  "coverage": {
+    "hosts": [
+      "192.0.2.80",
+      "192.0.2.5",
+      "192.0.2.91",
+      "192.0.2.92",
+      "198.51.100.2",
+      "198.51.100.3",
+      "203.0.113.4"
+    ]
+  },
+  "field_aliases": {
+    "host_name": "host",
+    "time": "timestamp",
+    "__source__": "log_source",
+    "log_source": "host_ip"
+  },
+  "schema": {
+    "fields": [
+      "enterprise_id",
+      "time",
+      "timestamp",
+      "host",
+      "host_name",
+      "host_ip",
+      "event_type",
+      "path",
+      "action",
+      "pid",
+      "listener_pid"
+    ],
+    "time_field": "time",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "host_file_op_by_host_ip_time",
+    "host_file_op_by_host_time"
+  ],
+  "sensitivity": "internal",
+  "quality": {
+    "expected_event_type": "file_op"
+  },
+  "tags": [
+    "secweaver",
+    "sls",
+    "host_file_op",
+    "file_op",
+    "audit-port-execmon"
+  ]
+}

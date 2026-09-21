@@ -1,0 +1,295 @@
+{
+  "alert_type": "alert_confirmation",
+  "alert_id": "WAF-20260621-002",
+  "scenario": "S4",
+  "timestamp": "2026-06-21T09:10:05+08:00",
+  "src_ip": "203.0.113.10",
+  "target_ip": "192.0.2.10",
+  "host": "web-01",
+  "url": "/upload/shell.php",
+  "method": "GET",
+  "rule_id": null,
+  "rule_name": "PHP Injection",
+  "confirmation_mode": "full",
+  "alert_verdict": "confirmed_attack",
+  "attack_type": "webshell",
+  "attack_type_label": "WebShell",
+  "payload_analysis": {
+    "has_payload": true,
+    "payload_snippet": "cmd=whoami",
+    "technique": "webshell",
+    "validity": "valid",
+    "notes": "检测到 webshell 攻击特征: shell.php, cmd="
+  },
+  "layer1_upgrade": null,
+  "attack_outcome": "success_confirmed",
+  "attack_success": true,
+  "confidence": 0.88,
+  "confidence_ceiling": 0.88,
+  "waf_action": "logged",
+  "summary": "真实攻击（WebShell）；检测到 webshell 攻击特征: shell.php, cmd=；攻击已成功；WAF 动作: logged。",
+  "gateway_success_hint": null,
+  "gateway_access_coverage": {
+    "status": "matched",
+    "reason": "gateway_log_matched",
+    "message": "已找到对应网关访问日志。",
+    "observed_gateway_events": 1,
+    "scoped_gateway_events": 1,
+    "matching_count": 1,
+    "evidence_refs": [
+      "web-101"
+    ]
+  },
+  "gateway_miss_scan": {
+    "enabled": true,
+    "count": 0,
+    "items": [],
+    "summary": {
+      "top_patterns": [],
+      "top_src_ips": [],
+      "by_reason": {},
+      "by_severity": {},
+      "reason_label": "网关命中攻击 URL 特征但无对应 WAF 告警"
+    }
+  },
+  "alert_success": {
+    "scope": "alert",
+    "attack_success": true,
+    "attack_outcome": "success_confirmed",
+    "evidence_refs": [
+      "exec-101",
+      "connect-101",
+      "file-101"
+    ],
+    "indicator": "host_exec:shell"
+  },
+  "campaign_success": {
+    "scope": "campaign",
+    "attack_success": true,
+    "attack_outcome": "success_confirmed",
+    "evidence_refs": [
+      "exec-101",
+      "connect-101",
+      "file-101"
+    ],
+    "supporting_refs": [
+      "exec-101",
+      "connect-101",
+      "file-101"
+    ],
+    "uncorrelated_d2_refs": [],
+    "uncorrelated_d2_count": 0,
+    "related_gateway_miss_refs": [],
+    "indicators": [
+      "host_exec:shell",
+      "host_connect:outbound",
+      "host_file_op:file_read"
+    ],
+    "attribution": {
+      "d2_correlation": "field_correlated",
+      "target_keys": [
+        "192.0.2.10"
+      ],
+      "sources": {
+        "params_target": true,
+        "gateway_upstream_target": true
+      },
+      "scoped_gateway_events": 1,
+      "upstream_gateway_events": 1
+    },
+    "recommended_action": "escalate_investigate",
+    "next_skill": "traceability_analysis",
+    "note": "活动级成功信号，不等同于每条 WAF 告警均已打穿"
+  },
+  "attacker_ip_profile": {
+    "ip": "203.0.113.10",
+    "scope": "private",
+    "evidence_geo": {
+      "event_count": 2,
+      "country": null,
+      "province": null,
+      "city": null,
+      "geo_info": null,
+      "evidence_refs": [
+        "web-101"
+      ],
+      "source_bundles": [
+        "waf_alert",
+        "web_access_log"
+      ]
+    },
+    "online_lookup": {
+      "status": "not_attempted",
+      "reason": "ip_intel_online_not_enabled"
+    },
+    "threat_intel": {},
+    "attributes": [
+      "内网地址"
+    ],
+    "summary": "内网地址"
+  },
+  "ip_action_guard": null,
+  "evidence": {
+    "alert": [
+      "WAF-20260621-002"
+    ],
+    "supporting": [
+      "exec-101",
+      "connect-101",
+      "file-101",
+      "web-101"
+    ],
+    "success_proof": [
+      "exec-101",
+      "connect-101",
+      "file-101"
+    ],
+    "gateway_hint": [],
+    "false_positive_indicators": []
+  },
+  "matched_rules": [
+    "webshell_pattern_match"
+  ],
+  "recommended_action": "escalate_investigate",
+  "recommended_action_label": "升级调查，建议隔离受害主机",
+  "next_skill": "traceability_analysis",
+  "next_skill_reason": "已确认攻击成功，建议启动溯源分析",
+  "data_gaps_impact": [],
+  "join_edges": [
+    {
+      "join_id": "d2_exec_connect_same_listener",
+      "left_ref": "exec-101",
+      "right_ref": "connect-101",
+      "match_keys": {
+        "host": "web-01",
+        "listener_port": 443
+      },
+      "time_window": "host_behavior_chain",
+      "confidence": 0.95,
+      "from_asset_type": "host_exec",
+      "to_asset_type": "host_connect",
+      "priority": 94,
+      "confidence_base": 0.9,
+      "confidence_ceiling": 0.97,
+      "confidence_reason": "同主机 listener_pid/listener_port 与短时间窗互证，适合作为打穿后的强 D2 证据。"
+    },
+    {
+      "join_id": "d2_exec_file_same_host",
+      "left_ref": "exec-101",
+      "right_ref": "file-101",
+      "match_keys": {
+        "host": "web-01"
+      },
+      "time_window": "host_behavior_chain",
+      "confidence": 0.86,
+      "from_asset_type": "host_exec",
+      "to_asset_type": "host_file_op",
+      "priority": 88,
+      "confidence_base": 0.86,
+      "confidence_ceiling": 0.94,
+      "confidence_reason": "同主机命令执行与文件写入在短窗口内互证，可支撑落地文件或 WebShell 行为判断。"
+    },
+    {
+      "join_id": "web_access_to_host_exec",
+      "left_ref": "web-101",
+      "right_ref": "exec-101",
+      "match_keys": {
+        "target_ip": "192.0.2.10",
+        "host_ip": "192.0.2.10"
+      },
+      "time_window": "attack_success",
+      "confidence": 0.88,
+      "from_asset_type": "web_access_log",
+      "to_asset_type": "host_exec",
+      "priority": 96,
+      "confidence_base": 0.88,
+      "confidence_ceiling": 0.96,
+      "confidence_reason": "WEB upstream/host 与主机执行在攻击成功窗口内对齐，是确认打穿的核心主链。"
+    }
+  ],
+  "analyst_questions": [],
+  "fetch_summary": {
+    "fetched_at": "2026-09-21T16:25:50.600329+08:00",
+    "query_integrity": {
+      "status": "unknown",
+      "incomplete_queries": [],
+      "absence_is_not_evidence": false
+    },
+    "evidence_readiness": {
+      "status": "evidence_observed",
+      "event_count": 5,
+      "missing_required_evidence": [],
+      "query_status": "unknown",
+      "assessment_basis": "returned_events_and_query_attempts",
+      "does_not_establish_skill_coverage": true
+    },
+    "analysis_constraints": {
+      "scope": "supplied_evidence_only",
+      "positive_findings_allowed": true,
+      "negative_conclusion_allowed": false,
+      "absence_is_not_evidence": true,
+      "recommended_confidence_ceiling": 0.85
+    },
+    "total_events": 5,
+    "total_fetched_events": 0,
+    "total_fetch_queries": 0,
+    "total_fetch_requests": 0,
+    "total_fetch_cache_hits": 0,
+    "total_deduplicated_events": 0,
+    "total_window_filtered_events": 0,
+    "failed_fetch_queries": 0,
+    "non_connector_event_count": 5,
+    "non_connector_by_asset_type": {
+      "web_access_log": 1,
+      "host_exec": 1,
+      "host_connect": 1,
+      "host_file_op": 1,
+      "waf_alert": 1
+    },
+    "by_asset_type": {
+      "web_access_log": 1,
+      "host_exec": 1,
+      "host_connect": 1,
+      "host_file_op": 1,
+      "waf_alert": 1
+    },
+    "asset_fetch_stats": [],
+    "asset_count": 0,
+    "asset_ids": null,
+    "declared_asset_ids": null,
+    "fetch_asset_ids": null,
+    "planned_asset_ids": null,
+    "executed_asset_ids": null,
+    "skipped_assets": [],
+    "skipped_asset_count": 0,
+    "primary_alert_count": 1,
+    "fetch_mode": null,
+    "fetch_strategy": null,
+    "bundle_id": null,
+    "plan_task_count": 0,
+    "time_window": {
+      "time_start": null,
+      "time_end": null,
+      "alert_time": "2026-06-21T09:10:00+08:00",
+      "attacker_ip": "203.0.113.10",
+      "target_ip": "192.0.2.10"
+    },
+    "attacker_ip_log_time_range": {
+      "attacker_ip": "203.0.113.10",
+      "event_count": 2,
+      "timestamped_event_count": 2,
+      "source_bundles": [
+        "web_access_log",
+        "waf_alert"
+      ],
+      "first_seen": "2026-06-21T09:10:04+08:00",
+      "last_seen": "2026-06-21T09:10:05+08:00",
+      "first_seen_asset_type": "web_access_log",
+      "last_seen_asset_type": "waf_alert"
+    },
+    "truncated_asset_types": []
+  },
+  "markdown_report": "# Alert Confirmation Report\n\n## 数据取数统计\n\n- **实际证据 / Evidence readiness**: `evidence_observed`；资产注册评分不代表本次证据完整或技能可运行。Registry readiness does not establish runtime coverage.\n- **结论边界 / Conclusion boundary**：当前证据可支持已观察到的正向发现，但不得用未返回事件排除风险。\n- **取数模式**: — / —\n- **攻击源 IP**: 203.0.113.10\n- **受害 target_ip**: 192.0.2.10\n- **锚定告警时间**: 2026-06-21T09:10:00+08:00\n- **该 IP 日志时间范围**: 2026-06-21T09:10:04+08:00 ~ 2026-06-21T09:10:05+08:00 （匹配 2 条，带时间戳 2 条，来源 `web_access_log`, `waf_alert`）\n- **总事件数（最终保留）**: 5\n- **非 connector 拉取证据**: 5 （`host_connect`: 1, `host_exec`: 1, `host_file_op`: 1, `waf_alert`: 1, `web_access_log`: 1；例如资产注册表注入）\n- **WAF 主告警数**: 1\n\n### 按 asset_type\n\n- `host_connect`: 1\n- `host_exec`: 1\n- `host_file_op`: 1\n- `waf_alert`: 1\n- `web_access_log`: 1\n",
+  "contract_version": "1.0",
+  "skill": "alert-confirmation"
+}

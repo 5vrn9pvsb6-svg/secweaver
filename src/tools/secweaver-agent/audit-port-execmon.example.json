@@ -1,0 +1,52 @@
+{
+  "whitelist_ports": [],
+  "audit": {
+    "arches": ["b64"],
+    "max_rules": 1024,
+    "pressure": {
+      "enabled": true,
+      "check_interval_seconds": 30,
+      "backlog_high_percent": 80,
+      "medium_backlog_percent": 90,
+      "severe_backlog_percent": 95,
+      "lost_delta": 1,
+      "medium_lost_delta": 5,
+      "severe_lost_delta": 20,
+      "cooldown_seconds": 120,
+      "light_rate_limit_per_second": 10,
+      "medium_rate_limit_per_second": 5,
+      "recovery_rate_limit_per_second": 5
+    }
+  },
+  "listener_rescan_seconds": 300,
+  "output_log": "/opt/secweaver-agent/logs/audit-port-execmon.log",
+  "exec": {
+    "monitor": true,
+    "listener_ports": [],
+    "track_descendants": true,
+    "java_monitor_mode": "hybrid",
+    "process_tree_backend": "auto",
+    "fallback_backend": "audit",
+    "ebpf": {
+      "max_tracked_processes": 131072,
+      "perf_buffer_bytes_per_cpu": 262144
+    }
+  },
+  "connect": {
+    "monitor": false,
+    "listener_ports": [443],
+    "skip_process_names": ["nginx", "openresty", "haproxy", "envoy"],
+    "skip_exe_patterns": ["/usr/(sbin|local/sbin)/(nginx|openresty|haproxy|envoy)$"],
+    "skip_listener_ports": [80, 443]
+  },
+  "file_ops": {
+    "monitor": false,
+    "listener_ports": [443]
+  },
+  "sensitive_file_reads": {
+    "monitor": true,
+    "paths": [
+      "/etc/shadow"
+    ]
+  }
+}

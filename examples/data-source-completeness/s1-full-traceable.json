@@ -1,0 +1,99 @@
+{
+  "investigation_intent": "外网 IP 203.0.113.10 溯源，查第一个攻破点与横向范围，你缺少什么数据告诉我",
+  "scenarios": ["S1"],
+  "params": {
+    "attacker_ip": "203.0.113.10",
+    "time_start": "2026-06-21T08:00:00+08:00",
+    "time_end": "2026-06-21T20:00:00+08:00",
+    "hosts": ["web-01"]
+  },
+  "registered_assets": [
+    {
+      "asset_id": "asset-waf-prod-01",
+      "name": "WEB WAF 告警",
+      "type": "waf_alert",
+      "domain": "D1",
+      "fields": ["src_ip", "timestamp", "url", "payload", "action"],
+      "coverage": ["web_zone"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-web-access-prod",
+      "name": "WEB 访问日志",
+      "type": "web_access_log",
+      "domain": "D1",
+      "fields": ["src_ip", "timestamp", "url", "status"],
+      "coverage": ["web_zone"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-secweaver-host-exec",
+      "name": "WEB 主机命令执行",
+      "type": "host_exec",
+      "domain": "D2",
+      "fields": ["host", "command", "timestamp", "listener_port", "listener_process"],
+      "coverage": ["web_hosts"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-ssh-internal",
+      "name": "SSH 认证日志",
+      "type": "ssh_auth",
+      "domain": "D3",
+      "fields": ["host", "src_ip", "user", "result", "timestamp"],
+      "coverage": ["internal_ssh"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-secweaver-host-connect",
+      "name": "WEB 主机主动外连",
+      "type": "host_connect",
+      "domain": "D2",
+      "fields": ["host", "dst_ip", "dst_port", "timestamp"],
+      "coverage": ["web_hosts"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-fw-dmz-internal",
+      "name": "DMZ→内网防火墙",
+      "type": "firewall_log",
+      "domain": "D3",
+      "fields": ["src_ip", "dst_ip", "timestamp"],
+      "coverage": ["dmz_to_internal"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-dns-internal",
+      "name": "内网 DNS 查询",
+      "type": "dns_log",
+      "domain": "D1",
+      "fields": ["client_ip", "query", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-secweaver-host-file-op",
+      "name": "WEB 主机文件操作",
+      "type": "host_file_op",
+      "domain": "D2",
+      "fields": ["host", "path", "action", "timestamp"],
+      "coverage": ["web_hosts"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-cmdb-hosts",
+      "name": "CMDB 资产清单",
+      "type": "asset_inventory",
+      "domain": "D6",
+      "fields": ["hostname", "ip"],
+      "coverage": ["full"],
+      "retention_days": 365
+    }
+  ],
+  "_meta": {
+    "scenario_label": "S1 外网 IP 溯源 — 数据源齐全",
+    "expected_overall_verdict": "full_traceable",
+    "expected_next_skill_blocked": false,
+    "expected_next_skill": "traceability_analysis"
+  }
+}

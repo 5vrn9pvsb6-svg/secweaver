@@ -1,0 +1,28 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "CMDB/审计表（模板）",
+  "asset_type": "asset_inventory",
+  "domain": "D6",
+  "status": "draft",
+  "connector_id": "YOUR_CONN_ID",
+  "coverage": {
+    "zones": [
+      "internal"
+    ],
+    "apps": [],
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "hostname",
+      "ip",
+      "zone"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 365
+  },
+  "query_template_ids": [
+    "cmdb_all_hosts"
+  ],
+  "field_aliases": {}
+}

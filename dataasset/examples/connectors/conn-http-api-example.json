@@ -1,0 +1,22 @@
+{
+  "connector_id": "conn-http-api-example",
+  "name": "HTTP API 示例连接器",
+  "connector_type": "http_api",
+  "status": "draft",
+  "credentials_ref": "vault://http/security-api-readonly",
+  "description": "示例：通过安全产品 REST API 查询告警、事件或资产上下文；模板使用 http。",
+  "config": {
+    "base_url": "https://security-product.example.com/api/v1",
+    "auth": "bearer",
+    "endpoints": {
+      "search_events": "/events/search",
+      "get_alert": "/alerts/{alert_id}"
+    },
+    "rate_limit_rpm": 60
+  },
+  "constraints": {
+    "max_records_per_request": 500,
+    "request_timeout_sec": 30
+  },
+  "tags": ["example", "http-api", "not-for-production"]
+}

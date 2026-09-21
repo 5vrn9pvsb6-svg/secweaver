@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1200" height="720" viewBox="0 0 1200 720" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">SecWeaver 架构</title>
+  <desc id="desc">SecWeaver 将告警、日志、主机、网络和身份数据整理为数据资产，通过关联矩阵和场景模式关联证据，执行技能，并生成证据包、关联边、数据缺口和大模型调查报告。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="720" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F8FAFC"/>
+      <stop offset="1" stop-color="#EEF2FF"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="92" y1="110" x2="1108" y2="610" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#0F172A" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2L10 6L2 10" stroke="#475569" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+    <style>
+      .title { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 34px; font-weight: 800; fill: #0F172A; }
+      .subtitle { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 16px; font-weight: 500; fill: #475569; }
+      .box-title { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 19px; font-weight: 800; fill: #0F172A; }
+      .box-text { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 13px; font-weight: 500; fill: #475569; }
+      .pill-text { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 12px; font-weight: 700; fill: #1E293B; }
+      .small { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 12px; font-weight: 600; fill: #64748B; }
+      .white-title { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 20px; font-weight: 800; fill: #FFFFFF; }
+      .white-text { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", sans-serif; font-size: 13px; font-weight: 500; fill: #DBEAFE; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="720" rx="32" fill="url(#bg)"/>
+  <circle cx="1065" cy="88" r="120" fill="#DBEAFE" opacity="0.65"/>
+  <circle cx="118" cy="640" r="160" fill="#E0E7FF" opacity="0.7"/>
+
+  <text x="72" y="68" class="title">SecWeaver</text>
+  <text x="72" y="98" class="subtitle">面向安全运营的 AI 原生安全分析与溯源调查平台</text>
+
+  <rect x="72" y="128" width="1056" height="520" rx="28" fill="#FFFFFF" stroke="#E2E8F0" filter="url(#shadow)"/>
+
+  <g transform="translate(108 172)">
+    <rect x="0" y="0" width="984" height="74" rx="20" fill="#F8FAFC" stroke="#CBD5E1"/>
+    <text x="28" y="32" class="box-title">安全输入</text>
+    <text x="28" y="54" class="box-text">已登记的安全证据</text>
+    <g transform="translate(360 19)">
+      <rect x="0" y="0" width="86" height="36" rx="18" fill="#DBEAFE"/>
+      <text x="21" y="23" class="pill-text">告警</text>
+      <rect x="98" y="0" width="76" height="36" rx="18" fill="#E0F2FE"/>
+      <text x="124" y="23" class="pill-text">日志</text>
+      <rect x="186" y="0" width="78" height="36" rx="18" fill="#DCFCE7"/>
+      <text x="211" y="23" class="pill-text">主机</text>
+      <rect x="276" y="0" width="96" height="36" rx="18" fill="#FAE8FF"/>
+      <text x="298" y="23" class="pill-text">网络</text>
+      <rect x="384" y="0" width="92" height="36" rx="18" fill="#FEF3C7"/>
+      <text x="407" y="23" class="pill-text">身份</text>
+      <rect x="488" y="0" width="88" height="36" rx="18" fill="#FFE4E6"/>
+      <text x="515" y="23" class="pill-text">应用</text>
+    </g>
+  </g>
+
+  <line x1="600" y1="252" x2="600" y2="294" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(108 300)">
+    <rect x="0" y="0" width="230" height="108" rx="22" fill="#FFFFFF" stroke="#BFDBFE" filter="url(#shadow)"/>
+    <rect x="18" y="18" width="42" height="42" rx="12" fill="#DBEAFE"/>
+    <path d="M31 39H49M31 31H49M31 47H43" stroke="#2563EB" stroke-width="3" stroke-linecap="round"/>
+    <text x="76" y="38" class="box-title">DataAsset</text>
+    <text x="76" y="62" class="box-text">资产 · 连接器</text>
+    <text x="76" y="82" class="box-text">主机 · 网络</text>
+  </g>
+
+  <g transform="translate(366 300)">
+    <rect x="0" y="0" width="230" height="108" rx="22" fill="#FFFFFF" stroke="#DDD6FE" filter="url(#shadow)"/>
+    <rect x="18" y="18" width="42" height="42" rx="12" fill="#EDE9FE"/>
+    <path d="M30 48L48 30M32 30H48V46" stroke="#7C3AED" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="76" y="38" class="box-title" style="font-size:16px">关联矩阵</text>
+    <text x="76" y="62" class="box-text">关联键 · 时间窗口</text>
+    <text x="76" y="82" class="box-text">取数计划 · 数据缺口</text>
+  </g>
+
+  <g transform="translate(624 300)">
+    <rect x="0" y="0" width="230" height="108" rx="22" fill="#FFFFFF" stroke="#BAE6FD" filter="url(#shadow)"/>
+    <rect x="18" y="18" width="42" height="42" rx="12" fill="#E0F2FE"/>
+    <path d="M31 48C38 34 45 34 52 48M31 31H52" stroke="#0284C7" stroke-width="3" stroke-linecap="round"/>
+    <text x="76" y="38" class="box-title" style="font-size:16px">场景模式</text>
+    <text x="76" y="62" class="box-text">调查剧本</text>
+    <text x="76" y="82" class="box-text">首先检查什么</text>
+  </g>
+
+  <g transform="translate(882 300)">
+    <rect x="0" y="0" width="210" height="108" rx="22" fill="url(#primary)" filter="url(#shadow)"/>
+    <rect x="18" y="18" width="42" height="42" rx="12" fill="#FFFFFF" opacity="0.18"/>
+    <path d="M31 38H49M40 29V47M31 50H49" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+    <text x="76" y="38" class="white-title">技能</text>
+    <text x="76" y="62" class="white-text">告警确认</text>
+    <text x="76" y="82" class="white-text">溯源 · 风险</text>
+  </g>
+
+  <line x1="338" y1="354" x2="358" y2="354" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="596" y1="354" x2="616" y2="354" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <line x1="854" y1="354" x2="874" y2="354" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <line x1="987" y1="414" x2="987" y2="456" stroke="#475569" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <g transform="translate(108 462)">
+    <rect x="0" y="0" width="984" height="110" rx="24" fill="#F8FAFC" stroke="#CBD5E1"/>
+    <text x="28" y="38" class="box-title">可解释的调查输出</text>
+    <text x="28" y="64" class="box-text">供分析人员复核和 AI 调查使用的证据</text>
+    <g transform="translate(515 24)">
+      <rect x="0" y="0" width="142" height="48" rx="16" fill="#DBEAFE"/>
+      <text x="20" y="30" class="pill-text">证据包</text>
+      <rect x="154" y="0" width="112" height="48" rx="16" fill="#EDE9FE"/>
+      <text x="179" y="30" class="pill-text">关联边</text>
+      <rect x="278" y="0" width="102" height="48" rx="16" fill="#FEF3C7"/>
+      <text x="300" y="30" class="pill-text">数据缺口</text>
+      <rect x="392" y="0" width="78" height="48" rx="16" fill="#DCFCE7"/>
+      <text x="413" y="30" class="pill-text">报告</text>
+    </g>
+  </g>
+
+  <g transform="translate(108 596)">
+    <rect x="0" y="0" width="984" height="1" fill="#E2E8F0"/>
+    <text x="0" y="33" class="small">设计原则：先定义可信的数据资产和调查规则，再让 AI 取数、关联、分析并解释证据。</text>
+  </g>
+</svg>

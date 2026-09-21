@@ -1,0 +1,124 @@
+{
+  "output_log": "/opt/secweaver-agent/logs/host-persistence.log",
+  "state_path": "/opt/secweaver-agent/data/host-persistence-state.json",
+  "poll_interval_seconds": 30,
+  "include_hash": true,
+  "max_hash_bytes": 1048576,
+  "include_content_diff": true,
+  "max_content_bytes": 65536,
+  "max_diff_lines": 200,
+  "emit_baseline": false,
+  "audit": {
+    "enabled": true,
+    "audit_log": "/var/log/audit/audit.log",
+    "key": "tb_host_persistence",
+    "perm": "wa",
+    "manage_rules": true,
+    "follow_log": true,
+    "fail_on_error": false,
+    "from_start": false
+  },
+  "watch": [
+    {
+      "path": "/etc/crontab",
+      "category": "scheduled_task",
+      "persistence_type": "cron"
+    },
+    {
+      "path": "/etc/cron.d",
+      "category": "scheduled_task",
+      "persistence_type": "cron",
+      "recursive": true,
+      "max_depth": 3
+    },
+    {
+      "path": "/var/spool/cron",
+      "category": "scheduled_task",
+      "persistence_type": "cron",
+      "recursive": true,
+      "max_depth": 3
+    },
+    {
+      "path": "/etc/systemd/system",
+      "category": "service_autostart",
+      "persistence_type": "systemd",
+      "recursive": true,
+      "max_depth": 4
+    },
+    {
+      "path": "/etc/init.d",
+      "category": "service_autostart",
+      "persistence_type": "sysvinit",
+      "recursive": true,
+      "max_depth": 2
+    },
+    {
+      "path": "/etc/rc.local",
+      "category": "service_autostart",
+      "persistence_type": "rc_local"
+    },
+    {
+      "path": "/etc/sudoers",
+      "category": "privilege_escalation",
+      "persistence_type": "sudoers"
+    },
+    {
+      "path": "/etc/sudoers.d",
+      "category": "privilege_escalation",
+      "persistence_type": "sudoers",
+      "recursive": true,
+      "max_depth": 2
+    },
+    {
+      "path": "/root/.ssh/authorized_keys",
+      "category": "account_access",
+      "persistence_type": "ssh_authorized_keys"
+    },
+    {
+      "path": "/home/*/.ssh/authorized_keys",
+      "category": "account_access",
+      "persistence_type": "ssh_authorized_keys"
+    },
+    {
+      "path": "/etc/profile",
+      "category": "shell_startup",
+      "persistence_type": "shell_profile"
+    },
+    {
+      "path": "/etc/profile.d",
+      "category": "shell_startup",
+      "persistence_type": "shell_profile",
+      "recursive": true,
+      "max_depth": 2
+    },
+    {
+      "path": "/root/.bashrc",
+      "category": "shell_startup",
+      "persistence_type": "shell_profile"
+    },
+    {
+      "path": "/home/*/.bashrc",
+      "category": "shell_startup",
+      "persistence_type": "shell_profile"
+    },
+    {
+      "path": "/etc/ld.so.preload",
+      "category": "library_hijack",
+      "persistence_type": "ld_preload"
+    },
+    {
+      "path": "/etc/modules-load.d",
+      "category": "kernel_module",
+      "persistence_type": "kernel_module",
+      "recursive": true,
+      "max_depth": 2
+    },
+    {
+      "path": "/etc/modprobe.d",
+      "category": "kernel_module",
+      "persistence_type": "kernel_module",
+      "recursive": true,
+      "max_depth": 2
+    }
+  ]
+}

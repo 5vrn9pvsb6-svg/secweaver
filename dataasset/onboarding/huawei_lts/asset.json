@@ -1,0 +1,41 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "Huawei LTS（模板）资产",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "华为云 LTS 查询模板；默认使用内置 LTS API fetch，也可通过 executor_endpoint 交给外部执行器。",
+  "coverage": {
+    "zones": [
+      "edge"
+    ],
+    "apps": [],
+    "hosts": [
+      "YOUR_HOST"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "src_ip",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {},
+  "tags": [
+    "template",
+    "huawei",
+    "lts",
+    "live"
+  ]
+}

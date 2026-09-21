@@ -1,0 +1,9 @@
+{
+  "template_id": "YOUR_TEMPLATE_ID",
+  "asset_types": ["waf_alert"],
+  "connector_types": ["sls"],
+  "params": ["src_ip", "time_start", "time_end", "limit"],
+  "defaults": { "limit": 2000 },
+  "description": "按源 IP + 时间窗；查询字段用源侧名",
+  "sls_query": "src_ip: {src_ip} OR ip: {src_ip} | select * limit {limit}"
+}

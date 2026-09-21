@@ -1,0 +1,28 @@
+{
+  "host_id": "host-demo-identity-01",
+  "name": "Demo Identity 01",
+  "hostname": "demo-identity-01",
+  "host_type": "server",
+  "host_os": "windows",
+  "host_ip": "192.0.2.11",
+  "network_id": "net-demo-identity",
+  "aliases": [
+    "demo-identity-01",
+    "192.0.2.11"
+  ],
+  "roles": [
+    "identity-service",
+    "directory-service"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic identity-services host template.",
+  "tags": [
+    "demo",
+    "directory-service",
+    "identity-service",
+    "reference",
+    "server"
+  ]
+}

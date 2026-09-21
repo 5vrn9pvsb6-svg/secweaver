@@ -1,0 +1,22 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "HTTP API 资产（模板）",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "schema": {
+    "fields": [
+      "src_ip",
+      "timestamp",
+      "url",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "waf_api_search"
+  ],
+  "field_aliases": {}
+}

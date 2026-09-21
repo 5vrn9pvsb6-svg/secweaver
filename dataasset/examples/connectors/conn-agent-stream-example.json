@@ -1,0 +1,16 @@
+{
+  "connector_id": "conn-agent-stream-example",
+  "name": "Agent 上报流示例连接器",
+  "connector_type": "agent_stream",
+  "status": "draft",
+  "credentials_ref": "vault://agent/stream-readonly",
+  "description": "示例：描述 Agent 上报流或采集链路汇聚点；通常通过 sink_connector_id 指向实际落库的 SLS / Kafka / 日志平台。",
+  "config": {
+    "agent": "xiauan-agent",
+    "sink_connector_id": "conn-sls-example"
+  },
+  "constraints": {
+    "max_records_per_request": 5000
+  },
+  "tags": ["example", "agent", "stream", "not-for-production"]
+}

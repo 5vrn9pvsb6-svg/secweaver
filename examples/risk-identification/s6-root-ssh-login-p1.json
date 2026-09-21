@@ -1,0 +1,42 @@
+{
+  "investigation_intent": "app-01 出现来自外部地址的 root SSH 登录成功，识别账号失陷候选并保留结论边界",
+  "scenario": "S6",
+  "risk_modules": ["syslog"],
+  "params": {
+    "host": "app-01",
+    "user": "root",
+    "time_start": "2026-06-23T09:00:00+08:00",
+    "time_end": "2026-06-23T10:00:00+08:00",
+    "severity_floor": "P1"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "partial_traceable",
+    "confidence": 0.72,
+    "next_skill_blocked": false,
+    "data_gaps": ["host_exec missing"]
+  },
+  "evidence_bundles": {
+    "syslog_risk_alert": [
+      {
+        "evidence_id": "syslog-root-login-001",
+        "event_type": "ssh_login_success",
+        "host": "app-01",
+        "host_ip": "10.0.2.30",
+        "timestamp": "2026-06-23T09:17:12+08:00",
+        "user": "root",
+        "src_ip": "203.0.113.88",
+        "risk_level": "high",
+        "rule_name": "root SSH login success",
+        "message": "Accepted publickey for root from 203.0.113.88 port 52341 ssh2"
+      }
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S6 异常 root SSH 登录成功（合成文档地址）",
+    "expected_overall_verdict": "high_risk_detected",
+    "expected_highest_severity": "P1",
+    "expected_matched_rules": ["root_ssh_login"],
+    "expected_risk_modules": ["syslog"],
+    "expected_unproven_claim": "account_compromise"
+  }
+}

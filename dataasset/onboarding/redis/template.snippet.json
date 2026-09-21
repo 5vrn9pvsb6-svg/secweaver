@@ -1,0 +1,18 @@
+{
+  "template_id": "YOUR_TEMPLATE_ID",
+  "asset_types": [
+    "asset_inventory"
+  ],
+  "connector_types": [
+    "redis"
+  ],
+  "params": [
+    "key_pattern",
+    "limit"
+  ],
+  "defaults": {
+    "key_pattern": "security:*",
+    "limit": 1000
+  },
+  "redis_query": "{{\"command\":\"SCAN\",\"match\":\"{key_pattern}\",\"count\":100,\"limit\":{limit}}}"
+}

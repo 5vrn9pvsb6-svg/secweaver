@@ -1,0 +1,28 @@
+{
+  "host_id": "host-demo-regional-gateway-01",
+  "name": "Demo Regional Gateway 01",
+  "hostname": "demo-regional-gateway-01",
+  "host_type": "gateway",
+  "host_os": "linux",
+  "host_ip": "192.0.2.107",
+  "network_id": "net-demo-regional-edge",
+  "aliases": [
+    "demo-regional-gateway-01",
+    "192.0.2.107"
+  ],
+  "roles": [
+    "regional-gateway",
+    "edge-proxy"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic regional gateway template.",
+  "tags": [
+    "demo",
+    "edge-proxy",
+    "gateway",
+    "reference",
+    "regional-gateway"
+  ]
+}

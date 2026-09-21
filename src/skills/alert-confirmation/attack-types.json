@@ -1,0 +1,363 @@
+{
+  "version": "1.0",
+  "types": {
+    "sqli": {
+      "label": "SQL 注入",
+      "patterns": [
+        "' OR",
+        "\" OR",
+        " OR 1=1",
+        " UNION SELECT",
+        " UNION ALL",
+        "--",
+        "#",
+        "sleep(",
+        "benchmark(",
+        "extractvalue(",
+        "updatexml(",
+        "'; DROP",
+        "admin'--"
+      ],
+      "techniques": {
+        "boolean_based_sqli": ["' OR", " OR 1=1", " OR '1'='1"],
+        "union_based_sqli": ["UNION SELECT", "UNION ALL"],
+        "time_based_sqli": ["sleep(", "benchmark("]
+      },
+      "rule_name_hints": ["sql", "sqli", "injection"]
+    },
+    "xss": {
+      "label": "跨站脚本 XSS",
+      "patterns": [
+        "<script",
+        "javascript:",
+        "onerror=",
+        "onload=",
+        "<svg",
+        "alert(",
+        "document.cookie",
+        "<iframe"
+      ],
+      "techniques": {
+        "reflected_xss": ["<script", "javascript:"],
+        "dom_xss": ["document.", "window.location"]
+      },
+      "rule_name_hints": ["xss", "cross-site"]
+    },
+    "rce": {
+      "label": "远程命令执行",
+      "patterns": [
+        ";",
+        "|",
+        "||",
+        "&&",
+        "`",
+        "$(",
+        "system(",
+        "exec(",
+        "passthru(",
+        "shell_exec(",
+        "cmd=",
+        "/bin/sh",
+        "/bin/bash"
+      ],
+      "techniques": {
+        "command_injection": [";", "|", "`", "$("],
+        "code_injection": ["system(", "exec(", "eval("]
+      },
+      "rule_name_hints": ["rce", "command", "cmd", "shell"]
+    },
+    "path_traversal": {
+      "label": "路径遍历",
+      "patterns": [
+        "../",
+        "..\\",
+        "/etc/passwd",
+        "/etc/shadow",
+        "....//",
+        "..%2f",
+        "..%5c"
+      ],
+      "rule_name_hints": ["path", "traversal", "lfi", "directory"]
+    },
+    "webshell": {
+      "label": "WebShell",
+      "patterns": [
+        "eval(",
+        "base64_decode",
+        "assert(",
+        "shell.php",
+        "cmd=",
+        "system(",
+        "passthru(",
+        "<?php",
+        "c99",
+        "r57"
+      ],
+      "rule_name_hints": ["webshell", "backdoor", "shell"]
+    },
+    "ssrf": {
+      "label": "服务端请求伪造 SSRF",
+      "patterns": [
+        "url=http",
+        "url=ftp",
+        "http://127.",
+        "http://169.254",
+        "http://localhost",
+        "file://",
+        "gopher://",
+        "dict://"
+      ],
+      "rule_name_hints": ["ssrf", "server-side request"]
+    },
+    "sensitive_config_probe": {
+      "label": "敏感配置/备份文件探测",
+      "patterns": [
+        "/.env",
+        ".env",
+        "/.htaccess",
+        ".htaccess",
+        "wp-config.php",
+        "wp-config.php.bak",
+        "config.php.bak",
+        ".bak",
+        ".backup",
+        ".old",
+        "~"
+      ],
+      "techniques": {
+        "config_file_probe": ["/.env", ".htaccess", "wp-config.php"],
+        "backup_file_probe": [".bak", ".backup", ".old", "~"]
+      },
+      "rule_name_hints": ["config", "backup", "sensitive file", "file disclosure", "source disclosure"]
+    },
+    "scanner_fingerprint": {
+      "label": "扫描器指纹",
+      "patterns": [
+        "/.env",
+        "/wp-admin",
+        "/phpmyadmin",
+        "/.git/",
+        "sqlmap",
+        "nikto",
+        "acunetix",
+        "nessus"
+      ],
+      "rule_name_hints": ["scanner", "probe", "recon"]
+    }
+  },
+  "success_indicators": {
+    "host_exec": {
+      "shell": ["bash", "/bin/sh", "cmd.exe", "powershell", "whoami", "id", "mem_ok"],
+      "download": ["curl", "wget", "fetch", "python -c", "perl -e", "mysqldump"],
+      "webshell_cmd": ["eval", "base64 -d", "chmod +x"],
+      "file_read": ["cat /etc/passwd", "cat /etc/shadow", "cat /etc/os-release", "/e??/passw?", "/e??/shado?", "/e??/os-releas?", "xargs cat"],
+      "database": ["mysql", "show databases", "payment_cards"]
+    },
+    "host_connect": {
+      "ports": [80, 443, 8080, 4444, 53]
+    },
+    "host_file_op": {
+      "paths": [".php", ".jsp", ".asp", "/tmp/", "/upload/", "webshell", "shell.", "/etc/passwd", "/etc/shadow", "/etc/os-release"],
+      "actions": ["read_sensitive_file"]
+    },
+    "host_persistence": {
+      "paths": ["authorized_keys", "/etc/cron", "/var/spool/cron", "/etc/crontab", "/etc/systemd/system", "/etc/profile", "/etc/profile.d", "/etc/rc.local", "/etc/sudoers", "/etc/sudoers.d", "/etc/ld.so.preload", "/etc/modules-load.d", "/etc/modprobe.d"],
+      "types": ["cron", "systemd", "ssh_key", "profile", "sudoers", "ld_preload", "kernel_module"]
+    },
+    "web_access_log": {
+      "status_success_exploit": [500, 502],
+      "response_hints": ["root:", "uid=", "syntax error", "mysql"]
+    }
+  },
+  "gateway_success_hint": {
+    "correlation_minutes": 10,
+    "status_ok": [200, 201, 204],
+    "upstream_status_ok": [200, 201, 204],
+    "default_min_bytes_sent": 64,
+    "default_large_response_bytes": 500,
+    "attack_type_rules": {
+      "sqli": {
+        "url_patterns": [
+          "union select",
+          "union+select",
+          "information_schema",
+          " or 1=1",
+          "+or+1=1",
+          "group_concat"
+        ],
+        "min_bytes_sent": 200
+      },
+      "rce": {
+        "url_patterns": [
+          ";",
+          "%3b",
+          "|",
+          "whoami",
+          "uname",
+          "passwd",
+          "passw?",
+          "/cmdi/",
+          "/exfil/upload",
+          "/exfil/uploads/",
+          ".phtml",
+          ".phar",
+          "deploy.phtml",
+          "echo+test",
+          "/bin/",
+          "cmd=",
+          "system(",
+          "base64"
+        ],
+        "min_bytes_sent": 100,
+        "large_response_bytes": 400
+      },
+      "path_traversal": {
+        "url_patterns": [
+          "../",
+          "..%2f",
+          "..%252f",
+          "etc/passwd",
+          "etc%2fpasswd",
+          "/etc/shadow"
+        ],
+        "min_bytes_sent": 60,
+        "large_response_bytes": 200
+      },
+      "webshell": {
+        "url_patterns": [
+          "php://",
+          "data://",
+          "eval(",
+          "base64_decode",
+          "<?php"
+        ],
+        "min_bytes_sent": 50
+      },
+      "ssrf": {
+        "url_patterns": [
+          "127.0.0.1",
+          "169.254",
+          "localhost",
+          "file://"
+        ],
+        "min_bytes_sent": 100
+      }
+    },
+    "reason_labels": {
+      "waf_pass_backend_200": "WAF 放行且网关 HTTP 200 到达 upstream",
+      "waf_block_bypass_backend_200": "WAF 显示拦截但网关 HTTP 200，可能存在 bypass",
+      "exploit_url_backend_200_large_body": "攻击 URL 在网关返回 200 且响应体较大"
+    },
+    "recommended_action_map": {
+      "likely": {
+        "action": "manual_review_30m",
+        "label": "网关层疑似应用成功，30 分钟内人工复核"
+      },
+      "possible": {
+        "action": "log_and_monitor",
+        "label": "网关层可疑响应，建议结合访问日志复核"
+      }
+    },
+    "scanning_or_probe_status_ok": [200, 201, 204]
+  },
+  "layer1_correlated_upgrade": {
+    "critical_patterns": [";", "%3b", "whoami", "uname", "passw?", "os-releas?", "/exfil/upload", ".phtml", "echo+test"],
+    "rce_patterns": [";", "%3b", "|", "whoami", "uname", "/cmdi/", "passw?", "cmd=", ".phtml"],
+    "min_critical_misses_for_confirmed": 1,
+    "d2_success_attack_type": "rce",
+    "d2_success_confidence_floor": 0.88,
+    "confirmed_attack_confidence_floor": 0.75
+  },
+  "gateway_miss_scan": {
+    "enabled": true,
+    "status_ok": [200, 201, 204, 302, 404],
+    "block_success_status": [403, 401, 406],
+    "bypass_tight_seconds": 5,
+    "correlation_minutes": 15,
+    "exclude_url_patterns": [],
+    "probe_url_patterns": [
+      "host=127.0.0.1;date",
+      "host=127.0.0.1%3bdate"
+    ],
+    "probe_severity": "medium",
+    "url_patterns": [
+      "/cmdi/",
+      ";",
+      "%3b",
+      "%7c",
+      "|",
+      "echo+test",
+      "whoami",
+      "uname",
+      "passw?",
+      "os-releas?",
+      "base64",
+      "xargs",
+      "union select",
+      "order by",
+      "information_schema",
+      "group_concat",
+      "card_number",
+      "username,password",
+      "credentials",
+      "../",
+      "..%2f",
+      "..%252f",
+      "..%5c",
+      "/etc/passwd",
+      "/etc/shadow",
+      "php://input",
+      "php://filter",
+      "file://",
+      "/exfil/upload",
+      "/exfil/uploads/",
+      "/admin",
+      "/wp-admin",
+      "/.git",
+      "deploy.phtml",
+      "test.phtml",
+      ".phtml",
+      ".phar",
+      ".php5"
+    ],
+    "critical_url_patterns": [
+      "/cmdi/",
+      "cat /e??/",
+      "/etc/passwd",
+      "/etc/shadow",
+      "base64",
+      "xargs",
+      "payment_cards",
+      "credentials",
+      "card_number",
+      "php://input",
+      "php://filter"
+    ],
+    "high_url_patterns": [
+      "union select",
+      "order by",
+      "information_schema",
+      "group_concat",
+      "../",
+      "..%2f",
+      "..%252f",
+      "..%5c",
+      "file://"
+    ],
+    "reason_labels": {
+      "gateway_exploit_no_waf_alert": "网关命中攻击 URL 特征但无对应 WAF 告警",
+      "waf_block_bypass": "WAF 拦截告警与网关成功响应高度吻合，疑似 bypass",
+      "waf_partial_block_same_path": "同路径 WAF 曾拦截，但本条请求未告警/已放行"
+    }
+  },
+  "blocked_actions": ["block", "blocked", "deny", "denied", "drop", "reject"],
+  "recommended_action_map": {
+    "false_positive": {"action": "close_as_fp", "label": "关闭告警（误报）"},
+    "scanning_or_probe": {"action": "log_only", "label": "仅记录，扫描探测"},
+    "suspicious_blocked": {"action": "log_and_monitor", "label": "记录并观察"},
+    "confirmed_blocked": {"action": "log_and_monitor", "label": "记录并观察，WAF 已拦截"},
+    "confirmed_repeat": {"action": "block_ip", "label": "建议封禁源 IP"},
+    "confirmed_success": {"action": "escalate_investigate", "label": "升级调查，建议隔离主机"},
+    "suspicious_no_d2": {"action": "manual_review_30m", "label": "30 分钟内人工复核"}
+  }
+}

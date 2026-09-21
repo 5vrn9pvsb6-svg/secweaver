@@ -1,0 +1,36 @@
+{
+  "investigation_intent": "账号 alice 疑似失陷，但当前没有任何认证日志",
+  "scenarios": ["S6"],
+  "params": {
+    "user": "alice",
+    "time_start": "2026-06-23T08:00:00+08:00",
+    "time_end": "2026-06-23T12:00:00+08:00",
+    "hosts": ["app-01"]
+  },
+  "registered_assets": [
+    {
+      "asset_id": "asset-host-exec-app",
+      "name": "应用区命令执行",
+      "type": "host_exec",
+      "domain": "D2",
+      "fields": ["host", "command", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-host-persistence-app",
+      "name": "应用区持久化变更",
+      "type": "host_persistence",
+      "domain": "D2",
+      "fields": ["host", "path", "action", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    }
+  ],
+  "_meta": {
+    "scenario_label": "S6 缺少 P0 认证日志",
+    "expected_overall_verdict": "not_traceable",
+    "expected_next_skill_blocked": true,
+    "expected_block_reason_contains": "认证日志"
+  }
+}

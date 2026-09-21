@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/data-network.json",
+  "title": "SecWeaver Network Segment",
+  "type": "object",
+  "required": ["network_id", "name", "cidr", "zone", "status"],
+  "properties": {
+    "network_id": { "type": "string", "pattern": "^net-[a-z0-9-]+$" },
+    "name": { "type": "string" },
+    "cidr": {
+      "type": "string",
+      "description": "IPv4/IPv6 CIDR，如 192.0.2.0/24；用于 host_ip/network_id 一致性校验"
+    },
+    "zone": {
+      "type": "string",
+      "description": "逻辑区域/拓扑分组 token，例如 production_network、dmz_edge、lab_network；用于展示、分组和运营筛选，不表示网络用途或安全信任等级"
+    },
+    "network_type": {
+      "type": "string",
+      "enum": ["dmz", "production", "office", "management", "lab", "cloud_vpc", "external", "other"],
+      "description": "网络用途/形态分类：dmz=边界区，production=生产业务网，office=办公网，management=管理网，lab=实验/测试网，cloud_vpc=云 VPC/专有网络，external=外部/互联网侧，other=其他"
+    },
+    "gateway_ip": { "type": "string" },
+    "trust_level": {
+      "type": "string",
+      "enum": ["external", "dmz", "internal", "restricted", "management"],
+      "description": "安全信任等级/访问敏感度：external=外部不可信，dmz=边界半可信，internal=内部业务网，restricted=高敏/受限网段，management=管理控制面；用于横向移动、影响范围和风险优先级判断"
+    },
+    "description": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "status": { "enum": ["draft", "active", "retired"] },
+    "extensions": {
+      "type": "object",
+      "description": "Named vendor or deployment extensions; common fields should be added to the schema.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

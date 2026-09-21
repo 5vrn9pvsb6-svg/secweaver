@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/traceability-analysis-output.json",
+  "title": "TraceabilityAnalysisResult",
+  "allOf": [
+    {"$ref": "https://secweaver.local/schemas/skill-envelope.json"}
+  ],
+  "type": "object",
+  "required": [
+    "contract_version",
+    "skill",
+    "overall_verdict",
+    "confidence",
+    "data_gaps_impact",
+    "timeline",
+    "attack_chain"
+  ],
+  "properties": {
+    "skill": {"const": "traceability-analysis"},
+    "scenario": {"type": "array", "items": {"type": "string"}},
+    "overall_verdict": {"type": "string"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "confidence_ceiling": {"type": "number", "minimum": 0, "maximum": 1},
+    "blocked": {"type": "boolean"},
+    "block_reason": {"type": "string"},
+    "summary": {"type": "string"},
+    "data_gaps_impact": {"type": "array"},
+    "timeline": {"type": "array", "items": {"type": "object"}},
+    "attack_chain": {"type": "array", "items": {"type": "object"}},
+    "lateral_movement_graph": {"type": "object"},
+    "lateral_findings": {"type": "object"},
+    "evidence_index": {"type": "object"},
+    "fetch_summary": {"type": "object"}
+  },
+  "additionalProperties": true
+}

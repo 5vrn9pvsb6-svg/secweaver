@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>数据源接入 · SecWeaver</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body data-page="onboarding">
+    <div class="grain"></div>
+    <header id="appTopbar" class="topbar"></header>
+
+    <main class="workbench">
+      <aside id="appSidebar" class="sidebar"></aside>
+
+      <section class="workspace">
+        <section class="onboarding-hero panel">
+          <div>
+            <p class="eyebrow">Onboarding</p>
+            <h1>数据源接入</h1>
+            <p class="subtitle">通过表单生成运营配置，预览 connector、asset、query template，确认后写入 DataAsset。</p>
+          </div>
+          <div class="onboarding-hero-actions">
+            <button id="buildConfigTopBtn" class="button secondary" type="button">生成配置</button>
+            <button id="previewTopBtn" class="button primary" type="button">预览三件套</button>
+          </div>
+        </section>
+
+        <section class="onboarding-flow">
+          <div><strong>1</strong><span>填写数据源</span></div>
+          <div><strong>2</strong><span>生成配置</span></div>
+          <div><strong>3</strong><span>预览三件套</span></div>
+          <div><strong>4</strong><span>写入并校验</span></div>
+        </section>
+
+        <section class="panel onboarding-quickstart">
+          <label>Quickstart 示例<select id="quickstartSelect"></select></label>
+          <button id="loadQuickstartBtn" class="button secondary" type="button">载入示例</button>
+          <button id="previewQuickstartBtn" class="button ghost" type="button">载入并预览</button>
+          <span id="quickstartMeta" class="hint"></span>
+        </section>
+
+        <section class="panel onboarding-vendor-panel">
+          <div class="panel-title-row">
+            <h3>真实 Vendor 引导</h3>
+            <span class="hint">按调查场景选择可复制样例</span>
+          </div>
+          <div id="vendorScenarioCards" class="vendor-scenario-grid"></div>
+          <div id="quickstartDetails" class="quickstart-details"></div>
+        </section>
+
+        <section class="panel connector-catalog-panel">
+          <div class="panel-title-row">
+            <h3>Connector 能力目录</h3>
+            <span class="hint">内置 / 外置 / 插件</span>
+          </div>
+          <div class="connector-catalog-toolbar">
+            <label class="connector-catalog-search">搜索 Connector<input id="connectorCatalogSearch" placeholder="aws / splunk / defender" /></label>
+            <div class="source-filter-group" role="group" aria-label="Connector source filter">
+              <button class="source-filter active" type="button" data-source-filter="all">全部</button>
+              <button class="source-filter" type="button" data-source-filter="built_in">内置</button>
+              <button class="source-filter" type="button" data-source-filter="external_config">外置</button>
+              <button class="source-filter" type="button" data-source-filter="plugin">插件</button>
+            </div>
+          </div>
+          <div id="connectorCatalog" class="connector-catalog"></div>
+        </section>
+
+        <section class="panel byo-es-panel" aria-labelledby="byoEsTitle">
+          <div class="panel-title-row">
+            <div>
+              <p class="section-kicker">Bring Your Own ES</p>
+              <h3 id="byoEsTitle" data-byo-text="title">接入客户自有 Elasticsearch</h3>
+            </div>
+            <span class="hint" data-byo-text="hint">探测集群 -> 选择索引 -> 自动生成并激活 DataAsset</span>
+          </div>
+          <div class="byo-es-grid">
+            <label><span data-byo-text="endpoint">集群地址</span><input id="byoEsEndpoint" placeholder="https://es.customer.example:9200" /></label>
+            <label><span data-byo-text="credential">已有凭证</span><select id="byoEsCredential"><option value="">使用下方新凭证</option></select></label>
+            <label><span data-byo-text="authMode">新凭证类型</span><select id="byoEsAuthMode"><option value="basic">Basic</option><option value="api_key">API Key</option></select></label>
+            <label data-byo-auth="basic"><span data-byo-text="username">用户名</span><input id="byoEsUsername" autocomplete="username" /></label>
+            <label data-byo-auth="basic"><span data-byo-text="password">密码</span><input id="byoEsPassword" type="password" autocomplete="new-password" /></label>
+            <label data-byo-auth="api_key" hidden><span data-byo-text="apiKey">API Key (id:secret)</span><input id="byoEsApiKey" type="password" autocomplete="off" /></label>
+            <label><span data-byo-text="caFile">私有 CA 文件</span><input id="byoEsCaFile" placeholder="credentials/ca/customer-es.pem" /></label>
+            <label><span data-byo-text="index">索引 / Data Stream</span><input id="byoEsIndex" list="byoEsIndexOptions" placeholder="logs-security-*" /><datalist id="byoEsIndexOptions"></datalist></label>
+            <label><span data-byo-text="timeField">时间字段</span><select id="byoEsTimeField"><option value="@timestamp">@timestamp</option></select></label>
+            <label><span data-byo-text="name">资产名称</span><input id="byoEsName" value="customer-es-security-events" /></label>
+            <label><span data-byo-text="assetType">资产类型</span><select id="byoEsAssetType"></select></label>
+            <label><span data-byo-text="retention">保留天数</span><input id="byoEsRetention" type="number" min="1" value="30" /></label>
+          </div>
+          <div class="byo-es-actions">
+            <button id="byoEsProbeBtn" class="button secondary" type="button" data-byo-text="probeButton">检测集群</button>
+            <button id="byoEsInspectBtn" class="button ghost" type="button" data-byo-text="inspectButton" disabled>识别字段</button>
+            <button id="byoEsApplyBtn" class="button primary" type="button" data-byo-text="applyButton" disabled>接入并激活</button>
+          </div>
+          <div id="byoEsSummary" class="byo-es-summary" aria-live="polite"></div>
+          <details id="byoEsFieldsWrap" hidden><summary data-byo-text="fields">已识别字段</summary><pre id="byoEsFields" class="byo-es-fields"></pre></details>
+          <div id="byoEsStatus" class="save-status" aria-live="polite"></div>
+        </section>
+
+        <section class="panel portable-panel" aria-labelledby="portableTitle">
+          <div class="panel-title-row">
+            <div>
+              <p class="section-kicker">Portable</p>
+              <h3 id="portableTitle">笔记本便携部署</h3>
+            </div>
+            <button id="portableRefreshBtn" class="button ghost" type="button">刷新状态</button>
+          </div>
+          <div id="portableSummary" class="portable-summary" aria-live="polite"></div>
+
+          <div class="portable-workflow">
+            <section class="portable-stage">
+              <div class="portable-stage-heading">
+                <span>01</span>
+                <div><strong>初始化笔记本中心</strong><small>OpenSearch · HTTPS Gateway · DataAsset</small></div>
+              </div>
+              <div class="portable-form-grid">
+                <label>主机可达地址<input id="portableAdvertiseHost" placeholder="192.0.2.10 / laptop.example.com" /></label>
+                <label>保留天数<input id="portableRetentionDays" type="number" min="1" value="30" /></label>
+                <label>写入端口<input id="portableIngestPort" type="number" min="1" value="9443" /></label>
+                <label>本机查询端口<input id="portableQueryPort" type="number" min="1" value="9200" /></label>
+                <label>资产目录<input id="portableDataassetRoot" value="dataasset" /></label>
+              </div>
+              <div class="portable-actions">
+                <button id="portableInitBtn" class="button secondary" type="button">初始化</button>
+                <button id="portableUpBtn" class="button primary" type="button">启动</button>
+                <button id="portableDownBtn" class="button ghost" type="button">停止</button>
+                <button id="portableAssetsBtn" class="button secondary" type="button">注册资产</button>
+              </div>
+            </section>
+
+            <section class="portable-stage">
+              <div class="portable-stage-heading">
+                <span>02</span>
+                <div><strong>签发主机接入</strong><small>Agent · Fluent Bit · 独立写入凭证</small></div>
+              </div>
+              <div class="portable-form-grid">
+                <label>主机名称<input id="portableHostName" placeholder="web-01" /></label>
+                <label>企业 ID<input id="portableEnterpriseId" maxlength="16" placeholder="16 位字母或数字" /></label>
+                <label>平台<select id="portablePlatform"><option value="linux">Linux</option><option value="windows">Windows</option></select></label>
+                <label>Agent 安装包<input id="portableAgentPackage" placeholder="/path/secweaver-agent.tar.gz" /></label>
+                <label>Fluent Bit 安装包<input id="portableFluentPackage" placeholder="/path/fluent-bit.tar.gz" /></label>
+                <label>离线缓冲上限<input id="portableBufferLimit" value="2G" /></label>
+              </div>
+              <div class="portable-options">
+                <label class="check-row"><input id="portableReuseAgent" type="checkbox" /> 复用已安装 Agent</label>
+                <label class="check-row"><input id="portableReuseFluent" type="checkbox" /> 复用已安装 Fluent Bit</label>
+                <label class="check-row"><input id="portableRotate" type="checkbox" /> 轮换已有主机凭证</label>
+              </div>
+              <div class="portable-actions">
+                <button id="portableEnrollBtn" class="button primary" type="button">生成安装命令</button>
+                <button id="portableCloseEnrollBtn" class="button secondary" type="button">关闭安装地址</button>
+                <button id="portableRevokeBtn" class="button ghost danger" type="button">吊销主机</button>
+              </div>
+            </section>
+          </div>
+          <div class="portable-command-row">
+            <pre id="portableCommand" class="portable-command">尚未生成安装命令</pre>
+            <button id="portableCopyBtn" class="button ghost" type="button" disabled>复制</button>
+          </div>
+          <div id="portableStatus" class="save-status" aria-live="polite"></div>
+        </section>
+
+        <section class="onboarding-layout">
+          <section class="panel onboarding-form-panel">
+            <div class="section-heading">
+              <span class="section-kicker">Source</span>
+              <h2>接入配置</h2>
+            </div>
+            <div id="connectorGuide" class="onboarding-guide"></div>
+
+            <div class="onboarding-step">
+              <h3>基础信息</h3>
+              <div class="onboarding-grid">
+                <label>名称<input id="sourceName" value="demo-waf-sls" /></label>
+                <label>Connector 类型<select id="connectorType"></select></label>
+                <label>Asset 类型<select id="assetType"></select></label>
+                <label>凭证引用<select id="credentialsRef"></select></label>
+                <label>Owner Team<input id="ownerTeam" value="security-ops" /></label>
+                <label>环境<input id="environment" value="production" /></label>
+                <label>状态<select id="status"><option>discovery</option><option>draft</option><option>active</option><option>disabled</option></select></label>
+                <label>输出目录<input id="outputDir" value="dataasset" /></label>
+              </div>
+            </div>
+
+            <div class="onboarding-step">
+              <h3>连接参数</h3>
+              <div class="onboarding-grid">
+                <label data-field-key="project">SLS Project<input id="project" value="YOUR_SLS_PROJECT" /></label>
+                <label data-field-key="project_id">Cloud Project ID<input id="projectId" placeholder="YOUR_PROJECT_ID" /></label>
+                <label data-field-key="logstore">Logstore<input id="logstore" value="YOUR_LOGSTORE" /></label>
+                <label data-field-key="endpoint">Endpoint<input id="endpoint" value="cn-hangzhou.log.aliyuncs.com" /></label>
+                <label data-field-key="fallback_endpoint">Fallback Endpoint<input id="fallbackEndpoint" placeholder="https://sls-proxy.id-net.cn:30443" /></label>
+                <label data-field-key="executor_endpoint">External Executor<input id="executorEndpoint" placeholder="https://executor.example.com/fetch" /></label>
+                <label data-field-key="base_url">Base URL<input id="baseUrl" placeholder="https://api.example.com" /></label>
+                <label data-field-key="region">Region<input id="region" value="cn-hangzhou" /></label>
+                <label data-field-key="url">ES URL<input id="url" placeholder="https://es.example.com:9200" /></label>
+                <label data-field-key="index">ES Index<input id="index" placeholder="YOUR_ES_INDEX-*" /></label>
+                <label data-field-key="host">Host<input id="host" placeholder="YOUR_HOST" /></label>
+                <label data-field-key="host_id">Host ID<input id="hostId" placeholder="YOUR_HOST_ID" /></label>
+                <label data-field-key="engine">DB Engine<select id="engine"><option value=""></option><option>mysql</option><option>postgresql</option><option>oracle</option><option>sqlserver</option><option>sqlite</option></select></label>
+                <label data-field-key="database">Database<input id="database" placeholder="security_logs" /></label>
+                <label data-field-key="port">Port<input id="port" placeholder="3306 / 5432 / 1433 / 6379" /></label>
+                <label data-field-key="path">Path<input id="path" placeholder="dataasset/samples/security.db" /></label>
+                <label data-field-key="base_path">Base Path<input id="basePath" placeholder="examples/log-format-discovery" /></label>
+                <label data-field-key="collection">Collection<input id="collection" placeholder="events" /></label>
+                <label data-field-key="db">Redis DB<input id="db" placeholder="0" /></label>
+                <label data-field-key="driver">Driver<input id="driver" placeholder="ODBC Driver 18 for SQL Server" /></label>
+                <label data-field-key="connection_string">Connection String<input id="connectionString" placeholder="Driver=...;Server=...;" /></label>
+                <label data-field-key="auth_source">Auth Source<input id="authSource" placeholder="admin" /></label>
+                <label data-field-key="ssl">SSL<select id="ssl"><option value=""></option><option value="true">true</option><option value="false">false</option></select></label>
+                <label data-field-key="log_group">CloudWatch Log Group<input id="logGroup" placeholder="/aws/cloudtrail/organization" /></label>
+                <label data-field-key="log_group_id">Huawei Log Group ID<input id="logGroupId" placeholder="YOUR_LOG_GROUP_ID" /></label>
+                <label data-field-key="log_stream_id">Huawei Log Stream ID<input id="logStreamId" placeholder="YOUR_LOG_STREAM_ID" /></label>
+                <label data-field-key="log_stream_prefix">Log Stream Prefix<input id="logStreamPrefix" placeholder="2026/" /></label>
+                <label data-field-key="bucket">S3 Bucket<input id="bucket" placeholder="YOUR_BUCKET" /></label>
+                <label data-field-key="prefix">S3 Prefix<input id="prefix" placeholder="AWSLogs/" /></label>
+                <label data-field-key="workspace_id">Azure Workspace ID<input id="workspaceId" placeholder="YOUR_WORKSPACE_ID" /></label>
+                <label data-field-key="tenant_id">Azure Tenant ID<input id="tenantId" placeholder="YOUR_TENANT_ID" /></label>
+                <label data-field-key="topic_id">Tencent CLS Topic ID<input id="topicId" placeholder="YOUR_TOPIC_ID" /></label>
+                <label data-field-key="sample_file">本地样本文件<input id="sampleFile" placeholder="examples/log-format-discovery/waf-jsonl.sample" /></label>
+                <label data-field-key="sample_dir">样本目录<input id="sampleDir" placeholder="samples/cloudwatch/" /></label>
+              </div>
+            </div>
+
+            <div class="onboarding-step">
+              <h3>字段、解析和覆盖范围</h3>
+              <div class="onboarding-grid">
+                <label>文本解析器<select id="textParser"></select></label>
+                <label>时间字段<input id="timeField" value="timestamp" /></label>
+                <label>字段列表<input id="schemaFields" value="timestamp, src_ip, target_ip, url, action" /></label>
+                <label>保留天数<input id="retentionDays" type="number" min="1" value="30" /></label>
+                <label>Zones<input id="coverageZones" value="edge" /></label>
+                <label>Apps<input id="coverageApps" value="demo-gateway" /></label>
+                <label>Hosts<input id="coverageHosts" placeholder="host-web-01, 203.0.113.10" /></label>
+                <label>字段别名 JSON<input id="fieldAliases" value='{"client_ip":"src_ip","upstream_addr":"target_ip"}' /></label>
+              </div>
+            </div>
+
+            <div class="onboarding-step">
+              <h3>模板参数</h3>
+              <div class="onboarding-grid">
+                <label>Template ID<input id="templateId" placeholder="默认自动生成" /></label>
+                <label>Params<input id="templateParams" value="src_ip, target_ip, time_start, time_end, limit" /></label>
+                <label>Defaults JSON<input id="templateDefaults" value='{"limit":1000}' /></label>
+                <label id="queryLabel" class="wide">Query<textarea id="templateQuery" rows="3">(src_ip: {src_ip} OR client_ip: {src_ip}) | select * limit {limit}</textarea></label>
+              </div>
+            </div>
+
+            <div class="onboarding-actions">
+              <button id="buildConfigBtn" class="button secondary" type="button">生成配置</button>
+              <button id="previewBtn" class="button primary" type="button">预览三件套</button>
+              <button id="applyBtn" class="button ghost" type="button">写入 DataAsset</button>
+              <label class="check-row onboarding-force"><input id="forceApply" type="checkbox" /> 覆盖已有文件</label>
+            </div>
+            <div id="onboardingStatus" class="save-status"></div>
+          </section>
+
+          <section class="panel raw-panel onboarding-config-panel">
+            <div class="panel-title-row">
+              <h3>配置 JSON</h3>
+              <span class="hint">可手工微调后预览或写入</span>
+            </div>
+            <textarea id="configJson" rows="24" spellcheck="false"></textarea>
+          </section>
+        </section>
+
+        <section class="panel onboarding-preview-panel">
+          <div class="panel-title-row">
+            <h3>生成预览</h3>
+            <span id="previewMeta" class="hint">尚未预览</span>
+          </div>
+          <div id="previewSummary" class="onboarding-preview-summary"></div>
+          <pre id="previewOutput" class="validation-output">等待生成...</pre>
+        </section>
+      </section>
+    </main>
+
+    <script src="./i18n.js"></script><script src="./shared-nav.js"></script>
+    <script src="./onboarding.js"></script>
+    <script src="./es-onboarding.js"></script>
+    <script src="./portable.js"></script>
+  </body>
+</html>

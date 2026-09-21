@@ -1,0 +1,42 @@
+{
+  "asset_id": "asset-pg-cmdb-hosts",
+  "name": "PostgreSQL CMDB 主机资产清单",
+  "asset_type": "asset_inventory",
+  "domain": "D6",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-db-pg-sec-audit",
+  "description": "PostgreSQL database_ro 接入示例：sec_audit.cmdb_hosts 表，模板 cmdb_all_hosts / cmdb_by_hostname",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "hostname",
+      "ip",
+      "zone",
+      "owner",
+      "services",
+      "environment"
+    ],
+    "time_field": "updated_at",
+    "retention_days": 365
+  },
+  "query_template_ids": [
+    "cmdb_all_hosts",
+    "cmdb_by_hostname"
+  ],
+  "sensitivity": "internal",
+  "tags": [
+    "postgresql",
+    "database_ro",
+    "example",
+    "cmdb"
+  ],
+  "field_aliases": {
+    "ip": "host_ip",
+    "host": "hostname",
+    "name": "hostname"
+  }
+}

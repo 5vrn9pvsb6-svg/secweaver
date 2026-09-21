@@ -1,0 +1,9 @@
+{
+  "template_id": "YOUR_TEMPLATE_ID",
+  "asset_types": ["waf_alert"],
+  "connector_types": ["external_generic"],
+  "params": ["src_ip", "time_start", "time_end", "limit"],
+  "defaults": { "limit": 1000 },
+  "EXTERNAL_QUERY_KEY": "src_ip={src_ip} time_start={time_start} time_end={time_end} limit={limit}",
+  "note": "Generic external connector template. EXTERNAL_QUERY_KEY is replaced by the connector registry query_key."
+}

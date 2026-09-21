@@ -1,0 +1,26 @@
+{
+  "host_id": "host-demo-ci-worker-01",
+  "name": "Demo CI Worker 01",
+  "hostname": "demo-ci-worker-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "203.0.113.30",
+  "network_id": "net-demo-lab-core",
+  "aliases": [
+    "demo-ci-worker-01",
+    "203.0.113.30"
+  ],
+  "roles": [
+    "ci-worker"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic CI worker template.",
+  "tags": [
+    "ci-worker",
+    "demo",
+    "reference",
+    "server"
+  ]
+}

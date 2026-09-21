@@ -1,0 +1,447 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/evidence-minimum-fields.json",
+  "title": "SecWeaver Evidence Minimum Fields",
+  "description": "fetch 归一化后每条 evidence event 的最小字段；详见 docs_dev/12-agent-collection-and-evidence-spec.md",
+  "common_required": [
+    "evidence_id",
+    "timestamp"
+  ],
+  "timestamp_format": "ISO 8601 with timezone offset, e.g. 2026-06-21T09:15:22+08:00",
+  "by_asset_type": {
+    "waf_alert": {
+      "required": [
+        "src_ip",
+        "timestamp",
+        "url",
+        "action"
+      ],
+      "strongly_recommended": [
+        "payload"
+      ],
+      "recommended": [
+        "rule_id",
+        "rule_name",
+        "host",
+        "target_ip",
+        "method",
+        "evidence_id"
+      ]
+    },
+    "web_access_log": {
+      "required": [
+        "src_ip",
+        "timestamp",
+        "url",
+        "status"
+      ],
+      "recommended": [
+        "method",
+        "user_agent",
+        "host",
+        "target_ip",
+        "log_source",
+        "host_ip",
+        "evidence_id"
+      ]
+    },
+    "host_exec": {
+      "required": [
+        "host",
+        "timestamp",
+        "command"
+      ],
+      "strongly_recommended": [
+        "event_type"
+      ],
+      "recommended": [
+        "listener_port",
+        "listener_process",
+        "cwd",
+        "user",
+        "pid",
+        "evidence_id",
+        "host_ip",
+        "listener_pid"
+      ]
+    },
+    "host_connect": {
+      "required": [
+        "host",
+        "timestamp",
+        "dst_ip",
+        "dst_port"
+      ],
+      "strongly_recommended": [
+        "event_type"
+      ],
+      "recommended": [
+        "pid",
+        "evidence_id",
+        "host_ip",
+        "listener_pid"
+      ]
+    },
+    "host_file_op": {
+      "required": [
+        "host",
+        "timestamp",
+        "path",
+        "action"
+      ],
+      "strongly_recommended": [
+        "event_type"
+      ],
+      "recommended": [
+        "pid",
+        "evidence_id",
+        "host_ip",
+        "listener_pid"
+      ]
+    },
+    "host_persistence": {
+      "required": [
+        "host",
+        "timestamp",
+        "path",
+        "action",
+        "persistence_type"
+      ],
+      "strongly_recommended": [
+        "event_type",
+        "category"
+      ],
+      "recommended": [
+        "file_type",
+        "hash",
+        "previous_hash",
+        "mode",
+        "user",
+        "process",
+        "command",
+        "audit_id",
+        "actor_source",
+        "content_diff",
+        "host_ip",
+        "evidence_id"
+      ]
+    },
+	"host_process": {
+	  "required": [
+		"host",
+		"timestamp",
+		"snapshot_id",
+		"pid",
+		"process"
+	  ],
+	  "strongly_recommended": [
+		"event_type",
+		"ppid",
+		"exe"
+	  ],
+	  "recommended": [
+		"action",
+		"user",
+		"command_line",
+		"command_hash",
+		"change_fields",
+		"start_time",
+		"rss_bytes",
+		"thread_count",
+		"host_ip",
+		"evidence_id"
+	  ]
+	},
+	"host_socket": {
+	  "required": ["host", "timestamp", "protocol", "listen_address", "listen_port"],
+	  "strongly_recommended": ["event_type", "snapshot_id"],
+	  "recommended": ["pid", "process", "exe", "user", "host_ip", "evidence_id"]
+	},
+	"host_identity": {
+	  "required": ["host", "timestamp", "event_type", "user"],
+	  "strongly_recommended": ["entity_type", "action"],
+	  "recommended": ["uid", "gid", "sid", "groups", "source", "previous", "host_ip", "evidence_id"]
+	},
+	"host_service": {
+	  "required": ["host", "timestamp", "event_type", "entity_type"],
+	  "strongly_recommended": ["action"],
+	  "recommended": ["service_name", "task_name", "state", "start_mode", "path", "previous", "host_ip", "evidence_id"]
+	},
+	"host_kernel_context": {
+	  "required": ["host", "timestamp", "event_type", "entity_type"],
+	  "strongly_recommended": ["action"],
+	  "recommended": ["module_name", "container_id", "container_runtime", "kernel_release", "previous", "host_ip", "evidence_id"]
+	},
+    "windows_event_log": {
+      "required": [
+        "host",
+        "timestamp",
+        "event_id",
+        "channel"
+      ],
+      "strongly_recommended": [
+        "level",
+        "provider"
+      ],
+      "recommended": [
+        "user",
+        "message",
+        "src_ip",
+        "process",
+        "action",
+        "evidence_id"
+      ]
+    },
+    "linux_syslog": {
+      "required": [
+        "host",
+        "timestamp",
+        "message"
+      ],
+      "strongly_recommended": [
+        "program",
+        "severity"
+      ],
+      "recommended": [
+        "facility",
+        "pid",
+        "unit",
+        "user",
+        "src_ip",
+        "evidence_id"
+      ]
+    },
+    "syslog_risk_alert": {
+      "required": [
+        "enterprise_id",
+        "timestamp",
+        "host_name",
+        "host_ip",
+        "event_type",
+        "risk_level",
+        "message"
+      ],
+      "strongly_recommended": [
+        "rule_id",
+        "rule_name",
+        "severity"
+      ],
+      "recommended": [
+        "src_ip",
+        "user",
+        "program",
+        "pid",
+        "event_id",
+        "parser_version",
+        "__source__",
+        "evidence_id"
+      ]
+    },
+    "ssh_auth": {
+      "required": [
+        "host",
+        "timestamp",
+        "src_ip",
+        "user",
+        "result"
+      ],
+      "recommended": [
+        "auth_method",
+        "port",
+        "evidence_id",
+        "host_ip"
+      ]
+    },
+    "firewall_log": {
+      "required": [
+        "timestamp",
+        "src_ip",
+        "dst_ip",
+        "action"
+      ],
+      "recommended": [
+        "src_port",
+        "dst_port",
+        "protocol",
+        "evidence_id",
+        "host_ip"
+      ]
+    },
+    "network_traffic_audit": {
+      "required": [
+        "timestamp",
+        "src_ip",
+        "dst_ip",
+        "protocol"
+      ],
+      "strongly_recommended": [
+        "src_port",
+        "dst_port"
+      ],
+      "recommended": [
+        "bytes",
+        "packets",
+        "application",
+        "session_id",
+        "action",
+        "duration",
+        "sensor_id",
+        "evidence_id",
+        "host_ip"
+      ]
+    },
+    "asset_inventory": {
+      "required": [
+        "hostname",
+        "ip"
+      ],
+      "recommended": [
+        "zone",
+        "owner",
+        "services",
+        "environment",
+        "evidence_id"
+      ]
+    },
+    "db_audit": {
+      "required": [
+        "timestamp",
+        "user",
+        "action",
+        "object"
+      ],
+      "recommended": [
+        "host",
+        "database",
+        "sql_text",
+        "src_ip",
+        "evidence_id"
+      ]
+    },
+    "dns_log": {
+      "required": [
+        "client_ip",
+        "timestamp",
+        "query"
+      ],
+      "strongly_recommended": [
+        "response"
+      ],
+      "recommended": [
+        "query_type",
+        "rcode",
+        "evidence_id"
+      ]
+    }
+  },
+  "primary_alert_required": [
+    "alert_id",
+    "timestamp",
+    "src_ip",
+    "url",
+    "action"
+  ],
+  "primary_alert_strongly_recommended": [
+    "payload"
+  ],
+  "field_aliases": {
+    "__time__": "timestamp",
+    "@timestamp": "timestamp",
+    "client_ip": "src_ip",
+    "remote_addr": "src_ip",
+    "ip": "src_ip",
+    "plugin_name": "rule_id",
+    "event": "rule_name",
+    "trace_id": "alert_id",
+    "upstream_addr": "target_ip",
+    "upstream_host": "target_ip",
+    "backend_ip": "target_ip",
+    "request.body": "payload",
+    "request.method": "method",
+    "request_uri": "url",
+    "cmd": "command",
+    "argv": "command",
+    "dest_ip": "dst_ip",
+    "Computer": "host",
+    "computer": "host",
+    "EventID": "event_id",
+    "eventId": "event_id",
+    "Channel": "channel",
+    "ProviderName": "provider",
+    "IpAddress": "src_ip",
+    "SourceIp": "src_ip",
+    "TargetUserName": "user",
+    "SubjectUserName": "user",
+    "Level": "level",
+    "Message": "message",
+    "hostname": "host",
+    "ident": "program",
+    "syslogtag": "program",
+    "severity": "level",
+    "priority": "severity",
+    "facility": "facility",
+    "SYSLOG_IDENTIFIER": "program",
+    "_HOSTNAME": "host",
+    "source_ip": "src_ip",
+    "sip": "src_ip",
+    "dip": "dst_ip",
+    "destination_ip": "dst_ip",
+    "source_port": "src_port",
+    "sport": "src_port",
+    "dest_port": "dst_port",
+    "dport": "dst_port",
+    "destination_port": "dst_port",
+    "proto": "protocol",
+    "ip_protocol": "protocol",
+    "l7_protocol": "application",
+    "app_name": "application",
+    "app": "application",
+    "flow_id": "session_id",
+    "sessionid": "session_id",
+    "query_name": "query",
+    "qname": "query",
+    "dns_query": "query",
+    "question": "query",
+    "query_type": "query_type",
+    "qtype": "query_type",
+    "answer": "response",
+    "answers": "response",
+    "resolved_ip": "response",
+    "rcode": "rcode",
+    "ts": "timestamp",
+    "path": "url",
+    "uri": "url",
+    "uid_name": "user",
+    "username": "user",
+    "pid_name": "pid",
+    "name": "hostname",
+    "host_name": "host"
+  },
+  "agent_event_type_map": {
+    "exec": "host_exec",
+    "active_connect": "host_connect",
+    "file_op": "host_file_op",
+	"persistence_change": "host_persistence",
+	"process_snapshot": "host_process",
+	"process_start": "host_process",
+	"process_exit": "host_process",
+	"process_change": "host_process",
+	"listening_socket_snapshot": "host_socket",
+	"listening_socket_change": "host_socket",
+	"login_session_snapshot": "host_identity",
+	"login_session_started": "host_identity",
+	"login_session_ended": "host_identity",
+	"identity_snapshot": "host_identity",
+	"identity_change": "host_identity",
+	"service_snapshot": "host_service",
+	"service_change": "host_service",
+	"scheduled_task_snapshot": "host_service",
+	"scheduled_task_change": "host_service",
+	"kernel_module_snapshot": "host_kernel_context",
+	"kernel_module_change": "host_kernel_context",
+	"container_context_snapshot": "host_kernel_context",
+	"container_context_change": "host_kernel_context",
+	"host_context_snapshot": "host_kernel_context",
+	"host_context_change": "host_kernel_context"
+  }
+}

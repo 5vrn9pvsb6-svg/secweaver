@@ -1,0 +1,19 @@
+{
+  "connector_id": "conn-gcp-logging-example",
+  "name": "Google Cloud Logging 示例连接器",
+  "connector_type": "gcp_logging",
+  "status": "draft",
+  "credentials_ref": "vault://gcp/logging-readonly",
+  "description": "示例：从 GCP Cloud Logging 查询审计日志、VPC Flow Logs 或应用日志；模板使用 gcp_logging_filter。",
+  "config": {
+    "project_id": "example-security-project",
+    "resource_names": [
+      "projects/example-security-project"
+    ]
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 60
+  },
+  "tags": ["example", "gcp", "logging", "not-for-production"]
+}

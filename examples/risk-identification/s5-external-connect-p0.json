@@ -1,0 +1,51 @@
+{
+  "investigation_intent": "web-01 对外监听进程主动连接文档保留地址，验证外连行为规则",
+  "scenario": "S5",
+  "risk_modules": ["connect"],
+  "params": {
+    "host": "web-01",
+    "time_start": "2026-06-21T11:00:00+08:00",
+    "time_end": "2026-06-21T12:00:00+08:00",
+    "severity_floor": "P1"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "partial_traceable",
+    "confidence": 0.75,
+    "next_skill_blocked": false,
+    "data_gaps": ["host_exec sparse"]
+  },
+  "evidence_bundles": {
+    "host_exec": [],
+    "host_connect": [
+      {
+        "evidence_id": "connect-c2-001",
+        "event_type": "active_connect",
+        "host": "web-01",
+        "timestamp": "2026-06-21T11:05:33+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 3456,
+        "dst_ip": "198.51.100.99",
+        "dst_port": 4444
+      },
+      {
+        "evidence_id": "connect-c2-002",
+        "event_type": "active_connect",
+        "host": "web-01",
+        "timestamp": "2026-06-21T11:05:35+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 3456,
+        "dst_ip": "198.51.100.99",
+        "dst_port": 443
+      }
+    ],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S5 Web 监听进程主动外连（合成文档地址）",
+    "expected_overall_verdict": "high_risk_detected",
+    "expected_highest_severity": "P0",
+    "expected_matched_rules": ["external_c2_connect"]
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery",
+    "sample_file": "examples/log-format-discovery/vendor-cloud-audit.sample"
+  },
+  "data_sources": [
+    {
+      "name": "demo-aws-cloudtrail-cloudwatch",
+      "connector_type": "aws_cloudwatch",
+      "asset_type": "app_api_log",
+      "credentials_ref": "vault://aws/security-readonly",
+      "region": "us-east-1",
+      "log_group": "/aws/cloudtrail/management-events",
+      "log_stream_prefix": "111122223333/CloudTrail/us-east-1/",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "account_id": "111122223333",
+          "api": "logs-insights"
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "src_ip", "user", "action", "result", "awsRegion", "eventSource"],
+          "time_field": "timestamp",
+          "retention_days": 90
+        },
+        "coverage": {
+          "zones": ["cloud"],
+          "apps": ["aws-cloudtrail"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "eventTime": "timestamp",
+          "sourceIPAddress": "src_ip",
+          "userIdentity.arn": "user",
+          "eventName": "action",
+          "errorCode": "result"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "user", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "cloudwatch_query": "fields @timestamp, eventTime, eventName, eventSource, sourceIPAddress, userIdentity.arn, errorCode | filter sourceIPAddress = '{src_ip}' or userIdentity.arn like /{user}/ | sort @timestamp desc | limit {limit}"
+      }
+    },
+    {
+      "name": "demo-aws-cloudtrail-s3-archive",
+      "connector_type": "aws_s3_logs",
+      "asset_type": "app_api_log",
+      "credentials_ref": "vault://aws/security-readonly",
+      "region": "us-east-1",
+      "connector": {
+        "config": {
+          "bucket": "YOUR_CLOUDTRAIL_BUCKET",
+          "prefix": "AWSLogs/111122223333/CloudTrail/us-east-1/",
+          "format": "json_lines_or_cloudtrail_records",
+          "compression": "gzip"
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "src_ip", "user", "action", "result", "awsRegion", "eventSource"],
+          "time_field": "timestamp",
+          "retention_days": 365
+        },
+        "coverage": {
+          "zones": ["cloud"],
+          "apps": ["aws-cloudtrail-archive"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "eventTime": "timestamp",
+          "sourceIPAddress": "src_ip",
+          "userIdentity.arn": "user",
+          "eventName": "action"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "user", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "object_query": "{\"prefix\":\"AWSLogs/111122223333/CloudTrail/us-east-1/\",\"filter\":{\"sourceIPAddress\":\"{src_ip}\",\"user\":\"{user}\"},\"time_start\":\"{time_start}\",\"time_end\":\"{time_end}\",\"limit\":{limit}}"
+      }
+    },
+    {
+      "name": "demo-azure-activity-and-entra",
+      "connector_type": "azure_monitor",
+      "asset_type": "app_api_log",
+      "credentials_ref": "vault://azure/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "tenant_id": "YOUR_TENANT_ID",
+          "workspace_id": "YOUR_LOG_ANALYTICS_WORKSPACE_ID",
+          "tables": ["AzureActivity", "SigninLogs", "AuditLogs"]
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "src_ip", "user", "action", "result", "target"],
+          "time_field": "timestamp",
+          "retention_days": 90
+        },
+        "coverage": {
+          "zones": ["cloud", "identity"],
+          "apps": ["azure-monitor", "entra-id"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "TimeGenerated": "timestamp",
+          "CallerIpAddress": "src_ip",
+          "IPAddress": "src_ip",
+          "Caller": "user",
+          "UserPrincipalName": "user",
+          "OperationNameValue": "action",
+          "ResultType": "result"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "user", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "kql": "union AzureActivity, SigninLogs, AuditLogs | where TimeGenerated between (datetime({time_start}) .. datetime({time_end})) | where CallerIpAddress == \"{src_ip}\" or IPAddress == \"{src_ip}\" or UserPrincipalName == \"{user}\" or Caller == \"{user}\" | take {limit}"
+      }
+    },
+    {
+      "name": "demo-gcp-admin-activity-audit",
+      "connector_type": "gcp_logging",
+      "asset_type": "app_api_log",
+      "credentials_ref": "vault://gcp/security-readonly",
+      "endpoint": "http://127.0.0.1:8788/fetch",
+      "connector": {
+        "config": {
+          "project_id": "YOUR_GCP_PROJECT_ID",
+          "log_names": ["cloudaudit.googleapis.com/activity", "cloudaudit.googleapis.com/data_access"]
+        }
+      },
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "src_ip", "user", "action", "resource", "result"],
+          "time_field": "timestamp",
+          "retention_days": 90
+        },
+        "coverage": {
+          "zones": ["cloud"],
+          "apps": ["gcp-cloud-audit"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "timestamp": "timestamp",
+          "requestMetadata.callerIp": "src_ip",
+          "protoPayload.authenticationInfo.principalEmail": "user",
+          "protoPayload.methodName": "action",
+          "resource.type": "resource"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "user", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "gcp_logging_filter": "timestamp >= \"{time_start}\" AND timestamp <= \"{time_end}\" AND (protoPayload.authenticationInfo.principalEmail=\"{user}\" OR protoPayload.requestMetadata.callerIp=\"{src_ip}\")"
+      }
+    },
+    {
+      "name": "demo-splunk-es-notable",
+      "connector_type": "splunk",
+      "asset_type": "ids_alert",
+      "credentials_ref": "vault://splunk/security-readonly",
+      "base_url": "https://splunk.example.com:8089",
+      "index": "notable",
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "src_ip", "target_ip", "user", "rule_name", "severity", "action"],
+          "time_field": "timestamp",
+          "retention_days": 180
+        },
+        "coverage": {
+          "zones": ["siem"],
+          "apps": ["splunk-enterprise-security"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "_time": "timestamp",
+          "src": "src_ip",
+          "dest": "target_ip",
+          "signature": "rule_name"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 500
+        },
+        "splunk_search": "search index=notable (src_ip={src_ip} OR src={src_ip}) earliest=\"{time_start}\" latest=\"{time_end}\" | table _time rule_name signature severity src src_ip dest user action | head {limit}"
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "asset_id": "asset-network-nta-prod",
+  "name": "全网全流量审计（生产）",
+  "asset_type": "network_traffic_audit",
+  "domain": "D4",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-sls-firewall-dmz",
+  "description": "NDR/全流量审计平台（如科来、深信服、奇安信、TAP 镜像分析）会话/流日志入 SLS；请改为实际 connector 与 logstore",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "dst_ip",
+      "src_port",
+      "dst_port",
+      "protocol",
+      "application",
+      "bytes",
+      "packets",
+      "session_id",
+      "action",
+      "duration",
+      "sensor_id"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "network_traffic_by_src_ip_time",
+    "network_traffic_by_src_dst_time",
+    "network_traffic_by_dst_port"
+  ],
+  "sensitivity": "confidential",
+  "tags": [
+    "nta",
+    "full-traffic",
+    "network",
+    "draft"
+  ]
+}

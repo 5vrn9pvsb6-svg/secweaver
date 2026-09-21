@@ -1,0 +1,41 @@
+{
+  "investigation_intent": "web-01 仅发现 whoami 等侦察命令，无下载/反弹",
+  "scenario": "S5-EXEC",
+  "risk_modules": ["exec"],
+  "params": {
+    "host": "web-01",
+    "time_start": "2026-06-21T13:00:00+08:00",
+    "time_end": "2026-06-21T14:00:00+08:00",
+    "severity_floor": "P2"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "full_traceable",
+    "confidence": 0.85,
+    "next_skill_blocked": false
+  },
+  "evidence_bundles": {
+    "host_exec": [
+      {
+        "evidence_id": "exec-recon-001",
+        "event_type": "exec",
+        "host": "web-01",
+        "timestamp": "2026-06-21T13:10:00+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 4567,
+        "pid": "8901",
+        "exe": "/bin/bash",
+        "command": ["/bin/sh", "-c", "whoami"],
+        "comm": "sh"
+      }
+    ],
+    "host_connect": [],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S5 nginx 子进程 whoami 侦察（shell 执行仍为 P0）",
+    "expected_overall_verdict": "high_risk_detected",
+    "expected_highest_severity": "P0",
+    "expected_matched_rules_contains": ["internal_recon", "external_listener_shell_exec"]
+  }
+}

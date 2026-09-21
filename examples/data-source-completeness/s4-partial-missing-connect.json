@@ -1,0 +1,54 @@
+{
+  "investigation_intent": "WAF 告警确认是否攻击成功，已有 exec 但缺 connect",
+  "scenarios": ["S4"],
+  "params": {
+    "attacker_ip": "203.0.113.55",
+    "time_start": "2026-06-22T08:00:00+08:00",
+    "time_end": "2026-06-22T12:00:00+08:00",
+    "hosts": ["web-01"]
+  },
+  "registered_assets": [
+    {
+      "asset_id": "asset-waf-prod-01",
+      "name": "WEB WAF 告警",
+      "type": "waf_alert",
+      "domain": "D1",
+      "fields": ["src_ip", "timestamp", "url", "payload"],
+      "coverage": ["web_zone"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-web-access-prod",
+      "name": "WEB 访问日志",
+      "type": "web_access_log",
+      "domain": "D1",
+      "fields": ["src_ip", "timestamp", "url"],
+      "coverage": ["web_zone"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-secweaver-host-exec",
+      "name": "WEB 主机命令执行",
+      "type": "host_exec",
+      "domain": "D2",
+      "fields": ["host", "command", "timestamp"],
+      "coverage": ["web_hosts"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-secweaver-host-file-op",
+      "name": "WEB 主机文件操作",
+      "type": "host_file_op",
+      "domain": "D2",
+      "fields": ["host", "path", "timestamp"],
+      "coverage": ["web_hosts"],
+      "retention_days": 30
+    }
+  ],
+  "_meta": {
+    "scenario_label": "S4 P0 齐全、P1 host_connect 缺失",
+    "expected_overall_verdict": "partial_traceable",
+    "expected_next_skill_blocked": false,
+    "expected_can_confirm_breach": true
+  }
+}

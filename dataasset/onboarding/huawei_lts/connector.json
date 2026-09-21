@@ -1,0 +1,25 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Huawei LTS（模板）",
+  "connector_type": "huawei_lts",
+  "status": "draft",
+  "credentials_ref": "vault://huawei/lts-readonly",
+  "description": "华为云 LTS 查询模板；默认使用内置 LTS API fetch，也可通过 executor_endpoint 交给外部执行器。",
+  "config": {
+    "endpoint": "https://lts.cn-north-4.myhuaweicloud.com",
+    "region": "cn-north-4",
+    "project_id": "YOUR_PROJECT_ID",
+    "log_group_id": "YOUR_LOG_GROUP_ID",
+    "log_stream_id": "YOUR_LOG_STREAM_ID"
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 60
+  },
+  "tags": [
+    "template",
+    "huawei",
+    "lts",
+    "live"
+  ]
+}

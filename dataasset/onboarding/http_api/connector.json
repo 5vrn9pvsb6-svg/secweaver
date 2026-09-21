@@ -1,0 +1,12 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "HTTP API（模板）",
+  "connector_type": "http_api",
+  "status": "draft",
+  "credentials_ref": "vault://http/api-readonly",
+  "config": {
+    "base_url": "https://api.example.com/v1",
+    "endpoints": { "search": "/alerts/search" },
+    "tls_verify": true
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "host_id": "host-demo-api-gateway-01",
+  "name": "Demo API Gateway 01",
+  "hostname": "demo-api-gateway-01",
+  "host_type": "gateway",
+  "host_os": "linux",
+  "host_ip": "198.51.100.21",
+  "network_id": "net-demo-log-source",
+  "exposure": {
+    "internet_exposed": true,
+    "internet_ip": "203.0.113.21",
+    "exposed_ports": [
+      443,
+      80,
+      10081
+    ]
+  },
+  "aliases": [
+    "demo-api-gateway-01",
+    "198.51.100.21"
+  ],
+  "roles": [
+    "api-gateway",
+    "access-log-source"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic API gateway log-source template.",
+  "tags": [
+    "access-log-source",
+    "api-gateway",
+    "demo",
+    "gateway",
+    "reference"
+  ]
+}

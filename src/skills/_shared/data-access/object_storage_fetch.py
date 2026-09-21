@@ -1,0 +1,3 @@
+"""Object storage connector fetcher."""
+
+from planned_executor_fetch import fetch

@@ -1,0 +1,24 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "本地文件资产（模板）",
+  "asset_type": "ssh_auth",
+  "domain": "D3",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "text_parser": "syslog_auth",
+  "schema": {
+    "fields": [
+      "host",
+      "timestamp",
+      "src_ip",
+      "user",
+      "result"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "local_file_grep_auth"
+  ],
+  "field_aliases": {}
+}

@@ -1,0 +1,29 @@
+services:
+  web-01:
+    build: ./web-01
+    container_name: web-01
+    hostname: web-01
+    ports:
+      - "8080:80"
+    volumes:
+      - ./web-01/www:/var/www/html
+    networks:
+      lab:
+        ipv4_address: 10.10.0.10
+    depends_on:
+      - internal-01
+
+  internal-01:
+    build: ./internal-01
+    container_name: internal-01
+    hostname: internal-01
+    networks:
+      lab:
+        ipv4_address: 10.10.0.20
+
+networks:
+  lab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24

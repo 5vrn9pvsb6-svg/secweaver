@@ -1,0 +1,1 @@
+# This demo plugin has no third-party dependencies.

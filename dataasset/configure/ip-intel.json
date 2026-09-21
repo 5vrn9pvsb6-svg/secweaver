@@ -1,0 +1,26 @@
+{
+  "$schema": "https://secweaver.local/schemas/ip-intel-config.json",
+  "enabled": true,
+  "online_lookup": true,
+  "include_virustotal": true,
+  "default_provider": "auto",
+  "providers": {
+    "virustotal": {
+      "enabled": true,
+      "base_url": "https://www.virustotal.com/api/v3/ip_addresses/{ip}",
+      "credentials_ref": "vault://threat-intel/virustotal",
+      "timeout_seconds": 6,
+      "fallback_on_failure": true
+    },
+    "ipwhois": {
+      "enabled": true,
+      "base_url": "https://ipwho.is/{ip}?fields=success,message,ip,country,region,city,connection,security,type",
+      "timeout_seconds": 4
+    },
+    "ip-api": {
+      "enabled": true,
+      "base_url": "http://ip-api.com/json/{ip}?lang=zh-CN&fields=status,message,query,country,regionName,city,isp,org,as,mobile,proxy,hosting",
+      "timeout_seconds": 4
+    }
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "template_id": "YOUR_TEMPLATE_ID",
+  "asset_types": [
+    "web_access_log"
+  ],
+  "connector_types": [
+    "mongodb"
+  ],
+  "params": [
+    "src_ip",
+    "limit"
+  ],
+  "defaults": {
+    "limit": 1000
+  },
+  "mongo_query": "{{\"collection\":\"events\",\"filter\":{{\"src_ip\":\"{src_ip}\"}},\"projection\":{{\"_id\":0}},\"sort\":[[\"timestamp\",-1]],\"limit\":{limit}}}"
+}

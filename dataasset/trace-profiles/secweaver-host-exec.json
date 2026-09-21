@@ -1,0 +1,49 @@
+{
+  "profile_id": "secweaver-host-exec",
+  "version": "1.0.0",
+  "description": "SecWeaver audit-port-execmon host_exec: TTY/session signals, web-entry inference, lateral command parse.",
+  "asset_types": ["host_exec"],
+  "host_identity": {
+    "ip_fields": ["host_ip", "_victim_host", "log_source", "__source__"],
+    "generic_hosts": ["localhost", "127.0.0.1", "::1"]
+  },
+  "session_signals": {
+    "has_tty_field": "has_tty",
+    "tty_field": "tty",
+    "non_interactive_tty_values": ["(none)", "none", "?"],
+    "interactive_tty_prefixes": ["pts"]
+  },
+  "web_entry_inference": {
+    "listener_fields": ["listener_process", "pid_name"],
+    "port_field": "listener_port",
+    "command_fields": ["command_line", "command", "comm"],
+    "web_listeners_ref": "exec-rules.web_listeners",
+    "ssh_listeners_ref": "heuristic-rules.policy.listener.ssh_listeners",
+    "web_ports_ref": "heuristic-rules.policy.listener.web_ports",
+    "shell_invoke_tokens": ["sh", "-c", "bash"],
+    "webshell_substrings": ["s.phtml", "webshell", "/uploads/"],
+    "indirect_webshell_rules": [
+      { "substrings_all": ["s.phtml"] },
+      { "substrings_all": ["uploads/", "curl"] }
+    ],
+    "fallback_web_listeners": ["nginx", "httpd", "apache2", "apache", "caddy", "openresty"],
+    "fallback_ssh_listeners": ["sshd", "ssh"],
+    "fallback_web_ports": ["80", "443", "8080"]
+  },
+  "lateral_parse": {
+    "command_fields": ["command_line", "command", "comm"],
+    "patterns": [
+      {
+        "id": "user_at_ip",
+        "regex": "([a-zA-Z0-9._-]+)@((?:\\d{1,3}\\.){3}\\d{1,3}(?!\\d))",
+        "groups": ["user", "ip"]
+      },
+      {
+        "id": "ssh_lateral_ip",
+        "regex": "@((?:\\d{1,3}\\.){3}\\d{1,3}(?!\\d))|ssh(?:pass)?[^\\n]*?((?:\\d{1,3}\\.){3}\\d{1,3}(?!\\d))|s\\.phtml\\?c=[^\\s'\"]*?((?:\\d{1,3}\\.){3}\\d{1,3}(?!\\d))",
+        "groups": ["ip_at", "ip_ssh", "ip_phtml"],
+        "default_user": "?"
+      }
+    ]
+  }
+}

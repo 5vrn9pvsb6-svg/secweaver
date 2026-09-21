@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/anchor-patterns.json",
+  "title": "SecWeaver Scenario Anchor Patterns",
+  "type": "object",
+  "required": ["version", "patterns"],
+  "properties": {
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "scenario_priority": {
+      "type": "array",
+      "description": "多场景调查时 anchor 合并顺序；每项为 [scenario_id, pattern_id]，与 patterns 键对应",
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "prefixItems": [
+          { "type": "string", "pattern": "^S[1-8]$" },
+          { "type": "string", "minLength": 1 }
+        ],
+        "items": false
+      },
+      "uniqueItems": true
+    },
+    "patterns": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["label", "recommended_chain", "bundle_id"],
+        "properties": {
+          "label": { "type": "string" },
+          "investigation_window": { "type": "string" },
+          "anchor": {
+            "type": "object",
+            "properties": {
+              "field": { "type": "string" },
+              "field_variants": {
+                "type": "array",
+                "items": { "type": "string" },
+                "uniqueItems": true
+              },
+              "from": { "type": "string" },
+              "secondary": { "type": "string" },
+              "fallback_asset_types": {
+                "type": "array",
+                "items": { "type": "string" },
+                "uniqueItems": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "layer1_assets": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "layer2_assets": {
+            "type": "array",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "recommended_chain": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "optional_asset_types": {
+            "type": "array",
+            "description": "可增强场景但不阻断默认 active bundle 上线的 asset_type",
+            "items": { "type": "string" },
+            "uniqueItems": true
+          },
+          "bundle_id": {
+            "type": "string",
+            "pattern": "^bundle-[a-z0-9-]+$"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

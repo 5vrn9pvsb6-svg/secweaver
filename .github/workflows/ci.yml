@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  agent-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: src/tools/secweaver-agent/go.mod
+          cache-dependency-path: src/tools/secweaver-agent/go.sum
+
+      - name: Agent formatting, vet, tests, race, and cross-build gate
+        run: make agent-check
+
+  validate-test-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-data-access.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-data-access.txt
+
+      - name: Open-source release gate
+        run: python src/scripts/release_scan.py
+
+      - name: Documentation link check
+        run: make docs-check PYTHON=python3
+
+      - name: Attack Lab script and compose gate
+        run: make attack-lab-check
+
+      - name: Supply-chain artifact check
+        run: make sbom-check PYTHON=python3
+
+      - name: Validate dataasset registry
+        run: python src/secweaver.py validate
+
+      - name: Validate DataAsset root contracts
+        run: python src/dataasset/validate_roots.py --strict
+
+      - name: Validate behavior-policy sync
+        run: python src/skills/risk-identification/scripts/validate_policy_sync.py --strict
+
+      - name: Unit tests
+        run: make test PYTHON=python3
+
+      - name: Run offline demos
+        # Live timestamps and local paths must not dirty the source export input.
+        run: python src/secweaver.py demo all -o "$RUNNER_TEMP/secweaver-demo-reports"
+
+      - name: Build and verify public source archive
+        run: make open-source-export OUTPUT="$RUNNER_TEMP/secweaver-community.tar.gz" PYTHON=python3
+
+  agent-service-upgrade-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: src/tools/secweaver-agent/go.mod
+          cache-dependency-path: src/tools/secweaver-agent/go.sum
+
+      - name: Test healthy upgrade and automatic rollback with systemd
+        working-directory: src/tools/secweaver-agent
+        run: sudo env "PATH=$PATH" "GOCACHE=$RUNNER_TEMP/secweaver-go-build" ./integration/service-upgrade/linux-systemd.sh
+
+  agent-service-upgrade-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: src/tools/secweaver-agent/go.mod
+          cache-dependency-path: src/tools/secweaver-agent/go.sum
+
+      - name: Test healthy upgrade and automatic rollback with Windows SCM
+        working-directory: src/tools/secweaver-agent
+        shell: powershell
+        run: powershell.exe -ExecutionPolicy Bypass -File .\integration\service-upgrade\windows-scm.ps1

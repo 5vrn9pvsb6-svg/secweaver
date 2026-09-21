@@ -1,0 +1,15 @@
+{
+  "network_id": "net-demo-identity",
+  "name": "Demo Identity Services 192.0.2.0/27",
+  "cidr": "192.0.2.0/27",
+  "zone": "demo_cloud",
+  "network_type": "cloud_vpc",
+  "trust_level": "internal",
+  "status": "draft",
+  "description": "Synthetic identity-services network template for public examples.",
+  "tags": [
+    "demo",
+    "identity",
+    "reference"
+  ]
+}

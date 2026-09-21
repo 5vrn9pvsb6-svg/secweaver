@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "false_positive_patterns": [
+    {
+      "id": "uuid_param",
+      "description": "UUID 格式业务参数",
+      "regex": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      "flags": "i"
+    },
+    {
+      "id": "numeric_order_id",
+      "description": "纯数字订单号",
+      "regex": "^\\d{10,20}$"
+    },
+    {
+      "id": "base64_image",
+      "description": "Base64 图片数据前缀",
+      "contains": ["data:image/", "iVBORw0KGgo"]
+    },
+    {
+      "id": "normal_chinese_text",
+      "description": "正常中文业务文本（无 exploit 关键字）",
+      "regex": "^[\\u4e00-\\u9fa5a-zA-Z0-9\\s，。、！？：；（）【】]{2,200}$"
+    }
+  ],
+  "whitelist_url_fragments": [
+    "/health",
+    "/metrics",
+    "/favicon.ico",
+    "/robots.txt"
+  ],
+  "scanner_user_agents": [
+    "sqlmap",
+    "nikto",
+    "acunetix",
+    "nessus",
+    "masscan",
+    "zgrab",
+    "python-requests",
+    "Go-http-client"
+  ],
+  "suspicious_no_payload_rules": [
+    "generic",
+    "anomaly",
+    "rate limit",
+    "bot"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "host_id": "host-demo-monitoring-01",
+  "name": "Demo Monitoring 01",
+  "hostname": "demo-monitoring-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "203.0.113.110",
+  "network_id": "net-demo-lab-core",
+  "aliases": [
+    "demo-monitoring-01",
+    "203.0.113.110"
+  ],
+  "roles": [
+    "error-monitoring"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic monitoring host template.",
+  "tags": [
+    "demo",
+    "error-monitoring",
+    "reference",
+    "server"
+  ]
+}

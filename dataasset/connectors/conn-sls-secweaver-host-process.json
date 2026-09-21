@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-sls-secweaver-host-process",
+  "name": "SecWeaver SLS - 主机进程快照 (/var/log/host-process-snapshot.log)",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "secweaver-agent host-process-snapshot 模块输出；请创建独立 Logstore 并绑定对应 Logtail JSON 采集配置。",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "YOUR_HOST_PROCESS_LOGSTORE",
+    "source_log_path": "/var/log/host-process-snapshot.log"
+  },
+  "constraints": {
+    "max_rows": 10000,
+    "max_time_span_hours": 72,
+    "query_language": "sls_sql"
+  }
+}

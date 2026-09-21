@@ -1,0 +1,24 @@
+{
+  "asset_id": "asset-secweaver-host-socket",
+  "name": "SecWeaver 主机监听端口快照",
+  "asset_type": "host_socket",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-host-state",
+  "description": "Linux/Windows 每 5 分钟检查 TCP 监听与 UDP 本地端点，并关联进程和用户；首次/每日输出完整基线，中间输出变化。",
+  "coverage": {"hosts": []},
+  "field_aliases": {"host_name": "host", "time": "timestamp", "__source__": "log_source", "log_source": "host_ip"},
+  "schema": {
+    "fields": ["time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "entity_type", "action", "snapshot_id", "protocol", "listen_address", "listen_port", "socket_state", "pid", "pids", "process", "processes", "exe", "user", "previous", "evidence_id", "enterprise_id"],
+    "time_field": "time",
+    "retention_days": 30
+  },
+  "query_template_ids": ["host_socket_by_host_time", "host_socket_by_port_time"],
+  "sensitivity": "internal",
+  "pii_fields": ["user"],
+  "masking": {},
+  "quality": {"required_fields": ["host", "timestamp", "protocol", "listen_port"], "notes": ["事件类型包括 listening_socket_snapshot 和 listening_socket_change；短于采集间隔的监听端口可能无法观察。"]},
+  "tags": ["secweaver", "sls", "host_socket", "port_inventory", "secweaver-agent"]
+}

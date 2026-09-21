@@ -1,0 +1,41 @@
+{
+  "asset_id": "asset-mysql-db-audit",
+  "name": "MySQL 数据库操作审计",
+  "asset_type": "db_audit",
+  "domain": "D7",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-db-sec-audit",
+  "description": "MySQL database_ro 接入示例：sec_audit.db_audit_events 表；SQL 列别名对齐 canonical（ts→timestamp, client_ip→src_ip）",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "user",
+      "action",
+      "object",
+      "host",
+      "database",
+      "sql_text",
+      "src_ip"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 180
+  },
+  "query_template_ids": [
+    "db_audit_by_user_time"
+  ],
+  "sensitivity": "confidential",
+  "masking": {
+    "sql_text": "truncate_500"
+  },
+  "tags": [
+    "mysql",
+    "database_ro",
+    "example",
+    "db-audit"
+  ]
+}

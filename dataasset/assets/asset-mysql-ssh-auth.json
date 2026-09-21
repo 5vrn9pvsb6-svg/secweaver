@@ -1,0 +1,37 @@
+{
+  "asset_id": "asset-mysql-ssh-auth",
+  "name": "MySQL 登录审计（SSH 认证）",
+  "asset_type": "ssh_auth",
+  "domain": "D3",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-db-sec-audit",
+  "description": "MySQL database_ro 接入示例：sec_audit.login_events 表，模板 ssh_auth_by_src_ip_time（:src_ip 命名参数 + SELECT 只读）",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "host",
+      "src_ip",
+      "user",
+      "result",
+      "timestamp",
+      "auth_method",
+      "port"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 90
+  },
+  "query_template_ids": [
+    "ssh_auth_by_src_ip_time"
+  ],
+  "sensitivity": "internal",
+  "tags": [
+    "mysql",
+    "database_ro",
+    "example",
+    "ssh"
+  ]
+}

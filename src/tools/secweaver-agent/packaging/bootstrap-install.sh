@@ -1,0 +1,581 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Non-interactive root shells on minimal Linux systems may omit /usr/local/bin.
+# The package installer places secweaver-agent there, so normalize PATH before
+# post-install verification and service setup.
+export PATH="${PATH:-/usr/bin:/bin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/sbin"
+
+APP_NAME="secweaver-agent"
+VERSION=""
+
+# WEB Shield SecWeaver Data Cloud deployment checklist for operators:
+#
+# This file is a Bootstrap template. Do not publish it with the default
+# YOUR_DATA_CLOUD_HOST placeholders. Generate the public installer through
+# scripts/package-release.sh and set these release-time variables:
+#
+#   BOOTSTRAP_RELEASE_BASE_URL
+#     HTTPS root that serves versioned secweaver-agent packages, for example:
+#     https://updates.example.com/secweaver-agent/releases
+#
+#   BOOTSTRAP_LOGTAIL_INSTALL_URL
+#     HTTPS URL of the pinned Logtail/LoongCollector installer mirrored by
+#     WEB Shield SecWeaver Data Cloud.
+#
+#   BOOTSTRAP_LOGTAIL_INSTALL_SHA256
+#     SHA-256 of the mirrored Logtail installer. Keep this pinned; the
+#     Bootstrap refuses to install an unpinned Logtail package.
+#
+#   BOOTSTRAP_LOGTAIL_ALIUID
+#     Alibaba Cloud UID of the managed SLS account that receives customer
+#     logs. The Bootstrap writes /etc/ilogtail/users/<aliuid>.
+#
+#   BOOTSTRAP_LOGTAIL_REGION
+#     Region used by the Logtail installer, for example cn-hangzhou.
+#
+#   BOOTSTRAP_LICENSE_SERVER_URL
+#     Shared Data Cloud authorization origin, normally the SLS Proxy origin.
+#
+#   BOOTSTRAP_UPDATE_MANIFEST_URL / UPDATE_SIGNING_PRIVATE_KEY_FILE
+#     Signed update endpoint and offline release signing key. package-release.sh
+#     derives and embeds the public key; the private key is never published.
+#
+#   BOOTSTRAP_ENROLLMENT_ID
+#     Shared Alibaba Cloud custom-identifier machine-group admission value.
+#
+# WEB Shield SecWeaver Data Cloud generates install commands with one secret
+# per-enterprise value:
+#
+#   SECWEAVER_AGENT_BOOTSTRAP_URL
+#   SECWEAVER_ENTERPRISE_ENROLLMENT_TOKEN
+#
+# Server-side SLS work is still required: create/bind the custom-identifier
+# machine group for the enrollment_id, attach Logtail collection configs for
+# /opt/secweaver-agent/logs/audit-port-execmon.log,
+# /opt/secweaver-agent/logs/syslog-risk-json.log, host-persistence.log,
+# host-process-snapshot.log, host-state-snapshot.log, secweaver-agent-health.log, and
+# activate the tenant DataAsset package.
+
+# SECWEAVER_BOOTSTRAP_EMBEDDED_CONFIG_BEGIN
+EMBEDDED_RELEASE_BASE_URL="${SECWEAVER_AGENT_EMBEDDED_RELEASE_BASE_URL:-https://YOUR_DATA_CLOUD_HOST/secweaver-agent/releases}"
+EMBEDDED_LICENSE_SERVER_URL="${SECWEAVER_LICENSE_EMBEDDED_SERVER_URL:-https://agent-gateway.id-net.cn:30443}"
+EMBEDDED_ENROLLMENT_ID="${SECWEAVER_LOGTAIL_EMBEDDED_ENROLLMENT_ID:-}"
+EMBEDDED_LOGTAIL_INSTALL_URL="${SECWEAVER_LOGTAIL_EMBEDDED_INSTALL_URL:-https://YOUR_DATA_CLOUD_HOST/logtail/install.sh}"
+EMBEDDED_LOGTAIL_INSTALL_SHA256="${SECWEAVER_LOGTAIL_EMBEDDED_INSTALL_SHA256:-}"
+EMBEDDED_LOGTAIL_ALIUID="${SECWEAVER_LOGTAIL_EMBEDDED_ALIUID:-}"
+EMBEDDED_LOGTAIL_REGION="${SECWEAVER_LOGTAIL_EMBEDDED_REGION:-}"
+EMBEDDED_UPDATE_MANIFEST_URL="${SECWEAVER_AGENT_EMBEDDED_UPDATE_MANIFEST_URL:-https://YOUR_DATA_CLOUD_HOST/secweaver-agent/updates/stable/update-manifest.json}"
+EMBEDDED_UPDATE_PUBLIC_KEY="${SECWEAVER_AGENT_EMBEDDED_UPDATE_PUBLIC_KEY:-}"
+# SECWEAVER_BOOTSTRAP_EMBEDDED_CONFIG_END
+RELEASE_BASE_URL="${EMBEDDED_RELEASE_BASE_URL}"
+LICENSE_SERVER_URL="${EMBEDDED_LICENSE_SERVER_URL}"
+ENROLLMENT_ID="${EMBEDDED_ENROLLMENT_ID}"
+LOGTAIL_INSTALL_URL="${EMBEDDED_LOGTAIL_INSTALL_URL}"
+LOGTAIL_INSTALL_SHA256="${EMBEDDED_LOGTAIL_INSTALL_SHA256}"
+LOGTAIL_ALIUID="${EMBEDDED_LOGTAIL_ALIUID}"
+LOGTAIL_REGION="${EMBEDDED_LOGTAIL_REGION}"
+UPDATE_MANIFEST_URL="${EMBEDDED_UPDATE_MANIFEST_URL}"
+UPDATE_PUBLIC_KEY="${EMBEDDED_UPDATE_PUBLIC_KEY}"
+LOGTAIL_CONFIG_DIR="${SECWEAVER_LOGTAIL_CONFIG_DIR:-/etc/ilogtail}"
+ENTERPRISE_ID=""
+ENTERPRISE_ENROLLMENT_TOKEN=""
+LICENSE_CHECK_INTERVAL_SECONDS="21600"
+LICENSE_HEARTBEAT_INTERVAL_SECONDS="180"
+LICENSE_OUTAGE_GRACE_SECONDS="86400"
+ALLOW_HTTP=0
+START_SERVICE=1
+CONFIGURE_LOGTAIL=1
+TEMP_DIR=""
+
+usage() {
+  cat <<'EOF'
+Usage: curl -fsSL <bootstrap-url> | sudo bash -s -- [options]
+
+Required:
+  --enterprise-enrollment-token TOKEN
+                           Reusable enterprise-scoped installation credential
+
+Options:
+  --enterprise-id ID       Legacy v1 enterprise ID; migration use only
+  --version VERSION        Explicitly pin an immutable version for testing
+  --enrollment-id ID       Override the embedded machine admission identifier
+  --license-server-url URL Override the embedded authorization origin
+  --release-base-url URL   Override the embedded release root for self-hosting/testing
+  --logtail-install-url URL
+                           Override the embedded Logtail installer URL
+  --logtail-install-sha256 SHA256
+                           Override the embedded Logtail installer checksum
+  --logtail-aliuid UID     Override the embedded managed SLS account UID
+  --logtail-region REGION  Override the embedded Logtail upload region
+  --license-check-interval-seconds N
+                           Periodic authorization recheck interval (default: 21600)
+  --license-heartbeat-interval-seconds N
+                           Device heartbeat interval (default: 180)
+  --license-outage-grace-seconds N
+                           Cached authorization grace for transient outages (default: 86400)
+  --skip-logtail           Install only secweaver-agent; do not configure log upload
+  --allow-http             Allow HTTP release URLs for local testing only
+  --no-start               Install and preflight without enabling the service
+  -h, --help               Show this help
+
+Operator deployment note:
+  Publish this Bootstrap only after scripts/package-release.sh has embedded
+  real BOOTSTRAP_RELEASE_BASE_URL, BOOTSTRAP_LOGTAIL_INSTALL_URL,
+  BOOTSTRAP_LOGTAIL_INSTALL_SHA256, BOOTSTRAP_LOGTAIL_ALIUID, and
+  BOOTSTRAP_LOGTAIL_REGION, BOOTSTRAP_LICENSE_SERVER_URL, and
+  BOOTSTRAP_ENROLLMENT_ID values, plus the signed update manifest and public
+  key generated by UPDATE_SIGNING_PRIVATE_KEY_FILE. The UI command contains only an enterprise
+  enrollment token. The server resolves enterprise_id from that token; the
+  client does not declare its own tenant. Shared values must not be
+  placeholders. SecWeaver AK/SK stay on WEB Shield/SecWeaver Data Cloud and
+  must never be placed on customer hosts.
+EOF
+}
+
+log() {
+  echo "[secweaver-agent bootstrap] $*"
+}
+
+fatal() {
+  echo "[secweaver-agent bootstrap] ERROR: $*" >&2
+  exit 1
+}
+
+cleanup() {
+  if [[ -n "${TEMP_DIR}" && -d "${TEMP_DIR}" ]]; then
+    rm -rf "${TEMP_DIR}"
+  fi
+}
+trap cleanup EXIT INT TERM
+
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    --enterprise-enrollment-token)
+      [[ "$#" -ge 2 ]] || fatal "--enterprise-enrollment-token requires a value"
+      ENTERPRISE_ENROLLMENT_TOKEN="$2"
+      shift 2
+      ;;
+    --enterprise-enrollment-token=*)
+      ENTERPRISE_ENROLLMENT_TOKEN="${1#*=}"
+      shift
+      ;;
+    --enterprise-id)
+      [[ "$#" -ge 2 ]] || fatal "--enterprise-id requires a value"
+      ENTERPRISE_ID="$2"
+      shift 2
+      ;;
+    --enterprise-id=*)
+      ENTERPRISE_ID="${1#*=}"
+      shift
+      ;;
+    --license-server-url)
+      [[ "$#" -ge 2 ]] || fatal "--license-server-url requires a value"
+      LICENSE_SERVER_URL="$2"
+      shift 2
+      ;;
+    --license-server-url=*)
+      LICENSE_SERVER_URL="${1#*=}"
+      shift
+      ;;
+    --license-check-interval-seconds)
+      [[ "$#" -ge 2 ]] || fatal "--license-check-interval-seconds requires a value"
+      LICENSE_CHECK_INTERVAL_SECONDS="$2"
+      shift 2
+      ;;
+    --license-check-interval-seconds=*)
+      LICENSE_CHECK_INTERVAL_SECONDS="${1#*=}"
+      shift
+      ;;
+    --license-heartbeat-interval-seconds)
+      [[ "$#" -ge 2 ]] || fatal "--license-heartbeat-interval-seconds requires a value"
+      LICENSE_HEARTBEAT_INTERVAL_SECONDS="$2"
+      shift 2
+      ;;
+    --license-heartbeat-interval-seconds=*)
+      LICENSE_HEARTBEAT_INTERVAL_SECONDS="${1#*=}"
+      shift
+      ;;
+    --license-outage-grace-seconds)
+      [[ "$#" -ge 2 ]] || fatal "--license-outage-grace-seconds requires a value"
+      LICENSE_OUTAGE_GRACE_SECONDS="$2"
+      shift 2
+      ;;
+    --license-outage-grace-seconds=*)
+      LICENSE_OUTAGE_GRACE_SECONDS="${1#*=}"
+      shift
+      ;;
+    --enrollment-id)
+      [[ "$#" -ge 2 ]] || fatal "--enrollment-id requires a value"
+      ENROLLMENT_ID="$2"
+      shift 2
+      ;;
+    --enrollment-id=*)
+      ENROLLMENT_ID="${1#*=}"
+      shift
+      ;;
+    --release-base-url)
+      [[ "$#" -ge 2 ]] || fatal "--release-base-url requires a value"
+      RELEASE_BASE_URL="$2"
+      shift 2
+      ;;
+    --release-base-url=*)
+      RELEASE_BASE_URL="${1#*=}"
+      shift
+      ;;
+    --version)
+      [[ "$#" -ge 2 ]] || fatal "--version requires a value"
+      VERSION="$2"
+      shift 2
+      ;;
+    --version=*)
+      VERSION="${1#*=}"
+      shift
+      ;;
+    --logtail-install-url)
+      [[ "$#" -ge 2 ]] || fatal "--logtail-install-url requires a value"
+      LOGTAIL_INSTALL_URL="$2"
+      shift 2
+      ;;
+    --logtail-install-url=*)
+      LOGTAIL_INSTALL_URL="${1#*=}"
+      shift
+      ;;
+    --logtail-install-sha256)
+      [[ "$#" -ge 2 ]] || fatal "--logtail-install-sha256 requires a value"
+      LOGTAIL_INSTALL_SHA256="$2"
+      shift 2
+      ;;
+    --logtail-install-sha256=*)
+      LOGTAIL_INSTALL_SHA256="${1#*=}"
+      shift
+      ;;
+    --logtail-aliuid)
+      [[ "$#" -ge 2 ]] || fatal "--logtail-aliuid requires a value"
+      LOGTAIL_ALIUID="$2"
+      shift 2
+      ;;
+    --logtail-aliuid=*)
+      LOGTAIL_ALIUID="${1#*=}"
+      shift
+      ;;
+    --logtail-region)
+      [[ "$#" -ge 2 ]] || fatal "--logtail-region requires a value"
+      LOGTAIL_REGION="$2"
+      shift 2
+      ;;
+    --logtail-region=*)
+      LOGTAIL_REGION="${1#*=}"
+      shift
+      ;;
+    --skip-logtail)
+      CONFIGURE_LOGTAIL=0
+      shift
+      ;;
+    --allow-http)
+      ALLOW_HTTP=1
+      shift
+      ;;
+    --no-start)
+      START_SERVICE=0
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      fatal "unknown argument: $1"
+      ;;
+  esac
+done
+
+if [[ "$(id -u)" -ne 0 && "${SECWEAVER_BOOTSTRAP_ALLOW_NON_ROOT:-0}" != "1" ]]; then
+  fatal "run as root, for example: curl -fsSL <bootstrap-url> | sudo bash -s -- ..."
+fi
+
+if [[ -n "${ENTERPRISE_ENROLLMENT_TOKEN}" && -n "${ENTERPRISE_ID}" ]]; then
+  fatal "provide either --enterprise-enrollment-token or --enterprise-id, not both"
+fi
+if [[ -n "${ENTERPRISE_ENROLLMENT_TOKEN}" ]]; then
+  [[ "${ENTERPRISE_ENROLLMENT_TOKEN}" =~ ^swenr_[a-z2-7]+\.[A-Za-z0-9_-]{40,128}$ ]] || \
+    fatal "--enterprise-enrollment-token has an invalid format"
+else
+  ENTERPRISE_ID="$(printf '%s' "${ENTERPRISE_ID}" | tr '[:lower:]' '[:upper:]')"
+  [[ "${ENTERPRISE_ID}" =~ ^[A-Z0-9]{16}$ ]] || \
+    fatal "--enterprise-enrollment-token is required; --enterprise-id is supported only for legacy v1 migration"
+fi
+[[ -n "${LICENSE_SERVER_URL}" && "${LICENSE_SERVER_URL}" != *YOUR_DATA_CLOUD_HOST* && "${LICENSE_SERVER_URL}" != *YOUR_WEB_SHIELD_HOST* ]] || fatal "--license-server-url is required and must not be a placeholder"
+[[ "${LICENSE_SERVER_URL}" =~ ^https:// ]] || fatal "--license-server-url must use HTTPS"
+[[ "${LICENSE_CHECK_INTERVAL_SECONDS}" =~ ^[0-9]+$ ]] || fatal "--license-check-interval-seconds must be an integer"
+[[ "${LICENSE_HEARTBEAT_INTERVAL_SECONDS}" =~ ^[0-9]+$ ]] || fatal "--license-heartbeat-interval-seconds must be an integer"
+[[ "${LICENSE_OUTAGE_GRACE_SECONDS}" =~ ^[0-9]+$ ]] || fatal "--license-outage-grace-seconds must be an integer"
+(( 10#${LICENSE_OUTAGE_GRACE_SECONDS} <= 604800 )) || fatal "--license-outage-grace-seconds must not exceed 604800"
+[[ -z "${VERSION}" || "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || fatal "invalid --version"
+[[ -n "${RELEASE_BASE_URL}" ]] || fatal "release base URL is not configured"
+[[ "${RELEASE_BASE_URL}" != *YOUR_DATA_CLOUD_HOST* ]] || fatal "embedded release base URL is not configured"
+[[ "${RELEASE_BASE_URL}" != *[[:space:]]* && "${RELEASE_BASE_URL}" != *\?* && "${RELEASE_BASE_URL}" != *\#* ]] || fatal "invalid --release-base-url"
+[[ "${UPDATE_MANIFEST_URL}" =~ ^https:// ]] || fatal "embedded update manifest URL must use HTTPS"
+[[ "${UPDATE_MANIFEST_URL}" != *YOUR_DATA_CLOUD_HOST* && "${UPDATE_MANIFEST_URL}" != *[[:space:]]* && "${UPDATE_MANIFEST_URL}" != *\#* ]] || fatal "embedded update manifest URL is not configured"
+[[ "${UPDATE_PUBLIC_KEY}" =~ ^[A-Za-z0-9+/]{43}=$ ]] || fatal "embedded Ed25519 update public key is not configured"
+
+if [[ "${SECWEAVER_BOOTSTRAP_ALLOW_FILE:-0}" == "1" && "${RELEASE_BASE_URL}" =~ ^file:// ]]; then
+  : # Test-only local release directory; no user-facing flag enables this mode.
+elif [[ "${ALLOW_HTTP}" == "1" ]]; then
+  [[ "${RELEASE_BASE_URL}" =~ ^https?:// ]] || fatal "release URL must use HTTP or HTTPS"
+else
+  [[ "${RELEASE_BASE_URL}" =~ ^https:// ]] || fatal "release URL must use HTTPS; --allow-http is for local testing only"
+fi
+RELEASE_BASE_URL="${RELEASE_BASE_URL%/}"
+
+if [[ "${CONFIGURE_LOGTAIL}" == "1" ]]; then
+  [[ "${ENROLLMENT_ID}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$ ]] || fatal "--enrollment-id must contain 2-128 safe ASCII characters"
+  [[ "${LOGTAIL_ALIUID}" =~ ^[0-9]{6,32}$ ]] || fatal "embedded Logtail AliUid is not configured; contact the Data Cloud administrator"
+  [[ "${LOGTAIL_REGION}" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]] || fatal "embedded Logtail region is not configured; contact the Data Cloud administrator"
+  if [[ -n "${LOGTAIL_INSTALL_SHA256}" ]]; then
+    LOGTAIL_INSTALL_SHA256="$(printf '%s' "${LOGTAIL_INSTALL_SHA256}" | tr '[:upper:]' '[:lower:]')"
+    [[ "${LOGTAIL_INSTALL_SHA256}" =~ ^[0-9a-f]{64}$ ]] || fatal "invalid Logtail installer SHA-256"
+  fi
+fi
+
+[[ "$(uname -s)" == "Linux" ]] || fatal "this bootstrap installer currently supports Linux only"
+case "$(uname -m)" in
+  x86_64|amd64)
+    ARCH="amd64"
+    ;;
+  aarch64|arm64)
+    ARCH="arm64"
+    ;;
+  loongarch64|loong64)
+    ARCH="loong64"
+    ;;
+  *)
+    fatal "unsupported CPU architecture: $(uname -m)"
+    ;;
+esac
+
+for command_name in tar mktemp awk wc cat; do
+  command -v "${command_name}" >/dev/null 2>&1 || fatal "required command not found: ${command_name}"
+done
+
+download() {
+  local url="$1"
+  local output="$2"
+  if [[ "${SECWEAVER_BOOTSTRAP_ALLOW_FILE:-0}" == "1" && "${url}" =~ ^file:// ]]; then
+    cp "${url#file://}" "${output}"
+    return
+  fi
+  if command -v curl >/dev/null 2>&1; then
+    if [[ "${ALLOW_HTTP}" == "1" ]]; then
+      curl --fail --silent --show-error --location --output "${output}" "${url}"
+    else
+      curl --fail --silent --show-error --location \
+        --proto '=https' --proto-redir '=https' --tlsv1.2 \
+        --output "${output}" "${url}"
+    fi
+    return
+  fi
+  if command -v wget >/dev/null 2>&1; then
+    if [[ "${ALLOW_HTTP}" == "1" ]]; then
+      wget --quiet --output-document="${output}" "${url}"
+    else
+      wget --quiet --https-only --output-document="${output}" "${url}"
+    fi
+    return
+  fi
+  fatal "curl or wget is required"
+}
+
+sha256_file() {
+  local file="$1"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${file}" | awk '{print $1}'
+    return
+  fi
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "${file}" | awk '{print $1}'
+    return
+  fi
+  if command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 "${file}" | awk '{print $NF}'
+    return
+  fi
+  fatal "sha256sum, shasum, or openssl is required for package verification"
+}
+
+logtail_installed() {
+  [[ "${SECWEAVER_LOGTAIL_ASSUME_INSTALLED:-0}" == "1" ]] && return 0
+  command -v ilogtaild >/dev/null 2>&1 && return 0
+  command -v loongcollector >/dev/null 2>&1 && return 0
+  [[ -x /usr/local/ilogtail/ilogtail || -x /usr/local/ilogtail/ilogtaild || -x /usr/local/ilogtail/loongcollector ]] && return 0
+  [[ -x /etc/init.d/ilogtaild || -x /etc/init.d/loongcollectord ]] && return 0
+  return 1
+}
+
+install_logtail() {
+  if logtail_installed; then
+    log "Logtail/LoongCollector is already installed"
+    return
+  fi
+  [[ -n "${LOGTAIL_INSTALL_URL}" && "${LOGTAIL_INSTALL_URL}" != *YOUR_DATA_CLOUD_HOST* ]] || fatal "Logtail is not installed and the embedded installer URL is not configured"
+  [[ -n "${LOGTAIL_INSTALL_SHA256}" ]] || fatal "Logtail installer checksum is not pinned; contact the Data Cloud administrator"
+  [[ "${LOGTAIL_INSTALL_URL}" != *[[:space:]]* && "${LOGTAIL_INSTALL_URL}" != *\?* && "${LOGTAIL_INSTALL_URL}" != *\#* ]] || fatal "invalid Logtail installer URL"
+  if [[ "${SECWEAVER_BOOTSTRAP_ALLOW_FILE:-0}" == "1" && "${LOGTAIL_INSTALL_URL}" =~ ^file:// ]]; then
+    :
+  elif [[ "${ALLOW_HTTP}" == "1" ]]; then
+    [[ "${LOGTAIL_INSTALL_URL}" =~ ^https?:// ]] || fatal "Logtail installer URL must use HTTP or HTTPS"
+  else
+    [[ "${LOGTAIL_INSTALL_URL}" =~ ^https:// ]] || fatal "Logtail installer URL must use HTTPS"
+  fi
+
+  local installer_path="${TEMP_DIR}/logtail-install.sh"
+  log "downloading pinned Logtail installer"
+  download "${LOGTAIL_INSTALL_URL}" "${installer_path}"
+  local actual_sha256
+  actual_sha256="$(sha256_file "${installer_path}" | tr '[:upper:]' '[:lower:]')"
+  [[ "${actual_sha256}" == "${LOGTAIL_INSTALL_SHA256}" ]] || fatal "Logtail installer checksum mismatch"
+  log "Logtail installer checksum verified"
+  bash "${installer_path}" install "${LOGTAIL_REGION}"
+  logtail_installed || fatal "Logtail installer completed but Logtail/LoongCollector was not found"
+}
+
+configure_logtail_identity() {
+  local users_dir="${LOGTAIL_CONFIG_DIR}/users"
+  local enrollment_temp
+  install -d -m 0755 "${users_dir}"
+  install -m 0644 /dev/null "${users_dir}/${LOGTAIL_ALIUID}"
+  enrollment_temp="$(mktemp "${LOGTAIL_CONFIG_DIR}/.user_defined_id.XXXXXX")"
+  printf '%s\n' "${ENROLLMENT_ID}" >"${enrollment_temp}"
+  chmod 0644 "${enrollment_temp}"
+  mv -f "${enrollment_temp}" "${LOGTAIL_CONFIG_DIR}/user_defined_id"
+  log "Logtail identity configured for the Data Cloud custom-identifier machine group"
+}
+
+start_logtail() {
+  local service_name
+  if command -v systemctl >/dev/null 2>&1; then
+    for service_name in loongcollectord.service ilogtaild.service; do
+      if systemctl cat "${service_name}" >/dev/null 2>&1; then
+        systemctl enable --now "${service_name}"
+        systemctl restart "${service_name}"
+        systemctl is-active --quiet "${service_name}" || fatal "${service_name} did not become active"
+        log "${service_name} is active"
+        return
+      fi
+    done
+  fi
+  for service_name in loongcollectord ilogtaild; do
+    if [[ -x "/etc/init.d/${service_name}" ]]; then
+      "/etc/init.d/${service_name}" restart
+      "/etc/init.d/${service_name}" status >/dev/null 2>&1 || fatal "${service_name} init service did not become active"
+      log "${service_name} init service is active"
+      return
+    fi
+  done
+  fatal "Logtail is installed but no supported Logtail/LoongCollector service manager was found"
+}
+
+TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/secweaver-agent-bootstrap.XXXXXX")"
+trap cleanup EXIT
+
+# Resolve once before install side effects. Publishers switch this HTTPS pointer
+# only after every immutable archive exists. Missing/invalid pointers fail closed.
+# Initial trust remains HTTPS + SHA-256; signed manifests govern later updates.
+if [[ -z "${VERSION}" ]]; then
+  VERSION_FILE="${TEMP_DIR}/latest-version.txt"
+  download "${RELEASE_BASE_URL}/latest-version.txt" "${VERSION_FILE}"
+  (( $(wc -c <"${VERSION_FILE}") <= 65 )) || fatal "release version pointer exceeds 65 bytes"
+  VERSION="$(cat "${VERSION_FILE}")"
+  [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ && ${#VERSION} -le 64 ]] || fatal "invalid release version pointer"
+  (( $(wc -c <"${VERSION_FILE}") <= ${#VERSION} + 1 )) || fatal "invalid release version pointer whitespace"
+fi
+
+PACKAGE_NAME="${APP_NAME}_${VERSION}_linux_${ARCH}"
+ARCHIVE_NAME="${PACKAGE_NAME}.tar.gz"
+PACKAGE_URL="${RELEASE_BASE_URL}/${VERSION}/${ARCHIVE_NAME}"
+CHECKSUM_URL="${PACKAGE_URL}.sha256"
+
+ARCHIVE_PATH="${TEMP_DIR}/${ARCHIVE_NAME}"
+CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
+
+cleanup_temp_dir() {
+  if [[ -n "${TEMP_DIR}" && -d "${TEMP_DIR}" ]]; then
+    rm -rf -- "${TEMP_DIR}"
+  fi
+}
+
+trap cleanup_temp_dir EXIT
+
+log "downloading ${PACKAGE_URL}"
+download "${PACKAGE_URL}" "${ARCHIVE_PATH}"
+download "${CHECKSUM_URL}" "${CHECKSUM_PATH}"
+
+EXPECTED_SHA256="$(awk 'NR == 1 {print tolower($1)}' "${CHECKSUM_PATH}")"
+[[ "${EXPECTED_SHA256}" =~ ^[0-9a-f]{64}$ ]] || fatal "invalid checksum file: ${CHECKSUM_URL}"
+ACTUAL_SHA256="$(sha256_file "${ARCHIVE_PATH}" | tr '[:upper:]' '[:lower:]')"
+[[ "${ACTUAL_SHA256}" == "${EXPECTED_SHA256}" ]] || fatal "package checksum mismatch"
+log "package checksum verified"
+
+while IFS= read -r entry; do
+  case "${entry}" in
+    /*|../*|*/../*|*/..)
+      fatal "unsafe archive entry: ${entry}"
+      ;;
+  esac
+done < <(tar -tzf "${ARCHIVE_PATH}")
+
+tar -xzf "${ARCHIVE_PATH}" -C "${TEMP_DIR}"
+PACKAGE_ROOT="${TEMP_DIR}/${PACKAGE_NAME}"
+[[ -x "${PACKAGE_ROOT}/install.sh" ]] || fatal "package install.sh not found or not executable"
+
+log "installing ${APP_NAME} ${VERSION} for linux/${ARCH}"
+INSTALL_ARGS=(
+  --license-server-url "${LICENSE_SERVER_URL}"
+  --license-check-interval-seconds "${LICENSE_CHECK_INTERVAL_SECONDS}"
+  --license-heartbeat-interval-seconds "${LICENSE_HEARTBEAT_INTERVAL_SECONDS}"
+  --license-outage-grace-seconds "${LICENSE_OUTAGE_GRACE_SECONDS}"
+  --update-manifest-url "${UPDATE_MANIFEST_URL}"
+  --update-public-key "${UPDATE_PUBLIC_KEY}"
+)
+if [[ -n "${ENTERPRISE_ENROLLMENT_TOKEN}" ]]; then
+  INSTALL_ARGS+=(--enterprise-enrollment-token "${ENTERPRISE_ENROLLMENT_TOKEN}")
+else
+  INSTALL_ARGS+=(
+    --enterprise-id "${ENTERPRISE_ID}"
+    --license-enrollment-id "${ENROLLMENT_ID}"
+  )
+fi
+"${PACKAGE_ROOT}/install.sh" "${INSTALL_ARGS[@]}"
+ENTERPRISE_ENROLLMENT_TOKEN=""
+
+command -v secweaver-agent >/dev/null 2>&1 || fatal "secweaver-agent was not installed in PATH"
+secweaver-agent preflight -config /opt/secweaver-agent/etc/config.json -strict
+
+if [[ "${CONFIGURE_LOGTAIL}" == "1" ]]; then
+  install_logtail
+  configure_logtail_identity
+fi
+
+if [[ "${START_SERVICE}" == "1" ]]; then
+  command -v systemctl >/dev/null 2>&1 || fatal "systemctl not found after installation"
+  systemctl enable secweaver-agent
+  systemctl restart secweaver-agent
+  sleep 2
+  if ! systemctl is-active --quiet secweaver-agent; then
+    systemctl --no-pager --full status secweaver-agent >&2 || true
+    fatal "secweaver-agent service did not become active"
+  fi
+  if ! secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json; then
+    systemctl --no-pager --full status secweaver-agent >&2 || true
+    fatal "secweaver-agent post-install diagnostics failed"
+  fi
+  if [[ "${CONFIGURE_LOGTAIL}" == "1" ]]; then
+    start_logtail
+    log "installation complete; secweaver-agent and Logtail/LoongCollector are active"
+    log "Data Cloud must confirm machine-group heartbeat and server-side Logstore binding"
+  else
+    log "installation complete; secweaver-agent is active; Logtail setup was skipped"
+  fi
+else
+  log "installation, preflight, and local identity configuration complete; service start skipped"
+fi

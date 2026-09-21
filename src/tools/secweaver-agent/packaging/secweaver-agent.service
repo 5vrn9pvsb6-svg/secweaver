@@ -1,0 +1,39 @@
+[Unit]
+Description=SecWeaver unified host agent
+After=network-online.target auditd.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+# systemd 219 (RHEL/CentOS 7) defines these legacy names in [Service].
+# Newer systemd releases retain the aliases, so this placement is intentional.
+# Disable systemd's start-rate latch. Transient authorization/network failures
+# retry in-process; an invalid local configuration exits 78 and is excluded below.
+StartLimitInterval=0
+User=root
+Environment=SECWEAVER_AGENT_RESTART_EXIT_CODE=75
+ExecStart=/opt/secweaver-agent/bin/secweaver-agent-launch run -config /opt/secweaver-agent/etc/config.json
+ExecStopPost=/opt/secweaver-agent/bin/secweaver-agent audit-cleanup -quiet
+Restart=on-failure
+SuccessExitStatus=75
+RestartForceExitStatus=75
+RestartPreventExitStatus=78
+RestartSec=5s
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=30s
+CPUAccounting=true
+CPUQuota=50%
+MemoryAccounting=true
+MemoryLimit=512M
+TasksMax=128
+LimitNOFILE=8192
+LimitMEMLOCK=infinity
+Nice=5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+OOMScoreAdjust=500
+ReadWritePaths=/opt/secweaver-agent/data /opt/secweaver-agent/logs
+
+[Install]
+WantedBy=multi-user.target

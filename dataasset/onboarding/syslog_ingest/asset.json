@@ -1,0 +1,41 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "Syslog Ingest（模板）资产",
+  "asset_type": "ssh_auth",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "Syslog 接收/索引接入描述；当前用于资产注册，查询通常落到 SLS/ES/仓库 connector。",
+  "text_parser": "syslog_auth",
+  "coverage": {
+    "zones": [
+      "edge"
+    ],
+    "apps": [],
+    "hosts": [
+      "YOUR_HOST"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "src_ip",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {},
+  "tags": [
+    "template",
+    "syslog-ingest",
+    "planned"
+  ]
+}

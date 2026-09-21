@@ -1,0 +1,451 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.dev/schemas/prompt-risk-analysis-output.json",
+  "title": "PromptRiskAnalysisReport",
+  "description": "Strict prompt-risk-analysis report contract. Facts must come from evidence-fetch and all report evidence must be redacted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "meta",
+    "redaction",
+    "verdict",
+    "inventory",
+    "timeline",
+    "findings",
+    "narrative",
+    "impact",
+    "recommendations",
+    "data_gaps",
+    "fetch_next"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["skill", "investigation", "scenario_alignment", "generated_at"],
+      "properties": {
+        "skill": { "const": "prompt-risk-analysis" },
+        "investigation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "time_start",
+            "time_end",
+            "timezone",
+            "scenario",
+            "original_params",
+            "normalized_params",
+            "fetch_summary"
+          ],
+          "properties": {
+            "hosts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "attacker_ips": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "time_start": { "type": "string", "format": "date-time" },
+            "time_end": { "type": "string", "format": "date-time" },
+            "timezone": { "type": "string", "minLength": 1 },
+            "scenario": { "enum": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"] },
+            "original_params": { "type": "object" },
+            "normalized_params": { "type": "object" },
+            "fetch_summary": { "$ref": "#/$defs/fetchSummary" }
+          }
+        },
+        "scenario_alignment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["primary_scenario", "pattern_id", "label", "secondary_scenarios", "bundle_id", "selection_reason"],
+          "properties": {
+            "primary_scenario": { "enum": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"] },
+            "pattern_id": { "type": "string", "minLength": 1 },
+            "label": { "type": "string", "minLength": 1 },
+            "secondary_scenarios": {
+              "type": "array",
+              "items": { "enum": ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"] },
+              "uniqueItems": true
+            },
+            "bundle_id": { "type": ["string", "null"] },
+            "selection_reason": { "type": "string", "minLength": 1 }
+          }
+        },
+        "generated_at": { "type": "string", "format": "date-time" },
+        "model_note": { "type": "string" }
+      }
+    },
+    "redaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["applied", "contains_reusable_secrets", "masked_categories"],
+      "properties": {
+        "applied": { "const": true },
+        "contains_reusable_secrets": { "const": false },
+        "masked_categories": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "password",
+              "token",
+              "api_key",
+              "cookie",
+              "authorization",
+              "private_key",
+              "credential_uri_parameter",
+              "credential_command_argument",
+              "sensitive_config_value"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "notes": { "type": "string" }
+      }
+    },
+    "verdict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "attack_status", "confidence", "disposition", "summary"],
+      "properties": {
+        "severity": { "enum": ["P0", "P1", "P2", "P3"] },
+        "attack_status": { "$ref": "#/$defs/attackStatus" },
+        "confidence": { "enum": ["high", "medium", "low"] },
+        "disposition": { "enum": ["alert_required", "suppress", "monitor"] },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["asset_types", "counting", "time_span", "chain_coverage"],
+      "properties": {
+        "asset_types": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["asset_type", "raw_count", "retained_count", "deduplicated_count"],
+            "properties": {
+              "asset_type": { "type": "string", "minLength": 1 },
+              "raw_count": { "type": "integer", "minimum": 0 },
+              "retained_count": { "type": "integer", "minimum": 0 },
+              "deduplicated_count": { "type": "integer", "minimum": 0 },
+              "sampled_count": { "type": ["integer", "null"], "minimum": 0 }
+            }
+          }
+        },
+        "counting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["raw_count", "retained_count", "deduplicated_count", "sampled_count", "count_basis", "count_inconsistency"],
+          "properties": {
+            "raw_count": { "type": "integer", "minimum": 0 },
+            "retained_count": { "type": "integer", "minimum": 0 },
+            "deduplicated_count": { "type": "integer", "minimum": 0 },
+            "sampled_count": { "type": ["integer", "null"], "minimum": 0 },
+            "count_basis": { "const": "retained_events" },
+            "count_inconsistency": { "type": ["string", "null"] }
+          }
+        },
+        "time_span": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["first", "last"],
+          "properties": {
+            "first": { "type": ["string", "null"], "format": "date-time" },
+            "last": { "type": ["string", "null"], "format": "date-time" }
+          }
+        },
+        "chain_coverage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["join_id", "status", "time_window", "notes"],
+            "properties": {
+              "join_id": { "type": "string", "minLength": 1 },
+              "status": { "enum": ["covered", "partial", "missing"] },
+              "time_window": { "type": ["string", "null"] },
+              "notes": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "waf_coverage": { "$ref": "#/$defs/wafCoverage" },
+    "timeline": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["time", "host", "asset_type", "summary", "phase", "evidence_ids", "join_ids"],
+        "properties": {
+          "time": { "type": "string", "format": "date-time" },
+          "host": { "type": "string" },
+          "asset_type": { "type": "string", "minLength": 1 },
+          "summary": { "type": "string", "minLength": 1 },
+          "phase": {
+            "enum": [
+              "setup",
+              "initial_access",
+              "execution",
+              "discovery",
+              "credential_access",
+              "persistence",
+              "command_and_control",
+              "defense_evasion",
+              "lateral",
+              "exfiltration",
+              "impact",
+              "cleanup",
+              "other"
+            ]
+          },
+          "evidence_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+          "join_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "finding_id",
+          "severity",
+          "attack_status",
+          "disposition",
+          "confidence",
+          "title",
+          "description",
+          "hosts",
+          "attack_techniques",
+          "join_refs",
+          "evidence_refs"
+        ],
+        "properties": {
+          "finding_id": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["P0", "P1", "P2", "P3"] },
+          "attack_status": { "$ref": "#/$defs/attackStatus" },
+          "disposition": { "enum": ["alert_required", "suppress", "monitor"] },
+          "confidence": { "enum": ["high", "medium", "low"] },
+          "title": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 },
+          "hosts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "attack_techniques": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+          "suppress_reason": { "type": "string" },
+          "join_refs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["join_id", "time_window"],
+              "properties": {
+                "join_id": { "type": "string" },
+                "time_window": { "type": "string" }
+              }
+            }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "$ref": "#/$defs/evidenceRef" }
+          }
+        }
+      }
+    },
+    "narrative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary", "attack_chain_confidence", "drill_assessment", "notes"],
+      "properties": {
+        "summary": { "type": "string", "minLength": 1 },
+        "attack_chain_confidence": { "enum": ["high", "medium", "low", "none"] },
+        "drill_assessment": { "enum": ["likely", "unlikely", "unknown"] },
+        "notes": { "type": "string" }
+      }
+    },
+    "impact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hosts_confirmed", "hosts_suspected", "accounts", "data_classes"],
+      "properties": {
+        "hosts_confirmed": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "hosts_suspected": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "accounts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "data_classes": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "recommendations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "priority", "rationale"],
+        "properties": {
+          "action": { "type": "string", "minLength": 1 },
+          "priority": { "enum": ["immediate", "high", "medium", "low"] },
+          "rationale": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "data_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["asset_type", "join_id", "reason", "confidence_impact"],
+        "properties": {
+          "asset_type": { "type": "string" },
+          "join_id": { "type": ["string", "null"] },
+          "reason": { "type": "string", "minLength": 1 },
+          "confidence_impact": { "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "fetch_next": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["description", "bundle_id", "asset_ids", "params_hint", "redacted"],
+        "properties": {
+          "description": { "type": "string", "minLength": 1 },
+          "bundle_id": { "type": ["string", "null"] },
+          "asset_ids": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+          "params_hint": { "type": "object" },
+          "redacted": { "const": true }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "meta": {
+            "properties": {
+              "investigation": {
+                "properties": { "scenario": { "const": "S4" } },
+                "required": ["scenario"]
+              }
+            },
+            "required": ["investigation"]
+          }
+        },
+        "required": ["meta"]
+      },
+      "then": { "required": ["waf_coverage"] }
+    }
+  ],
+  "$defs": {
+    "attackStatus": {
+      "enum": ["blocked", "attempted", "suspected_success", "confirmed_success", "insufficient_evidence"]
+    },
+    "fetchSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "fetch_mode",
+        "total_fetched_events",
+        "total_events",
+        "total_deduplicated_events",
+        "failed_fetch_queries",
+        "by_asset_type",
+        "declared_asset_ids",
+        "fetch_asset_ids",
+        "truncated_asset_types",
+        "time_window"
+      ],
+      "properties": {
+        "fetch_mode": { "enum": ["live", "offline", "dry_run", "plan_only"] },
+        "total_fetched_events": { "type": "integer", "minimum": 0 },
+        "total_events": { "type": "integer", "minimum": 0 },
+        "total_deduplicated_events": { "type": "integer", "minimum": 0 },
+        "failed_fetch_queries": { "type": "integer", "minimum": 0 },
+        "by_asset_type": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "declared_asset_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "fetch_asset_ids": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "truncated_asset_types": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "time_window": {
+          "type": "object",
+          "required": ["time_start", "time_end"],
+          "properties": {
+            "time_start": { "type": "string", "format": "date-time" },
+            "time_end": { "type": "string", "format": "date-time" }
+          }
+        }
+      }
+    },
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidence_id", "asset_type", "time", "redacted", "excerpt"],
+      "properties": {
+        "evidence_id": { "type": "string", "minLength": 1 },
+        "source_asset_id": { "type": "string" },
+        "asset_type": { "type": "string", "minLength": 1 },
+        "time": { "type": "string", "format": "date-time" },
+        "host": { "type": "string" },
+        "rule_id": { "type": "string" },
+        "excerpt": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "redacted": { "const": true }
+      }
+    },
+    "wafCoverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "count_basis",
+        "waf_alert_count",
+        "web_access_raw_count",
+        "web_access_retained_count",
+        "blocked_count",
+        "backend_reached_count",
+        "suspicious_without_waf_count",
+        "confirmed_bypass_count",
+        "unmatched_waf_count",
+        "deduplicated_count",
+        "matching_order",
+        "notes"
+      ],
+      "properties": {
+        "scope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["attacker_ips", "time_start", "time_end"],
+          "properties": {
+            "attacker_ips": { "type": "array", "items": { "type": "string" }, "minItems": 1, "uniqueItems": true },
+            "hosts": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+            "time_start": { "type": "string", "format": "date-time" },
+            "time_end": { "type": "string", "format": "date-time" }
+          }
+        },
+        "count_basis": { "const": "retained_events" },
+        "waf_alert_count": { "type": "integer", "minimum": 0 },
+        "web_access_raw_count": { "type": "integer", "minimum": 0 },
+        "web_access_retained_count": { "type": "integer", "minimum": 0 },
+        "blocked_count": { "type": "integer", "minimum": 0 },
+        "backend_reached_count": { "type": "integer", "minimum": 0 },
+        "suspicious_without_waf_count": { "type": "integer", "minimum": 0 },
+        "confirmed_bypass_count": { "type": "integer", "minimum": 0 },
+        "unmatched_waf_count": { "type": "integer", "minimum": 0 },
+        "deduplicated_count": { "type": "integer", "minimum": 0 },
+        "matching_order": {
+          "type": "array",
+          "prefixItems": [
+            { "const": "trace_or_request_id" },
+            { "const": "source_host_method_path_window" },
+            { "const": "source_target_time_proximity" }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

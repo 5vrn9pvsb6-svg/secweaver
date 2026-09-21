@@ -1,0 +1,15 @@
+{
+  "network_id": "net-demo-lab",
+  "name": "Lab Zone 203.0.113.0/24",
+  "cidr": "203.0.113.0/24",
+  "zone": "production_network",
+  "network_type": "lab",
+  "gateway_ip": "203.0.113.1",
+  "trust_level": "internal",
+  "status": "active",
+  "description": "Synthetic lab CIDR for auth.log examples.",
+  "tags": [
+    "demo",
+    "lab"
+  ]
+}

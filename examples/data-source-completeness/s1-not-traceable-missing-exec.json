@@ -1,0 +1,45 @@
+{
+  "investigation_intent": "报警时间 2026-06-21 10:00，黑客 IP 203.0.113.10，可能已被打穿，查第一个攻破点和横向范围，你缺少什么数据告诉我",
+  "scenarios": ["S1"],
+  "params": {
+    "attacker_ip": "203.0.113.10",
+    "time_start": "2026-06-21T08:00:00+08:00",
+    "time_end": "2026-06-21T20:00:00+08:00",
+    "hosts": ["web-01"]
+  },
+  "registered_assets": [
+    {
+      "asset_id": "waf_01",
+      "name": "WEB WAF 告警",
+      "type": "waf_alert",
+      "domain": "D1",
+      "fields": ["src_ip", "timestamp", "url", "payload", "action"],
+      "coverage": ["web_zone"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "ssh_logs",
+      "name": "SSH 认证日志",
+      "type": "ssh_auth",
+      "domain": "D3",
+      "fields": ["host", "src_ip", "user", "result", "timestamp"],
+      "coverage": ["partial_internal"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "cmdb",
+      "name": "资产清单",
+      "type": "asset_inventory",
+      "domain": "D6",
+      "fields": ["hostname", "ip", "zone"],
+      "coverage": ["full"],
+      "retention_days": 365
+    }
+  ],
+  "_meta": {
+    "scenario_label": "S1 缺少 P0 host_exec",
+    "expected_overall_verdict": "not_traceable",
+    "expected_next_skill_blocked": true,
+    "expected_block_reason_contains": "WEB 服务器进程命令执行"
+  }
+}

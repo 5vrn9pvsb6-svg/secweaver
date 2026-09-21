@@ -1,0 +1,29 @@
+{
+  "name": "Demo Plugin Logs",
+  "api_version": "1.0",
+  "connector_type": "demo_plugin_logs",
+  "query_key": "demo_plugin_query",
+  "runtime": "plugin",
+  "protocol": "stdio-json",
+  "entrypoint": "fetch.py",
+  "timeout_sec": 30,
+  "description": "Minimal stdio-json connector plugin used as a copyable community example.",
+  "onboarding_template": "external_generic",
+  "onboarding_profile": {
+    "label": "Demo Plugin Logs",
+    "fields": [],
+    "required": [],
+    "defaults": {},
+    "default_asset_type": "waf_alert",
+    "template_params": [
+      "src_ip",
+      "limit"
+    ],
+    "template_defaults": {
+      "src_ip": "203.0.113.10",
+      "limit": 2
+    },
+    "default_query": "demo plugin src_ip={src_ip} limit {limit}",
+    "hint": "示例插件 connector；运行时会调用 src/dataasset/plugins/connectors/demo_plugin_logs/fetch.py。"
+  }
+}

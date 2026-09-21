@@ -1,0 +1,654 @@
+{
+  "version": "1.2",
+  "offline": true,
+  "description": "Synthetic, credential-free SecWeaver cases for agent product evaluation.",
+  "cases": [
+    {
+      "case_id": "webshell-attack-confirmation",
+      "title": "Confirm a successful WebShell attack",
+      "title_zh": "确认 WebShell 攻击是否成功",
+      "value": "Correlates a WAF alert with host execution, network, and file evidence instead of stopping at a rule hit.",
+      "value_zh": "把 WAF 告警与主机执行、网络和文件证据关联起来，而不是停留在规则命中。",
+      "offline": true,
+      "skill": "alert-confirmation",
+      "skill_doc": "src/skills/alert-confirmation/SKILL.md",
+      "input": "examples/alert-confirmation/s4-webshell-attack-success.json",
+      "cli_args": [
+        "skill",
+        "alert-confirmation",
+        "-i",
+        "examples/alert-confirmation/s4-webshell-attack-success.json"
+      ],
+      "output": "outputs/ai-showcase/webshell-attack-confirmation.json",
+      "expected": {
+        "alert_verdict": "confirmed_attack",
+        "attack_outcome": "success_confirmed",
+        "attack_success": true
+      },
+      "prompt": "Run the SecWeaver offline case webshell-attack-confirmation and explain the evidence behind the verdict.",
+      "prompt_zh": "运行 SecWeaver 离线案例 webshell-attack-confirmation，并解释结论背后的证据。"
+    },
+    {
+      "case_id": "false-positive-parameter",
+      "title": "Recognize a false-positive request parameter",
+      "title_zh": "识别请求参数误报",
+      "value": "Shows that SecWeaver can suppress a benign UUID-shaped parameter rather than escalating every WAF match.",
+      "value_zh": "展示 SecWeaver 能识别 UUID 形态的正常参数，不会把每次 WAF 命中都升级为攻击。",
+      "offline": true,
+      "skill": "alert-confirmation",
+      "skill_doc": "src/skills/alert-confirmation/SKILL.md",
+      "input": "examples/alert-confirmation/s4-false-positive-uuid-param.json",
+      "cli_args": [
+        "skill",
+        "alert-confirmation",
+        "-i",
+        "examples/alert-confirmation/s4-false-positive-uuid-param.json"
+      ],
+      "output": "outputs/ai-showcase/false-positive-parameter.json",
+      "expected": {
+        "alert_verdict": "false_positive",
+        "attack_outcome": "not_applicable",
+        "attack_success": false
+      },
+      "prompt": "Run the SecWeaver offline case false-positive-parameter and explain why it should not be escalated.",
+      "prompt_zh": "运行 SecWeaver 离线案例 false-positive-parameter，并解释为什么不应该升级处置。"
+    },
+    {
+      "case_id": "webshell-to-ssh-lateral",
+      "title": "Reconstruct WebShell-to-SSH lateral movement",
+      "title_zh": "还原 WebShell 到 SSH 横向移动",
+      "value": "Correlates observed WebShell activity and confirmed multi-host SSH movement while marking the original compromise point and unmatched Web-to-host Join as unresolved.",
+      "value_zh": "关联观察到的 WebShell 活动与多主机 SSH 横向证据，同时标出未证实的首次攻破点和未匹配的 Web 到主机 Join。",
+      "offline": true,
+      "skill": "traceability-analysis",
+      "skill_doc": "src/skills/traceability-analysis/SKILL.md",
+      "input": "examples/traceability/s1-web-shell-to-ssh-lateral.json",
+      "cli_args": [
+        "skill",
+        "traceability-analysis",
+        "-i",
+        "examples/traceability/s1-web-shell-to-ssh-lateral.json",
+        "--no-notify",
+        "--no-ip-intel"
+      ],
+      "output": "outputs/ai-showcase/webshell-to-ssh-lateral.json",
+      "expected": {
+        "overall_verdict": "confirmed_intrusion_chain",
+        "blocked": false,
+        "attacker_ip_profile": null,
+        "initial_access": {
+          "first_compromise_point_status": "unresolved"
+        },
+        "join_coverage": {
+          "per_join": {
+            "web_access_to_host_exec": "no_match"
+          }
+        }
+      },
+      "prompt": "Run the SecWeaver offline case webshell-to-ssh-lateral and show the entry point, execution, lateral path, evidence, and gaps.",
+      "prompt_zh": "运行 SecWeaver 离线案例 webshell-to-ssh-lateral，说明攻击入口、命令执行、横向路径、关键证据和数据缺口。"
+    },
+    {
+      "case_id": "reverse-shell-risk",
+      "title": "Detect a reverse shell from host evidence",
+      "title_zh": "从主机证据识别反弹 Shell",
+      "value": "Turns a host command event into a prioritized P0 risk with behavior tags and MITRE techniques.",
+      "value_zh": "把主机命令事件转化为带行为标签和 MITRE 技术的 P0 高危风险。",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s5-reverse-shell-p0.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s5-reverse-shell-p0.json"
+      ],
+      "output": "outputs/ai-showcase/reverse-shell-risk.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected",
+        "summary": {
+          "risk_items": 1,
+          "p0": 1
+        }
+      },
+      "prompt": "Run the SecWeaver offline case reverse-shell-risk and explain the behavior, severity, MITRE mapping, and response priority.",
+      "prompt_zh": "运行 SecWeaver 离线案例 reverse-shell-risk，并解释行为、严重级别、MITRE 映射和处置优先级。"
+    },
+    {
+      "case_id": "missing-host-exec-data",
+      "title": "Stop traceability when host evidence is missing",
+      "title_zh": "主机证据缺失时阻止过度结论",
+      "value": "Demonstrates evidence gating: SecWeaver identifies the missing host-execution source instead of claiming a clean result.",
+      "value_zh": "展示证据门禁：缺少主机执行日志时明确报告缺口，而不是给出虚假的安全结论。",
+      "offline": true,
+      "skill": "data-source-completeness",
+      "skill_doc": "src/skills/data-source-completeness/SKILL.md",
+      "input": "examples/data-source-completeness/s1-not-traceable-missing-exec.json",
+      "cli_args": [
+        "skill",
+        "data-source-completeness",
+        "-i",
+        "examples/data-source-completeness/s1-not-traceable-missing-exec.json"
+      ],
+      "output": "outputs/ai-showcase/missing-host-exec-data.json",
+      "expected": {
+        "overall_verdict": "not_traceable",
+        "can_trace": false,
+        "can_confirm_breach": false
+      },
+      "prompt": "Run the SecWeaver offline case missing-host-exec-data and explain which missing evidence blocks a trustworthy conclusion.",
+      "prompt_zh": "运行 SecWeaver 离线案例 missing-host-exec-data，并解释缺少哪些证据导致无法可信溯源。"
+    },
+    {
+      "case_id": "s1-full-traceable",
+      "title": "Complete traceability sources",
+      "title_zh": "溯源数据源齐备",
+      "value": "Complete traceability sources",
+      "value_zh": "S1 外网 IP 溯源 — 数据源齐全",
+      "offline": true,
+      "skill": "data-source-completeness",
+      "skill_doc": "src/skills/data-source-completeness/SKILL.md",
+      "input": "examples/data-source-completeness/s1-full-traceable.json",
+      "cli_args": [
+        "skill",
+        "data-source-completeness",
+        "-i",
+        "examples/data-source-completeness/s1-full-traceable.json"
+      ],
+      "output": "outputs/ai-showcase/s1-full-traceable.json",
+      "expected": {
+        "overall_verdict": "full_traceable",
+        "next_skill_blocked": false,
+        "next_skill": "traceability_analysis"
+      },
+      "prompt": "Run the SecWeaver offline case s1-full-traceable.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s1-full-traceable。"
+    },
+    {
+      "case_id": "s4-alert-triage-only",
+      "title": "Alert triage without host evidence",
+      "title_zh": "仅能告警分类",
+      "value": "Alert triage without host evidence",
+      "value_zh": "S4 仅 WEB/WAF — 可做告警分类，无法确认打穿",
+      "offline": true,
+      "skill": "data-source-completeness",
+      "skill_doc": "src/skills/data-source-completeness/SKILL.md",
+      "input": "examples/data-source-completeness/s4-alert-triage-only.json",
+      "cli_args": [
+        "skill",
+        "data-source-completeness",
+        "-i",
+        "examples/data-source-completeness/s4-alert-triage-only.json"
+      ],
+      "output": "outputs/ai-showcase/s4-alert-triage-only.json",
+      "expected": {
+        "overall_verdict": "alert_triage_only",
+        "next_skill_blocked": true,
+        "next_skill": "alert_confirmation",
+        "can_confirm_breach": false
+      },
+      "prompt": "Run the SecWeaver offline case s4-alert-triage-only.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s4-alert-triage-only。"
+    },
+    {
+      "case_id": "s4-partial-missing-connect",
+      "title": "Missing connection evidence",
+      "title_zh": "缺少主机连接证据",
+      "value": "Missing connection evidence",
+      "value_zh": "S4 P0 齐全、P1 host_connect 缺失",
+      "offline": true,
+      "skill": "data-source-completeness",
+      "skill_doc": "src/skills/data-source-completeness/SKILL.md",
+      "input": "examples/data-source-completeness/s4-partial-missing-connect.json",
+      "cli_args": [
+        "skill",
+        "data-source-completeness",
+        "-i",
+        "examples/data-source-completeness/s4-partial-missing-connect.json"
+      ],
+      "output": "outputs/ai-showcase/s4-partial-missing-connect.json",
+      "expected": {
+        "overall_verdict": "partial_traceable",
+        "next_skill_blocked": false,
+        "can_confirm_breach": true
+      },
+      "prompt": "Run the SecWeaver offline case s4-partial-missing-connect.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s4-partial-missing-connect。"
+    },
+    {
+      "case_id": "s4-scanner-generic-no-payload",
+      "title": "Generic scanner without payload",
+      "title_zh": "无载荷的扫描器告警",
+      "value": "Generic scanner without payload",
+      "value_zh": "S4 扫描器/generic 规则无 payload",
+      "offline": true,
+      "skill": "alert-confirmation",
+      "skill_doc": "src/skills/alert-confirmation/SKILL.md",
+      "input": "examples/alert-confirmation/s4-scanner-generic-no-payload.json",
+      "cli_args": [
+        "skill",
+        "alert-confirmation",
+        "-i",
+        "examples/alert-confirmation/s4-scanner-generic-no-payload.json"
+      ],
+      "output": "outputs/ai-showcase/s4-scanner-generic-no-payload.json",
+      "expected": {
+        "alert_verdict": "scanning_or_probe",
+        "attack_outcome": "success_unknown",
+        "attack_success": false
+      },
+      "prompt": "Run the SecWeaver offline case s4-scanner-generic-no-payload.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s4-scanner-generic-no-payload。"
+    },
+    {
+      "case_id": "s4-sqli-blocked-no-breach",
+      "title": "Blocked SQL injection attempt",
+      "title_zh": "SQL 注入被拦截",
+      "value": "Blocked SQL injection attempt",
+      "value_zh": "S4 SQLi 被 WAF 拦截，无主机侧证据",
+      "offline": true,
+      "skill": "alert-confirmation",
+      "skill_doc": "src/skills/alert-confirmation/SKILL.md",
+      "input": "examples/alert-confirmation/s4-sqli-blocked-no-breach.json",
+      "cli_args": [
+        "skill",
+        "alert-confirmation",
+        "-i",
+        "examples/alert-confirmation/s4-sqli-blocked-no-breach.json"
+      ],
+      "output": "outputs/ai-showcase/s4-sqli-blocked-no-breach.json",
+      "expected": {
+        "alert_verdict": "confirmed_attack",
+        "attack_outcome": "blocked",
+        "attack_success": false
+      },
+      "prompt": "Run the SecWeaver offline case s4-sqli-blocked-no-breach.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s4-sqli-blocked-no-breach。"
+    },
+    {
+      "case_id": "s1-scan-only-no-host-exec",
+      "title": "Scan without host execution",
+      "title_zh": "仅扫描无主机执行",
+      "value": "Scan without host execution",
+      "value_zh": "S1 负例 — 仅扫描无打穿",
+      "offline": true,
+      "skill": "traceability-analysis",
+      "skill_doc": "src/skills/traceability-analysis/SKILL.md",
+      "input": "examples/traceability/s1-scan-only-no-host-exec.json",
+      "cli_args": [
+        "skill",
+        "traceability-analysis",
+        "-i",
+        "examples/traceability/s1-scan-only-no-host-exec.json",
+        "--no-notify",
+        "--no-ip-intel"
+      ],
+      "output": "outputs/ai-showcase/s1-scan-only-no-host-exec.json",
+      "expected": {
+        "overall_verdict": "scanning_or_attempt_only",
+        "attacker_ip_profile": null
+      },
+      "prompt": "Run the SecWeaver offline case s1-scan-only-no-host-exec.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s1-scan-only-no-host-exec。"
+    },
+    {
+      "case_id": "s2-initial-access-no-lateral",
+      "title": "Initial access without confirmed lateral movement",
+      "title_zh": "主机执行但无确认横向",
+      "value": "Initial access without confirmed lateral movement",
+      "value_zh": "S2 打穿无横向 — initial_access_only",
+      "offline": true,
+      "skill": "traceability-analysis",
+      "skill_doc": "src/skills/traceability-analysis/SKILL.md",
+      "input": "examples/traceability/s2-initial-access-no-lateral.json",
+      "cli_args": [
+        "skill",
+        "traceability-analysis",
+        "-i",
+        "examples/traceability/s2-initial-access-no-lateral.json",
+        "--no-notify",
+        "--no-ip-intel"
+      ],
+      "output": "outputs/ai-showcase/s2-initial-access-no-lateral.json",
+      "expected": {
+        "overall_verdict": "initial_access_only",
+        "attacker_ip_profile": null
+      },
+      "prompt": "Run the SecWeaver offline case s2-initial-access-no-lateral.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s2-initial-access-no-lateral。"
+    },
+    {
+      "case_id": "s5-curl-download-exec-p0",
+      "title": "Download and execute from a Web process",
+      "title_zh": "Web 进程下载执行",
+      "value": "Download and execute from a Web process",
+      "value_zh": "S5 nginx 子进程 curl|bash 下载执行 + 外连",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s5-curl-download-exec-p0.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s5-curl-download-exec-p0.json"
+      ],
+      "output": "outputs/ai-showcase/s5-curl-download-exec-p0.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected"
+      },
+      "prompt": "Run the SecWeaver offline case s5-curl-download-exec-p0.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s5-curl-download-exec-p0。"
+    },
+    {
+      "case_id": "s5-external-connect-p0",
+      "title": "Outbound connection from a Web listener",
+      "title_zh": "Web 监听进程主动外连",
+      "value": "Outbound connection from a Web listener",
+      "value_zh": "S5 Web 监听进程主动外连（合成文档地址）",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s5-external-connect-p0.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s5-external-connect-p0.json"
+      ],
+      "output": "outputs/ai-showcase/s5-external-connect-p0.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected"
+      },
+      "prompt": "Run the SecWeaver offline case s5-external-connect-p0.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s5-external-connect-p0。"
+    },
+    {
+      "case_id": "s5-nginx-config-test-whitelisted",
+      "title": "Whitelisted nginx configuration test",
+      "title_zh": "nginx 配置检查白名单",
+      "value": "Whitelisted nginx configuration test",
+      "value_zh": "S5 nginx -t 运维白名单",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s5-nginx-config-test-whitelisted.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s5-nginx-config-test-whitelisted.json"
+      ],
+      "output": "outputs/ai-showcase/s5-nginx-config-test-whitelisted.json",
+      "expected": {
+        "overall_verdict": "no_risk_detected"
+      },
+      "prompt": "Run the SecWeaver offline case s5-nginx-config-test-whitelisted.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s5-nginx-config-test-whitelisted。"
+    },
+    {
+      "case_id": "s5-persistence-authorized-keys-p0",
+      "title": "SSH authorized keys modification",
+      "title_zh": "SSH 授权密钥变更",
+      "value": "SSH authorized keys modification",
+      "value_zh": "S5 持久化变更：修改 SSH authorized_keys",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s5-persistence-authorized-keys-p0.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s5-persistence-authorized-keys-p0.json"
+      ],
+      "output": "outputs/ai-showcase/s5-persistence-authorized-keys-p0.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected"
+      },
+      "prompt": "Run the SecWeaver offline case s5-persistence-authorized-keys-p0.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s5-persistence-authorized-keys-p0。"
+    },
+    {
+      "case_id": "s5-ssh-bruteforce-p0",
+      "title": "Ten SSH authentication failures",
+      "title_zh": "SSH 十次失败达到阈值",
+      "value": "Ten SSH authentication failures",
+      "value_zh": "S5 SSH 同源十次认证失败",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s5-ssh-bruteforce-p0.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s5-ssh-bruteforce-p0.json"
+      ],
+      "output": "outputs/ai-showcase/s5-ssh-bruteforce-p0.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected"
+      },
+      "prompt": "Run the SecWeaver offline case s5-ssh-bruteforce-p0.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s5-ssh-bruteforce-p0。"
+    },
+    {
+      "case_id": "s5-ssh-nine-failures-below-threshold",
+      "title": "Nine SSH failures below threshold",
+      "title_zh": "SSH 九次失败未达阈值",
+      "value": "Nine SSH failures below threshold",
+      "value_zh": "S5 SSH 同源九次认证失败，未达到十次阈值",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s5-ssh-nine-failures-below-threshold.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s5-ssh-nine-failures-below-threshold.json"
+      ],
+      "output": "outputs/ai-showcase/s5-ssh-nine-failures-below-threshold.json",
+      "expected": {
+        "overall_verdict": "insufficient_data"
+      },
+      "prompt": "Run the SecWeaver offline case s5-ssh-nine-failures-below-threshold.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s5-ssh-nine-failures-below-threshold。"
+    },
+    {
+      "case_id": "s5-whoami-recon-p0",
+      "title": "Discovery from a Web process shell",
+      "title_zh": "Web 进程 shell 侦察",
+      "value": "Discovery from a Web process shell",
+      "value_zh": "S5 nginx 子进程 whoami 侦察（shell 执行仍为 P0）",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s5-whoami-recon-p0.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s5-whoami-recon-p0.json"
+      ],
+      "output": "outputs/ai-showcase/s5-whoami-recon-p0.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected"
+      },
+      "prompt": "Run the SecWeaver offline case s5-whoami-recon-p0.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s5-whoami-recon-p0。"
+    },
+    {
+      "case_id": "s8-dns-dga-p1",
+      "title": "Suspicious DNS without connection evidence",
+      "title_zh": "异常 DNS 且缺少外连证据",
+      "value": "Suspicious DNS without connection evidence",
+      "value_zh": "S8 异常 DNS 域名，缺少可关联外连事件",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s8-dns-dga-p1.json",
+      "cli_args": [
+        "skill",
+        "risk-identification",
+        "-i",
+        "examples/risk-identification/s8-dns-dga-p1.json"
+      ],
+      "output": "outputs/ai-showcase/s8-dns-dga-p1.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected"
+      },
+      "prompt": "Run the SecWeaver offline case s8-dns-dga-p1.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s8-dns-dga-p1。"
+    },
+    {
+      "case_id": "s6-full-traceable",
+      "title": "Complete account-compromise data sources",
+      "title_zh": "账号失陷调查数据源齐备",
+      "value": "Authentication, post-login execution, persistence, and firewall sources are registered.",
+      "value_zh": "认证、登录后执行、持久化和防火墙数据源均已注册。",
+      "offline": true,
+      "skill": "data-source-completeness",
+      "skill_doc": "src/skills/data-source-completeness/SKILL.md",
+      "input": "examples/data-source-completeness/s6-full-traceable.json",
+      "cli_args": ["skill", "data-source-completeness", "-i", "examples/data-source-completeness/s6-full-traceable.json"],
+      "output": "outputs/ai-showcase/s6-full-traceable.json",
+      "expected": {
+        "overall_verdict": "full_traceable",
+        "next_skill_blocked": false,
+        "next_skill": "traceability_analysis"
+      },
+      "prompt": "Run the SecWeaver offline case s6-full-traceable and explain what the readiness result does not prove.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s6-full-traceable，并说明数据源齐备不能证明什么。"
+    },
+    {
+      "case_id": "s6-not-traceable-missing-auth",
+      "title": "Account investigation without authentication logs",
+      "title_zh": "账号调查缺少认证日志",
+      "value": "Post-login sources cannot replace the P0 authentication source.",
+      "value_zh": "登录后数据源不能替代 P0 认证日志。",
+      "offline": true,
+      "skill": "data-source-completeness",
+      "skill_doc": "src/skills/data-source-completeness/SKILL.md",
+      "input": "examples/data-source-completeness/s6-not-traceable-missing-auth.json",
+      "cli_args": ["skill", "data-source-completeness", "-i", "examples/data-source-completeness/s6-not-traceable-missing-auth.json"],
+      "output": "outputs/ai-showcase/s6-not-traceable-missing-auth.json",
+      "expected": {
+        "overall_verdict": "not_traceable",
+        "next_skill_blocked": true,
+        "next_skill": "traceability_analysis"
+      },
+      "prompt": "Run the SecWeaver offline case s6-not-traceable-missing-auth and explain the blocking evidence gap.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s6-not-traceable-missing-auth，并解释阻断调查的证据缺口。"
+    },
+    {
+      "case_id": "s7-full-traceable",
+      "title": "Complete data-exfiltration sources",
+      "title_zh": "数据外传调查数据源齐备",
+      "value": "File, connection, DNS, traffic-volume, and execution sources are registered.",
+      "value_zh": "文件、外连、DNS、流量体量和执行数据源均已注册。",
+      "offline": true,
+      "skill": "data-source-completeness",
+      "skill_doc": "src/skills/data-source-completeness/SKILL.md",
+      "input": "examples/data-source-completeness/s7-full-traceable.json",
+      "cli_args": ["skill", "data-source-completeness", "-i", "examples/data-source-completeness/s7-full-traceable.json"],
+      "output": "outputs/ai-showcase/s7-full-traceable.json",
+      "expected": {
+        "overall_verdict": "full_traceable",
+        "next_skill_blocked": false,
+        "next_skill": "traceability_analysis"
+      },
+      "prompt": "Run the SecWeaver offline case s7-full-traceable and explain the boundary between source readiness and proven exfiltration.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s7-full-traceable，并说明数据源齐备与外传已证实的区别。"
+    },
+    {
+      "case_id": "s7-partial-missing-traffic-volume",
+      "title": "Exfiltration investigation without traffic volume",
+      "title_zh": "外传调查缺少流量体量",
+      "value": "Required file and connection sources exist, but transfer volume cannot be established.",
+      "value_zh": "文件与外连数据源可用，但不能确认传输体量。",
+      "offline": true,
+      "skill": "data-source-completeness",
+      "skill_doc": "src/skills/data-source-completeness/SKILL.md",
+      "input": "examples/data-source-completeness/s7-partial-missing-traffic-volume.json",
+      "cli_args": ["skill", "data-source-completeness", "-i", "examples/data-source-completeness/s7-partial-missing-traffic-volume.json"],
+      "output": "outputs/ai-showcase/s7-partial-missing-traffic-volume.json",
+      "expected": {
+        "overall_verdict": "partial_traceable",
+        "next_skill_blocked": false,
+        "next_skill": "traceability_analysis"
+      },
+      "prompt": "Run the SecWeaver offline case s7-partial-missing-traffic-volume and explain the remaining conclusion limit.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s7-partial-missing-traffic-volume，并解释剩余的结论限制。"
+    },
+    {
+      "case_id": "s4-batch-mixed-with-query-gap",
+      "title": "Mixed alert batch with an incomplete query",
+      "title_zh": "混合告警批次与查询缺口",
+      "value": "One batch separates a false positive, a scan, and a blocked attack while preserving a failed host query.",
+      "value_zh": "同一批次区分误报、扫描与被拦截攻击，同时保留主机查询失败。",
+      "offline": true,
+      "skill": "alert-confirmation",
+      "skill_doc": "src/skills/alert-confirmation/SKILL.md",
+      "input": "examples/alert-confirmation/s4-batch-mixed-with-query-gap.json",
+      "cli_args": ["skill", "alert-confirmation", "-i", "examples/alert-confirmation/s4-batch-mixed-with-query-gap.json"],
+      "output": "outputs/ai-showcase/s4-batch-mixed-with-query-gap.json",
+      "expected": {
+        "batch_summary": {
+          "total": 3,
+          "false_positive": 1,
+          "scanning_or_probe": 1,
+          "confirmed_attack": 1,
+          "success_confirmed": 0
+        },
+        "fetch_summary": {
+          "failed_fetch_queries": 1,
+          "query_integrity": {"status": "incomplete", "absence_is_not_evidence": true}
+        },
+        "analysis_constraints": {"scope": "partial_live_evidence", "negative_conclusion_allowed": false}
+      },
+      "prompt": "Run the SecWeaver offline case s4-batch-mixed-with-query-gap and explain both per-alert outcomes and the query limitation.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s4-batch-mixed-with-query-gap，并解释逐告警结果和查询限制。"
+    },
+    {
+      "case_id": "s6-root-ssh-login-p1",
+      "title": "Suspicious root SSH login",
+      "title_zh": "异常 root SSH 登录",
+      "value": "A successful external root login is a review candidate, not proof that the account is compromised.",
+      "value_zh": "外部 root 登录成功需要复核，但不能单独证明账号已失陷。",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s6-root-ssh-login-p1.json",
+      "cli_args": ["skill", "risk-identification", "-i", "examples/risk-identification/s6-root-ssh-login-p1.json"],
+      "output": "outputs/ai-showcase/s6-root-ssh-login-p1.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected",
+        "summary": {"risk_items": 1, "p1": 1}
+      },
+      "prompt": "Run the SecWeaver offline case s6-root-ssh-login-p1 and explain why the event is suspicious without claiming account compromise.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s6-root-ssh-login-p1，并说明为什么事件可疑但不能断言账号失陷。"
+    },
+    {
+      "case_id": "s7-data-staging-and-scp-p0",
+      "title": "Data staging and outbound SCP candidate",
+      "title_zh": "数据暂存与 SCP 外发候选",
+      "value": "Same-process staging, SCP, and connection evidence raises priority without proving transfer completion.",
+      "value_zh": "同进程暂存、SCP 与外连证据提升处置优先级，但不能证明传输完成。",
+      "offline": true,
+      "skill": "risk-identification",
+      "skill_doc": "src/skills/risk-identification/SKILL.md",
+      "input": "examples/risk-identification/s7-data-staging-and-scp-p0.json",
+      "cli_args": ["skill", "risk-identification", "-i", "examples/risk-identification/s7-data-staging-and-scp-p0.json"],
+      "output": "outputs/ai-showcase/s7-data-staging-and-scp-p0.json",
+      "expected": {
+        "overall_verdict": "high_risk_detected",
+        "summary": {"risk_items": 2, "p0": 2}
+      },
+      "prompt": "Run the SecWeaver offline case s7-data-staging-and-scp-p0 and separate observed behavior from unproven transfer success.",
+      "prompt_zh": "运行 SecWeaver 离线案例 s7-data-staging-and-scp-p0，并区分已观察行为与尚未证实的传输成功。"
+    }
+  ],
+  "default_mode": "all"
+}

@@ -1,0 +1,3 @@
+Jun 21 08:15:01 web-01 sshd[12345]: Accepted publickey for deploy from 203.0.113.10 port 54321 ssh2
+Jun 21 09:00:00 web-01 sshd[99]: Failed password for invalid user admin from 192.0.2.9 port 22 ssh2
+Jun 21 10:30:15 web-01 sshd[200]: Accepted password for ops from 203.0.113.10 port 44444 ssh2

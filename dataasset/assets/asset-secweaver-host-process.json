@@ -1,0 +1,52 @@
+{
+  "asset_id": "asset-secweaver-host-process",
+  "name": "SecWeaver 主机进程快照",
+  "asset_type": "host_process",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-host-process",
+  "description": "secweaver-agent 每 10 分钟比对主机进程状态，每日输出一次完整基线，其余仅输出启动、退出和关键属性变化。",
+  "coverage": {
+    "hosts": []
+  },
+  "field_aliases": {
+    "host_name": "host",
+    "time": "timestamp",
+    "__source__": "log_source",
+    "log_source": "host_ip"
+  },
+  "schema": {
+    "fields": [
+      "time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "action",
+      "snapshot_id", "snapshot_process_count", "snapshot_duration_ms", "os", "arch",
+      "pid", "ppid", "uid", "user", "process", "comm", "exe", "command", "command_line",
+      "cwd", "state", "state_name", "start_time", "elapsed_seconds", "cpu_time_ms",
+      "rss_bytes", "virtual_bytes", "thread_count", "session_id", "cgroup",
+      "command_hash", "change_fields", "previous", "command_redacted", "is_secweaver_agent", "evidence_id", "parser_version", "enterprise_id"
+    ],
+    "time_field": "time",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "host_process_by_host_time",
+    "host_process_by_host_ip_time",
+    "host_process_by_name_time",
+    "host_process_by_snapshot_id"
+  ],
+  "sensitivity": "confidential",
+  "pii_fields": ["user", "command", "command_line"],
+  "masking": {},
+  "quality": {
+    "required_fields": ["snapshot_id", "pid", "process"],
+    "expected_event_type": "process_snapshot",
+	"expected_event_types": ["process_snapshot", "process_start", "process_exit", "process_change"],
+    "notes": [
+	  "默认每 10 分钟做增量比对，每 24 小时输出完整基线；纯全量兼容模式建议至少使用 1 小时间隔。",
+      "Linux 直接读取 /proc；Windows 使用一次 PowerShell/CIM 批量查询。",
+      "Agent 默认在落盘前脱敏常见 password/token/sshpass 参数。"
+    ]
+  },
+  "tags": ["secweaver", "sls", "host_process", "process_inventory", "secweaver-agent"]
+}

@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.example/schemas/secweaver-agent-config.schema.json",
+  "title": "SecWeaver Agent configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["enterprise_id", "modules"],
+  "properties": {
+    "enterprise_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9]{16}$"
+    },
+    "status_path": {"type": "string"},
+    "operations_report": {"$ref": "#/$defs/operationsReport"},
+    "disk_budget": {"$ref": "#/$defs/diskBudget"},
+    "license": {"$ref": "#/$defs/license"},
+    "remote_config": {"$ref": "#/$defs/remoteConfig"},
+    "update": {"$ref": "#/$defs/update"},
+    "metrics": {"$ref": "#/$defs/metrics"},
+    "modules": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "audit-port-execmon": {"$ref": "#/$defs/module"},
+        "syslog-risk-json": {"$ref": "#/$defs/module"},
+        "host-persistence": {"$ref": "#/$defs/module"},
+        "host-process-snapshot": {"$ref": "#/$defs/module"},
+        "host-state-snapshot": {"$ref": "#/$defs/module"},
+        "windows-eventlog-risk-json": {"$ref": "#/$defs/module"},
+		"windows-process-execmon": {"$ref": "#/$defs/module"},
+		"audit_port_execmon": {"$ref": "#/$defs/module"},
+		"syslog_risk_json": {"$ref": "#/$defs/module"},
+		"host_persistence": {"$ref": "#/$defs/module"},
+		"host_process_snapshot": {"$ref": "#/$defs/module"},
+		"host_state_snapshot": {"$ref": "#/$defs/module"},
+		"windows_eventlog_risk_json": {"$ref": "#/$defs/module"},
+		"windows_process_execmon": {"$ref": "#/$defs/module"}
+      }
+    }
+  },
+  "$defs": {
+    "operationsReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "output": {"type": "string"},
+        "snapshot_interval_seconds": {"type": "integer", "minimum": 60},
+        "jitter_seconds": {"type": "integer", "minimum": 0},
+        "max_size_mb": {"type": "integer", "minimum": 0},
+        "max_backups": {"type": "integer", "minimum": 0},
+        "include_resource_usage": {"type": "boolean"},
+        "include_shipper_status": {"type": "boolean"}
+      }
+    },
+    "diskBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "max_total_mb": {"type": "integer", "minimum": 64},
+        "min_free_mb": {"type": "integer", "minimum": 0},
+        "check_interval_seconds": {"type": "integer", "minimum": 1}
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "listen_address": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "pattern": "^/"}
+      }
+    },
+    "license": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "protocol": {"type": "string", "enum": ["legacy_v1", "device_v2"]},
+        "server_url": {"type": "string"},
+        "enrollment_id": {"type": "string"},
+        "state_path": {"type": "string"},
+        "identity_key_path": {"type": "string"},
+        "check_interval_seconds": {"type": "integer", "minimum": 0},
+        "heartbeat_interval_seconds": {"type": "integer", "minimum": 0},
+        "outage_grace_seconds": {"type": "integer", "minimum": 0, "maximum": 604800},
+        "fail_closed": {"type": "boolean"}
+      }
+    },
+    "remoteConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "url": {"type": "string"},
+        "interval_seconds": {"type": "integer", "minimum": 0},
+        "initial_delay_seconds": {"type": "integer", "minimum": 0},
+        "jitter_seconds": {"type": "integer", "minimum": 0},
+        "public_key": {"type": "string"},
+        "require_signature": {"type": "boolean"},
+        "allow_unsigned": {"type": "boolean"}
+      }
+    },
+    "update": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "manifest_url": {"type": "string"},
+        "ca_file": {"type": "string"},
+        "channel": {"type": "string"},
+        "interval_seconds": {"type": "integer", "minimum": 0},
+        "initial_delay_seconds": {"type": "integer", "minimum": 0},
+        "jitter_seconds": {"type": "integer", "minimum": 0},
+        "retry_initial_seconds": {"type": "integer", "minimum": 0},
+        "retry_max_seconds": {"type": "integer", "minimum": 0},
+        "auto_install": {"type": "boolean"},
+        "state_dir": {"type": "string"},
+        "self_path": {"type": "string"},
+        "status_output": {"type": "string"},
+        "device_id": {"type": "string", "minLength": 1},
+        "host_id": {"type": "string"},
+        "public_key": {"type": "string"},
+        "trusted_public_keys": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "revoked_key_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "allow_insecure_http": {"type": "boolean"},
+        "allow_unsigned_local": {"type": "boolean"},
+        "require_server_policy": {"type": "boolean"},
+        "health_timeout_seconds": {"type": "integer", "minimum": 0},
+        "lock_stale_seconds": {"type": "integer", "minimum": 0},
+        "max_backups": {"type": "integer", "minimum": 0},
+        "min_free_space_mb": {"type": "integer", "minimum": 0}
+      }
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "args": {
+          "type": "array",
+          "items": {"type": "string"}
+        },
+        "restart": {
+          "type": "string",
+          "enum": ["", "never", "always", "on_failure"]
+        },
+        "restart_delay_seconds": {"type": "integer", "minimum": 0},
+        "restart_max_delay_seconds": {"type": "integer", "minimum": 0},
+        "restart_failure_limit": {"type": "integer", "minimum": 0},
+        "restart_stable_seconds": {"type": "integer", "minimum": 0},
+        "restart_circuit_seconds": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/data-source-completeness-output.json",
+  "title": "DataSourceCompletenessResult",
+  "allOf": [
+    {"$ref": "https://secweaver.local/schemas/skill-envelope.json"}
+  ],
+  "type": "object",
+  "required": [
+    "contract_version",
+    "skill",
+    "scenario",
+    "overall_verdict",
+    "summary",
+    "next_skill_blocked"
+  ],
+  "properties": {
+    "skill": {"const": "data-source-completeness"},
+    "scenario": {"type": "array", "items": {"type": "string"}},
+    "overall_verdict": {
+      "enum": ["full_traceable", "partial_traceable", "not_traceable", "alert_triage_only"]
+    },
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "summary": {"type": "string"},
+    "can_trace": {"type": "boolean"},
+    "can_confirm_breach": {"type": "boolean"},
+    "next_skill": {"type": ["string", "null"]},
+    "next_skill_blocked": {"type": "boolean"},
+    "requirements_evaluated": {"type": "array", "items": {"type": "object"}},
+    "registered_sources": {"type": "array", "items": {"type": "object"}},
+    "missing_critical": {"type": "array"},
+    "recommendations": {"type": "array"}
+  },
+  "additionalProperties": true
+}

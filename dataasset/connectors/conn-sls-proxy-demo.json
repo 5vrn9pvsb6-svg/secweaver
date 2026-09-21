@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-sls-proxy-demo",
+  "name": "SecWeaver SLS Proxy 示例连接器",
+  "connector_type": "sls_proxy",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-proxy-query",
+  "description": "内置 SLS Proxy 示例；使用用户侧 Project/Logstore，不暴露后台物理资源；默认使用 HTTPS 30443，未配置独立备用入口。配置 Proxy 凭证并完成真实查询后再启用。不要配置 region 或 enterprise_id。",
+  "config": {
+    "tls_verify": true,
+    "endpoint": "https://sls-proxy.id-net.cn:30443",
+    "fallback_endpoint": "https://sls-proxy.id-net.cn:30443",
+    "project": "secweaver",
+    "logstore": "host-exec"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72,
+    "query_language": "sls_sql"
+  }
+}

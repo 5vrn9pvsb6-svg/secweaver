@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-database-ro-example",
+  "name": "只读数据库示例连接器（MySQL / MariaDB / PostgreSQL）",
+  "connector_type": "database_ro",
+  "status": "draft",
+  "credentials_ref": "vault://database/security-readonly",
+  "description": "示例：查询 CMDB、堡垒机、审计库或安全数据表；通过 config.engine 指定 mysql、mariadb 或 postgresql。",
+  "config": {
+    "engine": "mysql",
+    "host": "db.example.com",
+    "port": 3306,
+    "database": "security_audit",
+    "column_denylist": ["password", "secret", "token"]
+  },
+  "constraints": {
+    "max_records_per_request": 5000,
+    "query_timeout_sec": 30
+  },
+  "tags": ["example", "database", "readonly", "not-for-production"]
+}

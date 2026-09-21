@@ -1,0 +1,4 @@
+{
+  "template_id": "ssh_auth_by_src_ip_time",
+  "note": "内置模板，通常无需新建；若新格式见 dataasset/onboarding/sls/template.snippet.json"
+}

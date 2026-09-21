@@ -1,0 +1,48 @@
+{
+  "update": {
+    "enabled": true,
+    "manifest_url": "https://updates.example.com/secweaver-agent/stable/update-manifest.json",
+    "channel": "stable",
+    "interval_seconds": 21600,
+    "initial_delay_seconds": 60,
+    "jitter_seconds": 300,
+    "retry_initial_seconds": 60,
+    "retry_max_seconds": 3600,
+    "auto_install": true,
+    "public_key": "BASE64_ED25519_PUBLIC_KEY",
+    "state_dir": "/opt/secweaver-agent/data/update",
+    "status_output": "/opt/secweaver-agent/logs/secweaver-agent-update.log",
+    "require_server_policy": false,
+    "health_timeout_seconds": 90,
+    "lock_stale_seconds": 3600,
+    "max_backups": 3,
+    "min_free_space_mb": 256,
+    "device_id": "swd_REPLACE_WITH_STABLE_UNIQUE_DEVICE_ID"
+  },
+  "modules": {
+    "audit-port-execmon": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": [
+        "-config",
+        "/opt/secweaver-agent/etc/audit-port-execmon.json"
+      ]
+    },
+    "syslog-risk-json": {
+      "enabled": true,
+      "restart": "on_failure",
+      "restart_delay_seconds": 5,
+      "args": [
+        "-secure",
+        "auto",
+        "-messages",
+        "auto",
+        "-output",
+        "/opt/secweaver-agent/logs/syslog-risk-json.log",
+        "-min-level",
+        "medium"
+      ]
+    }
+  }
+}

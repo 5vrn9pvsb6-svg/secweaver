@@ -1,0 +1,132 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery"
+  },
+  "data_sources": [
+    {
+      "name": "demo-waf-sls",
+      "connector_type": "sls",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://sls/security-readonly",
+      "project": "YOUR_SLS_PROJECT",
+      "logstore": "YOUR_LOGSTORE",
+      "endpoint": "cn-hangzhou.log.aliyuncs.com",
+      "region": "cn-hangzhou",
+      "asset": {
+        "coverage": {
+          "zones": [
+            "edge"
+          ],
+          "apps": [
+            "demo-gateway"
+          ],
+          "hosts": []
+        },
+        "schema": {
+          "fields": [
+            "timestamp",
+            "src_ip",
+            "target_ip",
+            "url",
+            "action",
+            "rule_id"
+          ],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "client_ip": "src_ip",
+          "upstream_addr": "target_ip"
+        }
+      },
+      "template": {
+        "params": [
+          "src_ip",
+          "target_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "defaults": {
+          "limit": 1000
+        },
+        "sls_query": "(src_ip: {src_ip} OR client_ip: {src_ip}) | select * limit {limit}"
+      }
+    },
+    {
+      "name": "demo-web-access-es",
+      "connector_type": "es",
+      "asset_type": "web_access_log",
+      "credentials_ref": "vault://es/security-readonly",
+      "url": "https://es.example.com:9200",
+      "index": "YOUR_ES_INDEX-*",
+      "connector": {
+      "config": {
+        "tls_verify": true
+      },
+      "constraints": {
+        "max_records_per_request": 5000,
+        "request_timeout_sec": 10
+        }
+      },
+      "asset": {
+        "coverage": {
+          "zones": [
+            "web"
+          ],
+          "apps": [
+            "demo-web"
+          ],
+          "hosts": []
+        },
+        "field_aliases": {
+          "remote_addr": "src_ip",
+          "request_uri": "url"
+        }
+      },
+      "template": {
+        "defaults": {
+          "limit": 500
+        }
+      }
+    },
+    {
+      "name": "demo-ssh-auth",
+      "connector_type": "ssh_file",
+      "asset_type": "ssh_auth",
+      "credentials_ref": "vault://ssh/readonly",
+      "host": "YOUR_HOST",
+      "host_id": "YOUR_HOST_ID",
+      "connector": {
+        "config": {
+        "log_paths": {
+          "debian": "/var/log/auth.log",
+          "rhel": "/var/log/secure"
+        }
+        }
+      },
+      "asset": {
+        "text_parser": "syslog_auth",
+        "coverage": {
+          "zones": [
+            "internal"
+          ],
+          "apps": [
+            "ssh"
+          ],
+          "hosts": [
+            "YOUR_HOST_ID"
+          ]
+        },
+        "schema": {
+          "retention_days": 90
+        }
+      }
+    }
+  ]
+}

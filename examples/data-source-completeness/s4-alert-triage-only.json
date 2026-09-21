@@ -1,0 +1,36 @@
+{
+  "investigation_intent": "分析今日 WAF 告警误报与真实性，暂无主机侧采集",
+  "scenarios": ["S4"],
+  "params": {
+    "attacker_ip": "203.0.113.10",
+    "time_start": "2026-06-21T00:00:00+08:00",
+    "time_end": "2026-06-21T23:59:59+08:00"
+  },
+  "registered_assets": [
+    {
+      "asset_id": "asset-waf-prod-01",
+      "name": "WEB WAF 告警",
+      "type": "waf_alert",
+      "domain": "D1",
+      "fields": ["src_ip", "timestamp", "url", "payload"],
+      "coverage": ["web_zone"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-web-access-prod",
+      "name": "WEB 访问日志",
+      "type": "web_access_log",
+      "domain": "D1",
+      "fields": ["src_ip", "timestamp", "url"],
+      "coverage": ["web_zone"],
+      "retention_days": 30
+    }
+  ],
+  "_meta": {
+    "scenario_label": "S4 仅 WEB/WAF — 可做告警分类，无法确认打穿",
+    "expected_overall_verdict": "alert_triage_only",
+    "expected_next_skill_blocked": true,
+    "expected_next_skill": "alert_confirmation",
+    "expected_can_confirm_breach": false
+  }
+}

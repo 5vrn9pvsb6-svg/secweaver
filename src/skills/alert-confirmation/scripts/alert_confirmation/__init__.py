@@ -1,0 +1,1 @@
+"""Alert confirmation implementation modules."""

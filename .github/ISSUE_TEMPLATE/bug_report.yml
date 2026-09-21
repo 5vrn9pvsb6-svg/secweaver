@@ -1,0 +1,53 @@
+name: Bug report
+description: Something is broken in CLI, validation, Skills, or DataAsset Studio
+title: "[bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do **not** paste real credentials, production logs, or customer data.
+        Search the repository's existing Issues first.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Clear description of the bug and what you expected.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Commands, input files, or UI steps. Prefer offline demo inputs when possible.
+      placeholder: |
+        1. make quickstart
+        2. python src/secweaver.py skill alert-confirmation -i examples/...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: SecWeaver version or commit
+      placeholder: v0.1.0 or git SHA
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: macOS / Ubuntu 22.04, Python 3.12
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant output or logs
+      description: Stack traces, validate errors, or sanitized CLI output.
+      render: shell

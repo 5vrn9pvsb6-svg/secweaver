@@ -1,0 +1,610 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/data-connector.json",
+  "title": "SecWeaver DataConnector",
+  "type": "object",
+  "required": ["connector_id", "name", "connector_type", "config", "status"],
+  "properties": {
+    "connector_id": { "type": "string", "pattern": "^conn-[a-z0-9-]+$" },
+    "name": { "type": "string" },
+    "connector_type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "description": "Built-ins are described in dataasset/configure/connector-catalog.json; config-only external connector types are registered in dataasset/configure/external-connectors.json."
+    },
+    "credentials_ref": {
+      "type": "string",
+      "pattern": "^vault://[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)*$"
+    },
+    "status": { "enum": ["draft", "active", "disabled"] },
+    "description": { "type": "string" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "config": { "type": "object" },
+    "constraints": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "connector_type": { "const": "sls" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["endpoint", "project", "logstore"],
+            "properties": {
+              "endpoint": { "type": "string" },
+              "project": { "type": "string" },
+              "logstore": { "type": "string" },
+              "hostname": { "type": "string" },
+              "host_id": {
+                "type": "string",
+                "pattern": "^host-[a-z0-9-]+$",
+                "description": "可选；分 logstore 时标注对应主机"
+              },
+              "region": { "type": "string" },
+              "source_log_path": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "sls_proxy" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["endpoint", "logstore"],
+            "properties": {
+              "endpoint": {
+                "type": "string",
+                "pattern": "^https?://",
+                "description": "生产 SLS Proxy 必须使用 HTTPS；HTTP 仅允许本地回环联调"
+              },
+              "logstore": { "type": "string" },
+              "project": {
+                "type": "string",
+                "pattern": "^(?:[A-Za-z0-9][A-Za-z0-9_-]{0,127})?(?![\\s\\S])",
+                "description": "Optional authorized Project selector; absent/empty uses the server default. This is a resource name, never a host or tenant override."
+              },
+              "tls_verify": { "type": "boolean", "default": true },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "fallback_endpoint": { "type": "string", "pattern": "^https?://" },
+              "source_log_path": { "type": "string" },
+              "region": false,
+              "hostname": { "type": "string" },
+              "host_id": {
+                "type": "string",
+                "pattern": "^host-[a-z0-9-]+$",
+                "description": "可选；分 logstore 时标注对应主机"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "ssh_file" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host"],
+            "properties": {
+              "host": { "type": "string" },
+              "hostname": { "type": "string" },
+              "host_id": {
+                "type": "string",
+                "pattern": "^host-[a-z0-9-]+$",
+                "description": "可选；引用 hosts/ 注册表，用于单主机 connector 标注物理采集目标"
+              },
+              "port": { "type": "integer", "minimum": 1 },
+              "bastion_id": { "type": "string" },
+              "log_paths": { "type": "object" },
+              "role": { "type": "string" },
+              "transport": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "database_ro" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["engine"],
+            "properties": {
+              "engine": { "enum": ["mysql", "mariadb", "postgresql", "postgres", "pg", "pgsql", "oracle", "plsql", "sqlserver", "mssql", "ms_sql", "sql_server", "sqlite", "sqlite3"] },
+              "host": { "type": "string" },
+              "port": { "type": "integer" },
+              "database": { "type": "string" },
+              "path": { "type": "string" },
+              "connection_string": { "type": "string" },
+              "driver": { "type": "string" },
+              "service_name": { "type": "string" },
+              "dsn": {
+                "type": "string",
+                "description": "Oracle / PLSQL only; e.g. host:1521/service"
+              },
+              "sslmode": {
+                "type": "string",
+                "description": "PostgreSQL only; e.g. require, verify-full"
+              },
+              "table_mapping": { "type": "object" },
+              "column_denylist": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+            },
+            "allOf": [
+              {
+                "if": { "properties": { "engine": { "enum": ["oracle", "plsql"] } } },
+                "then": {
+                  "anyOf": [
+                    { "required": ["dsn"] },
+                    { "required": ["host", "database"] },
+                    { "required": ["host", "service_name"] }
+                  ]
+                },
+                "else": {
+                  "if": { "properties": { "engine": { "enum": ["sqlite", "sqlite3"] } } },
+                  "then": { "anyOf": [{ "required": ["path"] }, { "required": ["database"] }] },
+                  "else": {
+                    "if": { "properties": { "engine": { "enum": ["sqlserver", "mssql", "ms_sql", "sql_server"] } } },
+                    "then": { "anyOf": [{ "required": ["connection_string"] }, { "required": ["host", "database"] }] },
+                    "else": { "required": ["host", "database"] }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "http_api" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["base_url"],
+            "properties": {
+              "base_url": { "type": "string", "pattern": "^https?://" },
+              "endpoints": { "type": "object" },
+              "auth": { "type": "string" },
+              "ca_file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "PEM CA bundle for HTTPS endpoints using a private CA; relative paths resolve from DATAASSET_ROOT"
+              },
+              "tls_verify": {
+                "const": true,
+                "default": true,
+                "description": "TLS verification is mandatory; use ca_file instead of disabling verification"
+              },
+              "rate_limit_rpm": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "es" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "url": { "type": "string", "pattern": "^https?://" },
+              "endpoint": { "type": "string", "pattern": "^https?://" },
+              "index": { "type": "string" },
+              "index_pattern": { "type": "string" },
+              "time_field": { "type": "string", "default": "@timestamp" },
+              "event_type": { "type": "string" },
+              "event_types": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+              "hostname": { "type": "string" },
+              "host_id": { "type": "string", "pattern": "^host-[a-z0-9-]+$" },
+              "source_log_path": { "type": "string" },
+              "ca_file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "PEM CA bundle for HTTPS endpoints using a private CA; relative paths resolve from DATAASSET_ROOT"
+              },
+              "tls_verify": {
+                "const": true,
+                "default": true,
+                "description": "TLS verification is mandatory; use ca_file instead of disabling verification"
+              }
+            },
+            "allOf": [
+              { "anyOf": [{ "required": ["url"] }, { "required": ["endpoint"] }] },
+              { "anyOf": [{ "required": ["index"] }, { "required": ["index_pattern"] }] }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "local_file" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "hostname": { "type": "string" },
+              "host": { "type": "string" },
+              "base_path": { "type": "string" },
+              "log_paths": { "type": "object" }
+            },
+            "anyOf": [{ "required": ["base_path"] }, { "required": ["log_paths"] }]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "agent_stream" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "agent": { "type": "string" },
+              "sink_connector_id": { "type": "string" },
+              "sink": { "type": "string" },
+              "host": { "type": "string" },
+              "host_ip": { "type": "string" },
+              "host_id": { "type": "string", "pattern": "^host-[a-z0-9-]+$" },
+              "event_types": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+              "endpoint": { "type": "string", "pattern": "^https?://" },
+              "base_url": { "type": "string", "pattern": "^https?://" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "aws_cloudwatch" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["region"],
+            "properties": {
+              "region": { "type": "string" },
+              "log_group": { "type": "string" },
+              "log_groups": { "type": "array", "items": { "type": "string" } },
+              "log_stream_prefix": { "type": "string" },
+              "executor_endpoint": { "type": "string" },
+              "external_endpoint": { "type": "string" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            },
+            "anyOf": [{ "required": ["log_group"] }, { "required": ["log_groups"] }]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "aws_s3_logs" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["bucket"],
+            "properties": {
+              "bucket": { "type": "string" },
+              "prefix": { "type": "string" },
+              "region": { "type": "string" },
+              "max_objects": { "type": "integer", "minimum": 1 },
+              "executor_endpoint": { "type": "string" },
+              "external_endpoint": { "type": "string" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "azure_monitor" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["workspace_id"],
+            "properties": {
+              "workspace_id": { "type": "string" },
+              "tenant_id": { "type": "string" },
+              "endpoint": { "type": "string" },
+              "scope": { "type": "string" },
+              "executor_endpoint": { "type": "string" },
+              "external_endpoint": { "type": "string" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "gcp_logging" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["project_id"],
+            "properties": {
+              "project_id": { "type": "string" },
+              "resource_names": { "type": "array", "items": { "type": "string" } },
+              "scope": { "type": "string" },
+              "order_by": { "type": "string" },
+              "executor_endpoint": { "type": "string" },
+              "external_endpoint": { "type": "string" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "tencent_cls" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["endpoint", "topic_id"],
+            "properties": {
+              "endpoint": { "type": "string" },
+              "region": { "type": "string" },
+              "topic_id": { "type": "string" },
+              "action": { "type": "string" },
+              "version": { "type": "string" },
+              "service": { "type": "string" },
+              "executor_endpoint": { "type": "string" },
+              "external_endpoint": { "type": "string" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "huawei_lts" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["endpoint", "log_group_id", "log_stream_id"],
+            "properties": {
+              "endpoint": { "type": "string" },
+              "region": { "type": "string" },
+              "project_id": { "type": "string" },
+              "log_group_id": { "type": "string" },
+              "log_stream_id": { "type": "string" },
+              "path": { "type": "string" },
+              "request_overrides": { "type": "object" },
+              "executor_endpoint": { "type": "string" },
+              "external_endpoint": { "type": "string" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "splunk" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["base_url", "index"],
+            "properties": {
+              "base_url": { "type": "string", "pattern": "^https?://" },
+              "index": { "type": "string" },
+              "verify_tls": {
+                "const": true,
+                "default": true,
+                "description": "TLS verification is mandatory; use ca_file instead of disabling verification"
+              },
+              "ca_file": {
+                "type": "string",
+                "minLength": 1,
+                "description": "PEM CA bundle for HTTPS endpoints using a private CA; relative paths resolve from DATAASSET_ROOT"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "clickhouse" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host", "database"],
+            "properties": {
+              "host": { "type": "string" },
+              "port": { "type": "integer" },
+              "database": { "type": "string" },
+              "secure": { "type": "boolean" },
+              "column_denylist": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "hive" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host", "database"],
+            "properties": {
+              "host": { "type": "string" },
+              "port": { "type": "integer" },
+              "database": { "type": "string" },
+              "auth": { "type": "string" },
+              "column_denylist": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "mongodb" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "uri": { "type": "string" },
+              "host": { "type": "string" },
+              "port": { "type": "integer" },
+              "database": { "type": "string" },
+              "collection": { "type": "string" },
+              "auth_source": { "type": "string" }
+            },
+            "anyOf": [{ "required": ["uri"] }, { "required": ["host", "database"] }, { "required": ["database", "collection"] }]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "redis" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "host": { "type": "string" },
+              "port": { "type": "integer" },
+              "db": { "type": "integer" },
+              "database": { "type": ["integer", "string"] },
+              "ssl": { "type": "boolean" }
+            },
+            "required": ["host"]
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "ssh_command" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host"],
+            "properties": {
+              "host": { "type": "string" },
+              "hostname": { "type": "string" },
+              "host_id": { "type": "string", "pattern": "^(?:host-[a-z0-9-]+|YOUR_HOST_ID)$" },
+              "port": { "type": "integer", "minimum": 1 },
+              "bastion_id": { "type": "string" },
+              "transport": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "object_storage" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "provider": { "type": "string" },
+              "endpoint": { "type": "string" },
+              "base_url": { "type": "string" },
+              "bucket": { "type": "string" },
+              "prefix": { "type": "string" },
+              "format": { "type": "string" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "executor_endpoint": { "type": "string" },
+              "external_endpoint": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "connector_type": { "const": "syslog_ingest" } } },
+      "then": {
+        "properties": {
+          "config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "endpoint": { "type": "string" },
+              "base_url": { "type": "string" },
+              "format": { "type": "string" },
+              "sample_file": { "type": "string" },
+              "sample_dir": { "type": "string" },
+              "executor_endpoint": { "type": "string" },
+              "external_endpoint": { "type": "string" },
+              "ca_file": { "type": "string", "minLength": 1 },
+              "tls_verify": { "const": true, "default": true }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "status": { "const": "active" } } },
+      "then": {
+        "anyOf": [
+          { "required": ["credentials_ref"] },
+          { "properties": { "connector_type": { "const": "local_file" } } }
+        ]
+      }
+    }
+  ],
+  "additionalProperties": false
+}

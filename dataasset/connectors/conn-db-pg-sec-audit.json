@@ -1,0 +1,26 @@
+{
+  "connector_id": "conn-db-pg-sec-audit",
+  "name": "安全审计库 PostgreSQL 只读",
+  "connector_type": "database_ro",
+  "status": "draft",
+  "credentials_ref": "vault://db/pg-readonly",
+  "config": {
+    "engine": "postgresql",
+    "host": "pg-audit.internal.example.com",
+    "port": 5432,
+    "database": "sec_audit",
+    "table_mapping": {
+      "ssh_auth": "login_events",
+      "asset_inventory": "cmdb_hosts",
+      "db_audit": "db_audit_events"
+    },
+    "column_denylist": ["password", "secret", "token", "private_key", "api_key"]
+  },
+  "constraints": {
+    "max_rows": 2000,
+    "query_timeout_sec": 30,
+    "require_time_filter": true,
+    "require_where_clause": true
+  },
+  "description": "PostgreSQL database_ro 示例；凭证 type=postgresql；SQL 模板与 MySQL 共用 :param 占位符"
+}

@@ -1,0 +1,33 @@
+# Build this file from an extracted signed Linux Agent release package:
+# docker compose -f container/docker-compose.yaml up -d --build
+# The profile is intentionally namespace-scoped and must not be made privileged
+# as a shortcut for host auditing. Install the normal Linux Agent on the host
+# when auditd or host-persistence monitoring is required.
+services:
+  secweaver-agent:
+    image: ${SECWEAVER_AGENT_IMAGE:-secweaver-agent:local}
+    build:
+      context: ..
+      dockerfile: container/Dockerfile
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:mode=1777,size=32m
+    environment:
+      # This read-only mount supplies a stable host fingerprint component.
+      SECWEAVER_HOST_MACHINE_ID_PATH: /host/etc/machine-id
+      TZ: ${TZ:-UTC}
+    ports:
+      - "127.0.0.1:9100:9100"
+    volumes:
+      - ../config.container.json:/etc/secweaver-agent/config.json:ro
+      - /etc/machine-id:/host/etc/machine-id:ro
+      - secweaver-agent-data:/var/lib/secweaver-agent
+
+volumes:
+  secweaver-agent-data:

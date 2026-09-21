@@ -1,0 +1,40 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "对象存储日志归档（模板）资产",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "OSS/S3 兼容对象存储离线日志；可用本地 bucket/prefix 样本执行 POC，或配置 endpoint 转发外部执行器。",
+  "coverage": {
+    "zones": [
+      "edge"
+    ],
+    "apps": [],
+    "hosts": [
+      "YOUR_HOST"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "src_ip",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {},
+  "tags": [
+    "template",
+    "object-storage",
+    "planned"
+  ]
+}

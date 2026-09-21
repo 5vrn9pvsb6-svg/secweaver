@@ -1,0 +1,37 @@
+{
+  "asset_id": "asset-ssh-web-01-file",
+  "name": "WEB-01 SSH 直读 auth/nginx（备用）",
+  "asset_type": "ssh_auth",
+  "domain": "D3",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-ssh-web-01-auth",
+  "description": "SSH 直读单主机日志；生产建议用 SLS 汇聚 asset-ssh-internal",
+  "coverage": {
+    "hosts": [
+      "192.0.2.5"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "host",
+      "src_ip",
+      "user",
+      "result",
+      "timestamp"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 7
+  },
+  "query_template_ids": [
+    "ssh_file_grep_auth"
+  ],
+  "text_parser": "syslog_auth",
+  "sensitivity": "internal",
+  "tags": [
+    "ssh",
+    "ssh_file",
+    "draft"
+  ]
+}

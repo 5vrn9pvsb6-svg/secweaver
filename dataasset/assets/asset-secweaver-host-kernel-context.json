@@ -1,0 +1,24 @@
+{
+  "asset_id": "asset-secweaver-host-kernel-context",
+  "name": "SecWeaver 主机内核与容器上下文",
+  "asset_type": "host_kernel_context",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-host-state",
+  "description": "采集 Linux 内核模块、命名空间和 cgroup 容器上下文，Windows 驱动、系统版本与容器运行时状态。",
+  "coverage": {"hosts": []},
+  "field_aliases": {"host_name": "host", "time": "timestamp", "__source__": "log_source", "log_source": "host_ip"},
+  "schema": {
+    "fields": ["time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "entity_type", "action", "kernel_release", "kernel_version", "build_number", "boot_id", "kernel_cmdline", "module_name", "module_state", "container_id", "container_runtime", "runtime_state", "process_count", "pids", "cgroup_paths", "previous", "evidence_id", "enterprise_id"],
+    "time_field": "time",
+    "retention_days": 90
+  },
+  "query_template_ids": ["host_kernel_context_by_host_time", "host_kernel_context_by_indicator_time"],
+  "sensitivity": "internal",
+  "pii_fields": [],
+  "masking": {},
+  "quality": {"required_fields": ["host", "timestamp", "event_type", "entity_type"], "notes": ["容器识别基于 cgroup/运行时状态；该数据提供上下文，不替代容器审计。"]},
+  "tags": ["secweaver", "sls", "host_kernel_context", "kernel_module", "container", "secweaver-agent"]
+}

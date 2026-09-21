@@ -1,0 +1,156 @@
+{
+  "version": "1.1",
+  "description": "Single catalog for SecWeaver Skills. Each entry declares its kind, documentation, optional CLI entrypoint, and machine-readable output contract.",
+  "skills": [
+    {
+      "key": "completeness",
+      "name": "data-source-completeness",
+      "title": "Data source completeness",
+      "kind": "assessment",
+      "cli_visible": true,
+      "aliases": [
+        "completeness",
+        "data-source-completeness"
+      ],
+      "script": "src/skills/data-source-completeness/scripts/check.py",
+      "docs": "src/skills/data-source-completeness/SKILL.md",
+      "output_schema": "src/skills/data-source-completeness/output-schema.json",
+      "demo": {
+        "input": "examples/data-source-completeness/s1-full-traceable.json",
+        "output": "examples/reports/demo-completeness-output.json"
+      }
+    },
+    {
+      "key": "alert",
+      "name": "alert-confirmation",
+      "title": "Alert confirmation",
+      "kind": "assessment",
+      "cli_visible": true,
+      "aliases": [
+        "alert",
+        "alert-confirmation"
+      ],
+      "script": "src/skills/alert-confirmation/scripts/confirm.py",
+      "docs": "src/skills/alert-confirmation/SKILL.md",
+      "output_schema": "src/skills/alert-confirmation/output-schema.json",
+      "demo": {
+        "input": "examples/alert-confirmation/s4-webshell-attack-success.json",
+        "output": "examples/reports/demo-alert-output.json"
+      }
+    },
+    {
+      "key": "traceability",
+      "name": "traceability-analysis",
+      "title": "Traceability analysis",
+      "kind": "assessment",
+      "cli_visible": true,
+      "aliases": [
+        "traceability",
+        "traceability-analysis"
+      ],
+      "script": "src/skills/traceability-analysis/scripts/correlate.py",
+      "docs": "src/skills/traceability-analysis/SKILL.md",
+      "output_schema": "src/skills/traceability-analysis/output-schema.json",
+      "demo": {
+        "input": "examples/traceability/s1-web-shell-to-ssh-lateral.json",
+        "output": "examples/reports/demo-traceability-output.json"
+      }
+    },
+    {
+      "key": "risk",
+      "name": "risk-identification",
+      "title": "Risk identification",
+      "kind": "assessment",
+      "cli_visible": true,
+      "aliases": [
+        "risk",
+        "risk-identification"
+      ],
+      "script": "src/skills/risk-identification/scripts/assess.py",
+      "docs": "src/skills/risk-identification/SKILL.md",
+      "output_schema": "src/skills/risk-identification/output-schema.json",
+      "demo": {
+        "input": "examples/risk-identification/s5-curl-download-exec-p0.json",
+        "output": "examples/reports/demo-risk-output.json"
+      }
+    },
+    {
+      "key": "evidence-fetch",
+      "name": "evidence-fetch",
+      "title": "Evidence fetch",
+      "kind": "fetch",
+      "cli_visible": true,
+      "aliases": ["fetch", "evidence-fetch"],
+      "script": "src/skills/evidence-fetch/scripts/fetch_evidence.py",
+      "docs": "src/skills/evidence-fetch/SKILL.md",
+      "output_schema": "src/skills/evidence-fetch/output-schema.json"
+    },
+    {
+      "key": "log-format-discovery",
+      "name": "log-format-discovery",
+      "title": "Log format discovery",
+      "kind": "operation",
+      "cli_visible": true,
+      "aliases": ["format-discovery", "log-format-discovery"],
+      "script": "src/skills/log-format-discovery/scripts/discover.py",
+      "docs": "src/skills/log-format-discovery/SKILL.md",
+      "output_schema": "src/skills/log-format-discovery/output-schema.json"
+    },
+    {
+      "key": "dataasset-connectivity-check",
+      "name": "dataasset-connectivity-check",
+      "title": "DataAsset connectivity check",
+      "kind": "operation",
+      "cli_visible": true,
+      "aliases": ["connectivity", "dataasset-connectivity-check"],
+      "script": "src/skills/dataasset-connectivity-check/scripts/check.py",
+      "docs": "src/skills/dataasset-connectivity-check/SKILL.md"
+    },
+    {
+      "key": "dataasset-validation-advisor",
+      "name": "dataasset-validation-advisor",
+      "title": "DataAsset validation advisor",
+      "kind": "operation",
+      "cli_visible": false,
+      "aliases": ["validation-advisor", "dataasset-validation-advisor"],
+      "docs": "src/skills/dataasset-validation-advisor/SKILL.md"
+    },
+    {
+      "key": "prompt-risk-analysis",
+      "name": "prompt-risk-analysis",
+      "title": "Prompt risk analysis",
+      "kind": "prompt",
+      "cli_visible": false,
+      "aliases": ["prompt-risk-analysis"],
+      "docs": "src/skills/prompt-risk-analysis/SKILL.md",
+      "output_schema": "src/skills/prompt-risk-analysis/output-schema.json"
+    },
+    {
+      "key": "offline-showcase",
+      "name": "offline-showcase",
+      "title": "Offline showcase",
+      "kind": "router",
+      "cli_visible": false,
+      "aliases": ["offline-showcase"],
+      "docs": "src/skills/offline-showcase/SKILL.md"
+    },
+    {
+      "key": "external-listener-cmd-risk",
+      "name": "external-listener-cmd-risk",
+      "title": "External listener command risk",
+      "kind": "subskill",
+      "cli_visible": false,
+      "aliases": ["external-listener-cmd-risk"],
+      "docs": "src/skills/external-listener-cmd-risk/SKILL.md"
+    },
+    {
+      "key": "external-listener-connect-risk",
+      "name": "external-listener-connect-risk",
+      "title": "External listener connection risk",
+      "kind": "subskill",
+      "cli_visible": false,
+      "aliases": ["external-listener-connect-risk"],
+      "docs": "src/skills/external-listener-connect-risk/SKILL.md"
+    }
+  ]
+}

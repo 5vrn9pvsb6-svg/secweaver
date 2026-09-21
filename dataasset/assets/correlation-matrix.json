@@ -1,0 +1,1214 @@
+{
+  "version": "1.1",
+  "description": "SecWeaver 跨源证据关联矩阵。Join 键建议使用 canonical 字段，也允许直接写源字段；字段归一由 evidence-minimum-fields.json 与 asset.field_aliases 负责，查询参数映射由 fetch_plan.param_map 与 query-templates 负责。",
+  "design_intent": {
+    "goal": "把安全调查中“哪些证据可以关联、在多大时间窗内关联”固化为一份机器可读的 Join 合同，供告警确认、溯源分析、风险识别等 Skill 复用。",
+    "principles": [
+      "关联规则集中维护：跨源和主机内部 Join 只在 correlation-matrix.json 定义，Skill 不自行臆造关联。",
+      "字段归一与关联解耦：字段别名由 evidence-minimum-fields.json 与 asset.field_aliases 负责，matrix 只描述 Join 语义和少量 Join 局部 variants。",
+      "查询编排与 Join 语义解耦：fetch_plan.param_map / query-templates 负责取数参数和索引字段，join_keys 只表达证据之间的语义关联。",
+      "时间窗显式化：Join 规则引用 time_windows，避免把相隔很久的无关事件拼成攻击链；调查场景编排由 scenarios/anchor-patterns.json 负责。"
+    ],
+    "why_internal_joins": "internal_joins 描述同一主机行为域内的 D2 事件链，例如 host_exec、host_connect、host_file_op 之间的连续行为，用于确认打穿、识别高危主机行为和补齐 execution/persistence/C2 阶段。",
+    "why_cross_source_joins": "cross_source_joins 描述不同数据源之间的证据桥接，例如 WAF→WEB→host_exec→SSH/防火墙，用于从外部告警追到受害主机、横向路径和影响范围。",
+    "why_time_windows": "不同关联关系的合理延迟不同：WEB 告警上下文、攻击成功、主机行为链、横向移动需要不同窗口；显式时间窗可以降低误关联并保留可审计依据。"
+  },
+  "field_policy": {
+    "join_key_naming": "canonical_or_raw",
+    "read_preference": "declared_first_then_alias",
+    "description": "join_keys.left/right 建议写 canonical 名，也可写源字段名；读事件时依次尝试声明字段 → join_keys.*_variants → alias 正反向候选字段。",
+    "layers": [
+      "L1 join 规则：left/right 可写 canonical 字段或源字段；推荐 canonical，源字段用于局部例外",
+      "L2 全局归一：evidence-minimum-fields.json field_aliases",
+      "L3 资产归一：asset.field_aliases",
+      "L4 单条 Join 例外：join_keys.*_variants（可选）",
+      "L5 查询参数：Join 级 fetch_plan.param_map → query-templates"
+    ]
+  },
+  "confidence_policy": {
+    "priority_scale": "1-100，数值越高表示调查时越应优先展示、解释和尝试；90+ 为强证据主链，70-89 为常规调查链，60-69 为辅助线索。",
+    "confidence_scale": "0-1，base 是 Join 命中 required keys 后的基础可信度，max 是 optional/secondary keys 加分后的上限。",
+    "default_runtime_adjustment": "运行时可按 optional/secondary key 命中情况在 base 与 max 之间小幅上调；无 required key 命中不得生成 join_edges。",
+    "operator_reading": "priority 解释“先看哪条链”，confidence 解释“这条命中为什么可信”。二者只用于排序、审计和解释，不允许替代原始证据。",
+    "rules": [
+      "exact 主键 + 短时间窗的 D2/WEB→host_exec 链路优先级最高。",
+      "跨源长时间窗或仅单字段命中的 Join 置信度低于同主机、多键或 5-tuple 互证。",
+      "经 CMDB、DNS 或 inventory 富化的 Join 需在 reason 中说明依赖来源。",
+      "path Join 的置信度不得高于其关键子 Join 的生产可解释性。"
+    ]
+  },
+  "investigation_param_aliases": {
+    "description": "运营可改：调查 params 别名填充。seed_hosts/hosts 首元素自动写入 target_ip，供 victim→WAF/网关反查。",
+    "target_ip": [
+      "target_ip",
+      "seed_hosts",
+      "hosts"
+    ],
+    "attacker_ip": [
+      "attacker_ip",
+      "src_ip"
+    ]
+  },
+  "trace_stage_map": {
+    "victim_host_to_waf_by_target_ip": "initial_access",
+    "victim_host_to_web_access_by_target_ip": "initial_access",
+    "waf_to_web_access_by_ip": "initial_access",
+    "web_access_to_host_exec": "execution",
+    "waf_to_host_exec_via_web_access": "execution",
+    "waf_to_host_exec_direct": "execution",
+    "d2_exec_connect_same_listener": "execution",
+    "d2_exec_file_same_host": "execution",
+    "d2_connect_file_same_host": "execution",
+    "ssh_auth_to_host_exec_same_host": "execution",
+    "attacker_ip_to_ssh_auth": "lateral_movement",
+    "host_ip_to_ssh_auth_lateral": "lateral_movement",
+    "firewall_web_to_internal": "lateral_movement",
+    "host_connect_to_dns": "network_activity",
+    "nta_session_correlation": "network_activity",
+    "lateral_from_exec": "lateral_movement",
+    "lateral_from_syslog": "lateral_movement",
+    "lateral_from_target_exec": "lateral_movement"
+  },
+  "time_windows": {
+    "alert_context": {
+      "before_minutes": 10,
+      "after_minutes": 10,
+      "use": "WAF 告警前后 WEB 访问"
+    },
+    "attack_success": {
+      "before_minutes": 5,
+      "after_minutes": 30,
+      "use": "告警确认第二层 host_exec/connect"
+    },
+    "alert_confirmation_fetch": {
+      "before_minutes": 10,
+      "after_minutes": 30,
+      "use": "告警确认默认取数窗：覆盖 WAF/WEB 上下文与二层主机行为"
+    },
+    "host_behavior_chain": {
+      "before_minutes": 5,
+      "after_minutes": 5,
+      "use": "同 host D2 exec/connect/file 攻击链"
+    },
+    "lateral_movement": {
+      "before_minutes": 30,
+      "after_minutes": 120,
+      "use": "SSH/防火墙横向扩散；heuristic（syslog_lateral、target_exec_lateral、lateral_from_exec）互证时间窗"
+    },
+    "trace_default": {
+      "before_hours": 24,
+      "after_hours": 6,
+      "use": "溯源默认调查窗（相对 alert_time）；由 scenarios/anchor-patterns.json 的 investigation_window 引用，填充 params.time_start/time_end"
+    }
+  },
+  "internal_joins": [
+    {
+      "id": "d2_exec_connect_same_listener",
+      "from_asset_type": "host_exec",
+      "to_asset_type": "host_connect",
+      "join_keys": [
+        {
+          "left": "host",
+          "left_variants": [
+            "host_name"
+          ],
+          "right": "host",
+          "right_variants": [
+            "host_name"
+          ],
+          "match": "exact"
+        },
+        {
+          "left": "listener_pid",
+          "right": "listener_pid",
+          "match": "exact",
+          "optional": true
+        },
+        {
+          "left": "listener_port",
+          "right": "listener_port",
+          "match": "exact",
+          "optional": true
+        }
+      ],
+      "time_window": "host_behavior_chain",
+      "priority": 94,
+      "confidence": {
+        "base": 0.9,
+        "max": 0.97,
+        "optional_key_increment": 0.05,
+        "reason": "同主机 listener_pid/listener_port 与短时间窗互证，适合作为打穿后的强 D2 证据。",
+        "signals": [
+          "host exact",
+          "listener pid/port optional",
+          "host_behavior_chain window"
+        ]
+      },
+      "purpose": "同一对外入口进程下的命令执行与外连",
+      "scenarios": [
+        "S1",
+        "S2",
+        "S5",
+        "S4",
+        "S8"
+      ],
+      "skills": [
+        "risk-identification",
+        "alert-confirmation",
+        "traceability-analysis"
+      ]
+    },
+    {
+      "id": "d2_exec_file_same_host",
+      "from_asset_type": "host_exec",
+      "to_asset_type": "host_file_op",
+      "join_keys": [
+        {
+          "left": "host",
+          "left_variants": [
+            "host_name"
+          ],
+          "right": "host",
+          "right_variants": [
+            "host_name"
+          ],
+          "match": "exact"
+        },
+        {
+          "left": "pid",
+          "right": "pid",
+          "match": "exact",
+          "optional": true
+        },
+        {
+          "left": "listener_pid",
+          "right": "listener_pid",
+          "match": "exact",
+          "optional": true
+        }
+      ],
+      "time_window": "host_behavior_chain",
+      "priority": 88,
+      "confidence": {
+        "base": 0.86,
+        "max": 0.94,
+        "optional_key_increment": 0.05,
+        "reason": "同主机命令执行与文件写入在短窗口内互证，可支撑落地文件或 WebShell 行为判断。",
+        "signals": [
+          "host exact",
+          "pid/listener optional",
+          "host_behavior_chain window"
+        ]
+      },
+      "purpose": "命令执行与 WebShell/异常文件写入",
+      "scenarios": [
+        "S2",
+        "S5",
+        "S4"
+      ],
+      "skills": [
+        "risk-identification",
+        "alert-confirmation",
+        "traceability-analysis"
+      ]
+    },
+    {
+      "id": "d2_connect_file_same_host",
+      "from_asset_type": "host_connect",
+      "to_asset_type": "host_file_op",
+      "join_keys": [
+        {
+          "left": "host",
+          "left_variants": [
+            "host_name"
+          ],
+          "right": "host",
+          "right_variants": [
+            "host_name"
+          ],
+          "match": "exact"
+        },
+        {
+          "left": "pid",
+          "right": "pid",
+          "match": "exact",
+          "optional": true
+        }
+      ],
+      "time_window": "host_behavior_chain",
+      "priority": 76,
+      "confidence": {
+        "base": 0.78,
+        "max": 0.9,
+        "optional_key_increment": 0.05,
+        "reason": "同主机外连与文件操作可形成行为补强，但缺少命令执行时应作为辅助证据。",
+        "signals": [
+          "host exact",
+          "pid optional",
+          "host_behavior_chain window"
+        ]
+      },
+      "purpose": "外连与文件操作同窗关联",
+      "scenarios": [
+        "S2",
+        "S5"
+      ],
+      "skills": [
+        "risk-identification",
+        "traceability-analysis"
+      ]
+    }
+  ],
+  "cross_source_joins": [
+    {
+      "id": "victim_host_to_waf_by_target_ip",
+      "from_asset_type": "host_exec",
+      "to_asset_type": "waf_alert",
+      "join_keys": [
+        {
+          "left": "host_ip",
+          "left_variants": [
+            "host_name",
+            "log_source",
+            "__source__"
+          ],
+          "right": "target_ip",
+          "right_variants": [
+            "upstream_addr"
+          ],
+          "match": "exact"
+        }
+      ],
+      "time_window": "alert_context",
+      "priority": 78,
+      "confidence": {
+        "base": 0.84,
+        "max": 0.92,
+        "optional_key_increment": 0.05,
+        "reason": "受害 host_ip 与 WAF target_ip/upstream 对齐，适合已知受害主机时反查入口告警。",
+        "signals": [
+          "target_ip exact",
+          "alert_context window",
+          "reverse lookup"
+        ]
+      },
+      "purpose": "已知受害 host_ip（params.target_ip），反查 WAF 告警（upstream_addr→target_ip）并还原攻击源 src_ip",
+      "scenarios": [
+        "S2",
+        "S4",
+        "S5"
+      ],
+      "skills": [
+        "traceability-analysis",
+        "alert-confirmation"
+      ],
+      "fetch_params": [
+        "target_ip",
+        "time_start",
+        "time_end"
+      ],
+      "fetch_plan": {
+        "right": {
+          "asset_types": [
+            "waf_alert"
+          ],
+          "template_id": "waf_gateway_plugin_by_target_ip_time",
+          "param_map": {
+            "target_ip": "params.target_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "victim_host_to_web_access_by_target_ip",
+      "from_asset_type": "host_exec",
+      "to_asset_type": "web_access_log",
+      "join_keys": [
+        {
+          "left": "host_ip",
+          "left_variants": [
+            "host_name",
+            "log_source",
+            "__source__"
+          ],
+          "right": "target_ip",
+          "right_variants": [
+            "upstream_addr"
+          ],
+          "match": "exact"
+        }
+      ],
+      "time_window": "alert_context",
+      "priority": 80,
+      "confidence": {
+        "base": 0.85,
+        "max": 0.93,
+        "optional_key_increment": 0.05,
+        "reason": "受害 host_ip 与网关 upstream 对齐，能桥接后续 web_access_to_host_exec 主链。",
+        "signals": [
+          "target_ip exact",
+          "alert_context window",
+          "reverse lookup"
+        ]
+      },
+      "purpose": "已知受害 host_ip，反查网关 access（upstream_addr→target_ip）并关联 web_access_to_host_exec",
+      "scenarios": [
+        "S2",
+        "S4",
+        "S5"
+      ],
+      "skills": [
+        "traceability-analysis",
+        "alert-confirmation"
+      ],
+      "fetch_params": [
+        "target_ip",
+        "time_start",
+        "time_end"
+      ],
+      "fetch_plan": {
+        "right": {
+          "asset_types": [
+            "web_access_log"
+          ],
+          "template_id": "web_access_by_target_ip_time",
+          "param_map": {
+            "target_ip": "params.target_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "waf_to_web_access_by_ip",
+      "from_asset_type": "waf_alert",
+      "to_asset_type": "web_access_log",
+      "join_keys": [
+        {
+          "left": "src_ip",
+          "left_variants": [
+            "ip",
+            "client_ip"
+          ],
+          "right": "src_ip",
+          "right_variants": [
+            "client_ip",
+            "remote_addr"
+          ],
+          "match": "exact"
+        }
+      ],
+      "time_window": "alert_context",
+      "priority": 90,
+      "confidence": {
+        "base": 0.86,
+        "max": 0.95,
+        "optional_key_increment": 0.05,
+        "reason": "WAF 与 WEB 访问按攻击源 IP 对齐，并可用 URL/target_ip 二级键提升可信度。",
+        "signals": [
+          "src_ip exact",
+          "url optional",
+          "target_ip optional",
+          "alert_context window"
+        ]
+      },
+      "secondary_keys": [
+        {
+          "left": "url",
+          "left_variants": [
+            "request_uri"
+          ],
+          "right": "url",
+          "right_variants": [
+            "request_uri",
+            "path"
+          ],
+          "match": "path_prefix",
+          "optional": true
+        },
+        {
+          "left": "target_ip",
+          "left_variants": [
+            "upstream_addr"
+          ],
+          "right": "target_ip",
+          "right_variants": [
+            "upstream_addr"
+          ],
+          "match": "exact",
+          "optional": true,
+          "notes": "网关/WAF upstream_addr 归一化为 target_ip（受害 upstream）"
+        }
+      ],
+      "purpose": "WAF 告警前后同源 IP 的 HTTP 请求序列",
+      "scenarios": [
+        "S1",
+        "S2",
+        "S4"
+      ],
+      "skills": [
+        "alert-confirmation",
+        "traceability-analysis"
+      ],
+      "fetch_params": [
+        "src_ip",
+        "time_start",
+        "time_end"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "waf_alert"
+          ],
+          "template_id": "waf_gateway_plugin_by_ip_time",
+          "param_map": {
+            "src_ip": "params.attacker_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "web_access_log"
+          ],
+          "template_id": "web_access_by_remote_addr_time",
+          "param_map": {
+            "src_ip": "params.attacker_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "web_access_to_host_exec",
+      "from_asset_type": "web_access_log",
+      "to_asset_type": "host_exec",
+      "join_keys": [
+        {
+          "left": "target_ip",
+          "left_variants": [
+            "upstream_addr"
+          ],
+          "right": "host_ip",
+          "right_variants": [
+            "host_name",
+            "log_source",
+            "__source__"
+          ],
+          "match": "exact"
+        },
+        {
+          "left": "host",
+          "left_variants": [
+            "hostname",
+            "vhost"
+          ],
+          "right": "host",
+          "right_variants": [
+            "host_name",
+            "hostname"
+          ],
+          "match": "exact",
+          "optional": true
+        }
+      ],
+      "time_window": "attack_success",
+      "priority": 96,
+      "confidence": {
+        "base": 0.88,
+        "max": 0.96,
+        "optional_key_increment": 0.05,
+        "reason": "WEB upstream/host 与主机执行在攻击成功窗口内对齐，是确认打穿的核心主链。",
+        "signals": [
+          "target_ip to host_ip exact",
+          "host optional",
+          "attack_success window"
+        ]
+      },
+      "notes": "web_access.target_ip（upstream_addr）为受害 upstream；关联 host_exec.host_ip",
+      "purpose": "WEB 请求落到主机命令执行（攻击是否成功）",
+      "scenarios": [
+        "S1",
+        "S2",
+        "S4"
+      ],
+      "skills": [
+        "alert-confirmation",
+        "traceability-analysis"
+      ],
+      "fetch_params": [
+        "host",
+        "time_start",
+        "time_end"
+      ],
+      "fetch_plan": {
+        "right": {
+          "asset_types": [
+            "host_exec"
+          ],
+          "template_id": "host_exec_by_host_time",
+          "param_map": {
+            "host": "bridge.host",
+            "host_ip": "params.target_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "waf_to_host_exec_via_web_access",
+      "from_asset_type": "waf_alert",
+      "to_asset_type": "host_exec",
+      "path": [
+        "waf_to_web_access_by_ip",
+        "web_access_to_host_exec"
+      ],
+      "anchor_keys": [
+        {
+          "from": "waf_alert",
+          "field": "src_ip",
+          "field_variants": [
+            "ip"
+          ],
+          "role": "attacker_ip"
+        },
+        {
+          "bridge": "web_access_log",
+          "field": "host",
+          "field_variants": [
+            "hostname"
+          ],
+          "role": "victim_host"
+        }
+      ],
+      "time_window": "attack_success",
+      "priority": 86,
+      "confidence": {
+        "base": 0.82,
+        "max": 0.92,
+        "optional_key_increment": 0.05,
+        "reason": "WAF 缺少受害主机字段时经 WEB 访问桥接，可信度取决于子 Join 和桥接 host。",
+        "signals": [
+          "path join",
+          "waf_to_web_access_by_ip",
+          "web_access_to_host_exec"
+        ]
+      },
+      "purpose": "WAF 无 host 字段时，经 WEB 访问日志桥接到 host_exec",
+      "scenarios": [
+        "S2",
+        "S4"
+      ],
+      "skills": [
+        "alert-confirmation",
+        "traceability-analysis"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "waf_alert"
+          ],
+          "template_id": "waf_gateway_plugin_by_ip_time",
+          "param_map": {
+            "src_ip": "params.attacker_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "web_access_log"
+          ],
+          "template_id": "web_access_by_src_ip_time",
+          "param_map": {
+            "src_ip": "params.attacker_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "waf_to_host_exec_direct",
+      "from_asset_type": "waf_alert",
+      "to_asset_type": "host_exec",
+      "join_keys": [
+        {
+          "left": "target_ip",
+          "left_variants": [
+            "upstream_addr"
+          ],
+          "right": "host_ip",
+          "right_variants": [
+            "host_name",
+            "log_source",
+            "__source__"
+          ],
+          "match": "exact"
+        },
+        {
+          "left": "host",
+          "left_variants": [
+            "app_name",
+            "hostname"
+          ],
+          "right": "host",
+          "right_variants": [
+            "host_name"
+          ],
+          "match": "exact",
+          "optional": true
+        }
+      ],
+      "time_window": "attack_success",
+      "priority": 92,
+      "confidence": {
+        "base": 0.89,
+        "max": 0.96,
+        "optional_key_increment": 0.05,
+        "reason": "WAF target_ip/upstream 可直连 host_exec.host_ip，证据链短但依赖 WAF 侧目标字段质量。",
+        "signals": [
+          "target_ip to host_ip exact",
+          "attack_success window"
+        ]
+      },
+      "notes": "WAF/gateway upstream_addr→target_ip 为受害 upstream；有 target_ip 时直联 host_exec.host_ip",
+      "purpose": "WAF 按 target_ip 直查受害主机 exec",
+      "scenarios": [
+        "S2",
+        "S4"
+      ],
+      "skills": [
+        "alert-confirmation"
+      ],
+      "fetch_params": [
+        "attacker_ip",
+        "target_ip",
+        "time_start",
+        "time_end"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "waf_alert"
+          ],
+          "template_id": "waf_gateway_plugin_by_ip_time",
+          "param_map": {
+            "src_ip": "params.attacker_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "host_exec"
+          ],
+          "template_id": "host_exec_by_host_ip_time",
+          "param_map": {
+            "host_ip": "params.target_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "attacker_ip_to_ssh_auth",
+      "from_asset_type": "waf_alert",
+      "to_asset_type": "ssh_auth",
+      "join_keys": [
+        {
+          "left": "src_ip",
+          "left_variants": [
+            "ip"
+          ],
+          "right": "src_ip",
+          "match": "exact"
+        }
+      ],
+      "time_window": "lateral_movement",
+      "priority": 62,
+      "confidence": {
+        "base": 0.74,
+        "max": 0.86,
+        "optional_key_increment": 0.05,
+        "reason": "攻击源 IP 与 SSH 登录源 IP 对齐，可提示账号攻击或横向入口，但长窗口下需后续证据确认。",
+        "signals": [
+          "src_ip exact",
+          "lateral_movement window"
+        ]
+      },
+      "purpose": "外网攻击 IP 是否尝试/成功 SSH 登录",
+      "scenarios": [
+        "S1",
+        "S3",
+        "S6"
+      ],
+      "skills": [
+        "traceability-analysis"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "waf_alert"
+          ],
+          "template_id": "waf_gateway_plugin_by_ip_time",
+          "param_map": {
+            "src_ip": "params.attacker_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "ssh_auth"
+          ],
+          "template_id": "ssh_auth_by_src_ip_time",
+          "param_map": {
+            "src_ip": "params.attacker_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "host_ip_to_ssh_auth_lateral",
+      "from_asset_type": "host_exec",
+      "to_asset_type": "ssh_auth",
+      "join_keys": [
+        {
+          "left": "host_ip",
+          "right": "src_ip",
+          "match": "exact",
+          "notes": "上一跳受害机 IP 作为 SSH 源"
+        }
+      ],
+      "time_window": "lateral_movement",
+      "priority": 82,
+      "confidence": {
+        "base": 0.84,
+        "max": 0.92,
+        "optional_key_increment": 0.05,
+        "reason": "已打穿主机的 host_ip 与 SSH 登录源 IP 对齐，是横向移动常见强线索。",
+        "signals": [
+          "host_ip to src_ip exact",
+          "lateral_movement window"
+        ]
+      },
+      "purpose": "受害主机作为跳板对内网 SSH 横向",
+      "scenarios": [
+        "S1",
+        "S3"
+      ],
+      "skills": [
+        "traceability-analysis"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "host_exec"
+          ],
+          "template_id": "host_exec_by_host_time",
+          "param_map": {
+            "host": "params.host",
+            "host_ip": "params.host_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "ssh_auth"
+          ],
+          "template_id": "ssh_auth_by_src_ip_time",
+          "param_map": {
+            "src_ip": "params.host_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "ssh_auth_to_host_exec_same_host",
+      "from_asset_type": "ssh_auth",
+      "to_asset_type": "host_exec",
+      "join_keys": [
+        {
+          "left": "host",
+          "right": "host",
+          "right_variants": [
+            "host_name"
+          ],
+          "match": "exact"
+        }
+      ],
+      "time_window": "attack_success",
+      "priority": 84,
+      "confidence": {
+        "base": 0.86,
+        "max": 0.94,
+        "optional_key_increment": 0.05,
+        "reason": "SSH 登录目标主机与后续命令执行同主机同窗，可确认登录后的执行行为。",
+        "signals": [
+          "host exact",
+          "attack_success window"
+        ]
+      },
+      "secondary_keys": [
+        {
+          "left": "user",
+          "left_variants": [
+            "username"
+          ],
+          "right": "user",
+          "right_variants": [
+            "uid_name"
+          ],
+          "match": "exact",
+          "optional": true
+        }
+      ],
+      "purpose": "SSH 登录成功后主机上的命令执行",
+      "scenarios": [
+        "S3",
+        "S6"
+      ],
+      "skills": [
+        "traceability-analysis"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "ssh_auth"
+          ],
+          "template_id": "ssh_auth_by_host_time",
+          "param_map": {
+            "host": "params.host",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "host_exec"
+          ],
+          "template_id": "host_exec_by_host_time",
+          "param_map": {
+            "host": "params.host",
+            "host_ip": "params.host_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "firewall_web_to_internal",
+      "from_asset_type": "firewall_log",
+      "to_asset_type": "ssh_auth",
+      "join_keys": [
+        {
+          "left": "dst_ip",
+          "left_variants": [
+            "dip",
+            "dest_ip"
+          ],
+          "right": "host_ip",
+          "right_variants": [
+            "host"
+          ],
+          "match": "exact",
+          "notes": "防火墙目的 IP 对齐 SSH 目标主机"
+        },
+        {
+          "left": "src_ip",
+          "left_variants": [
+            "sip"
+          ],
+          "right": "host_ip",
+          "match": "exact",
+          "optional": true
+        }
+      ],
+      "time_window": "lateral_movement",
+      "priority": 72,
+      "confidence": {
+        "base": 0.78,
+        "max": 0.9,
+        "optional_key_increment": 0.05,
+        "reason": "防火墙会话与 SSH 登录通过 IP/端口互证，适合补充网络层横向路径。",
+        "signals": [
+          "src/dst ip exact",
+          "port optional",
+          "lateral_movement window"
+        ]
+      },
+      "purpose": "DMZ→内网连接与 SSH 登录互证",
+      "scenarios": [
+        "S1",
+        "S3"
+      ],
+      "skills": [
+        "traceability-analysis"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "firewall_log"
+          ],
+          "template_id": "firewall_by_src_ip_time",
+          "param_map": {
+            "src_ip": "params.host_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "ssh_auth"
+          ],
+          "template_id": "ssh_auth_by_host_time",
+          "param_map": {
+            "host": "params.host",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "host_connect_to_dns",
+      "from_asset_type": "host_connect",
+      "to_asset_type": "dns_log",
+      "join_keys": [
+        {
+          "left": "host_ip",
+          "right": "client_ip",
+          "match": "exact",
+          "optional": true
+        },
+        {
+          "left": "host",
+          "left_variants": [
+            "host_name"
+          ],
+          "right": "client_ip",
+          "match": "hostname_to_ip_via_cmdb",
+          "optional": true
+        }
+      ],
+      "time_window": "attack_success",
+      "priority": 64,
+      "confidence": {
+        "base": 0.72,
+        "max": 0.84,
+        "optional_key_increment": 0.05,
+        "reason": "主机外连与 DNS 解析可解释 C2/下载域名，但 DNS 响应和缓存会带来不确定性。",
+        "signals": [
+          "client_ip/host exact",
+          "dns_answer_ip optional"
+        ]
+      },
+      "secondary_keys": [
+        {
+          "left": "dst_ip",
+          "right": "response",
+          "right_variants": [
+            "answers",
+            "resolved_ip"
+          ],
+          "match": "dns_answer_ip",
+          "optional": true
+        }
+      ],
+      "purpose": "外连 IP 解析对应域名（C2/下载站）",
+      "scenarios": [
+        "S1",
+        "S2",
+        "S7",
+        "S8"
+      ],
+      "skills": [
+        "traceability-analysis",
+        "risk-identification"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "host_connect"
+          ],
+          "template_id": "host_connect_by_host_ip_time",
+          "param_map": {
+            "host_ip": "params.host_ip",
+            "host": "params.host",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "dns_log"
+          ],
+          "template_id": "dns_by_client_ip_time",
+          "param_map": {
+            "client_ip": "params.host_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    },
+    {
+      "id": "host_to_cmdb",
+      "from_asset_type": "host_exec",
+      "to_asset_type": "asset_inventory",
+      "join_keys": [
+        {
+          "left": "host",
+          "left_variants": [
+            "host_name"
+          ],
+          "right": "hostname",
+          "right_variants": [
+            "host"
+          ],
+          "match": "exact"
+        },
+        {
+          "left": "host_ip",
+          "right": "ip",
+          "match": "exact",
+          "optional": true
+        }
+      ],
+      "purpose": "主机行为映射到资产清单（区域、负责人、服务）",
+      "scenarios": [
+        "S1",
+        "S2",
+        "S3"
+      ],
+      "skills": [
+        "traceability-analysis",
+        "data-source-completeness"
+      ],
+      "priority": 70,
+      "confidence": {
+        "base": 0.8,
+        "max": 0.9,
+        "optional_key_increment": 0.05,
+        "reason": "主机行为与资产清单富化关联，用于补负责人、区域和服务语义，不单独证明攻击链。",
+        "signals": [
+          "host exact",
+          "host_ip optional",
+          "inventory enrichment"
+        ]
+      }
+    },
+    {
+      "id": "nta_session_correlation",
+      "from_asset_type": "network_traffic_audit",
+      "to_asset_type": "host_connect",
+      "join_keys": [
+        {
+          "left": "src_ip",
+          "right": "host_ip",
+          "match": "exact",
+          "optional": true
+        },
+        {
+          "left": "dst_ip",
+          "left_variants": [
+            "dip"
+          ],
+          "right": "dst_ip",
+          "match": "exact"
+        },
+        {
+          "left": "dst_port",
+          "left_variants": [
+            "dport"
+          ],
+          "right": "dst_port",
+          "match": "exact"
+        }
+      ],
+      "time_window": "attack_success",
+      "priority": 86,
+      "confidence": {
+        "base": 0.86,
+        "max": 0.94,
+        "optional_key_increment": 0.05,
+        "reason": "全流量会话与进程级外连按目标 IP/端口互证，可强化外连和外传判断。",
+        "signals": [
+          "dst_ip exact",
+          "dst_port exact",
+          "src_ip optional"
+        ]
+      },
+      "purpose": "全流量审计与进程级外连互证",
+      "scenarios": [
+        "S7",
+        "S8"
+      ],
+      "skills": [
+        "traceability-analysis",
+        "risk-identification"
+      ],
+      "fetch_plan": {
+        "left": {
+          "asset_types": [
+            "network_traffic_audit"
+          ],
+          "template_id": "network_traffic_by_src_ip_time",
+          "param_map": {
+            "src_ip": "params.host_ip",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        },
+        "right": {
+          "asset_types": [
+            "host_connect"
+          ],
+          "template_id": "host_connect_by_host_ip_time",
+          "param_map": {
+            "host_ip": "params.host_ip",
+            "host": "params.host",
+            "time_start": "params.time_start",
+            "time_end": "params.time_end"
+          }
+        }
+      }
+    }
+  ],
+  "join_match_types": {
+    "exact": "字符串完全相等（大小写不敏感）；左右可读 canonical 或 variants/aliases 源字段",
+    "path_prefix": "URL path 前缀匹配，忽略 scheme/host",
+    "hostname_to_ip_via_cmdb": "经 asset_inventory 将 hostname 解析为 IP 后再 Join",
+    "dns_answer_ip": "DNS response 字段解析出的 A/AAAA 记录与 dst_ip 比对"
+  },
+  "join_key_schema": {
+    "left": "canonical 字段名（必填）",
+    "right": "canonical 字段名（必填）",
+    "left_variants": "可选；本条 Join 左侧额外原始字段名",
+    "right_variants": "可选；本条 Join 右侧额外原始字段名",
+    "match": "join_match_types 中的匹配方式",
+    "optional": "true 时该键缺失不阻断 Join"
+  },
+  "constraints": [
+    "join_keys.left/right 推荐 canonical，也允许源字段；读值时 declared_first，再 variants，再全局/资产 aliases 正反向解析",
+    "未归一化证据（仅含 host_name/ip 等）仍可按 Join 匹配，须在输出注明 matched_via: canonical|variant|alias",
+    "查询参数映射由 fetch_plan.param_map 与 query-templates 定义，不在 matrix 重复维护 index_fields",
+    "调查场景 scenarios/anchor-patterns.json 中 investigation_window=trace_default 时，仅有 alert_time 则自动填充 time_start/time_end（前 24h / 后 6h）",
+    "无 join 命中时不得推断攻击链，须在 data_gaps 中说明缺失的 join_id",
+    "success_confirmed 类结论至少需一条 D2 join（web_access_to_host_exec 或 d2_*）",
+    "时间窗以 left 事件 timestamp（或 time/@timestamp）为锚；批量调查以 params.time_start/time_end 截断"
+  ]
+}

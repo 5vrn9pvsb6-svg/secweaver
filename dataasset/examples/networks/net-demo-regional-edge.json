@@ -1,0 +1,15 @@
+{
+  "network_id": "net-demo-regional-edge",
+  "name": "Demo Regional Edge 192.0.2.96/27",
+  "cidr": "192.0.2.96/27",
+  "zone": "demo_cloud",
+  "network_type": "cloud_vpc",
+  "trust_level": "dmz",
+  "status": "draft",
+  "description": "Synthetic regional edge network template for public examples.",
+  "tags": [
+    "demo",
+    "regional-edge",
+    "reference"
+  ]
+}

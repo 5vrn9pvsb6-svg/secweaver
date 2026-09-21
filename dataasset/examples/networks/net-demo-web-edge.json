@@ -1,0 +1,15 @@
+{
+  "network_id": "net-demo-web-edge",
+  "name": "Demo Web Edge 192.0.2.32/27",
+  "cidr": "192.0.2.32/27",
+  "zone": "demo_cloud",
+  "network_type": "cloud_vpc",
+  "trust_level": "dmz",
+  "status": "draft",
+  "description": "Synthetic web-edge network template for public examples.",
+  "tags": [
+    "demo",
+    "web-edge",
+    "reference"
+  ]
+}

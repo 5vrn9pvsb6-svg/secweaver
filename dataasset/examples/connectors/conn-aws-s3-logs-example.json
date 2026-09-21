@@ -1,0 +1,19 @@
+{
+  "connector_id": "conn-aws-s3-logs-example",
+  "name": "AWS S3 日志归档示例连接器",
+  "connector_type": "aws_s3_logs",
+  "status": "draft",
+  "credentials_ref": "vault://aws/s3-log-readonly",
+  "description": "示例：读取落在 S3 的 CloudTrail、ALB、CloudFront 或安全产品归档日志；生产环境需配置只读 bucket/prefix 权限。",
+  "config": {
+    "region": "ap-southeast-1",
+    "bucket": "example-security-logs",
+    "prefix": "cloudtrail/AWSLogs/123456789012/"
+  },
+  "constraints": {
+    "max_objects_per_query": 100,
+    "max_records_per_request": 5000,
+    "request_timeout_sec": 120
+  },
+  "tags": ["example", "aws", "s3", "archive", "not-for-production"]
+}

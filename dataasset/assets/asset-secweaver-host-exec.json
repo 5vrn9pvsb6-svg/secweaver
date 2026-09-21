@@ -1,0 +1,94 @@
+{
+  "asset_id": "asset-secweaver-host-exec",
+  "name": "SecWeaver 主机命令执行审计",
+  "asset_type": "host_exec",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-host-events",
+  "trace_profile_id": "secweaver-host-exec",
+  "description": "SecWeaver 统一日志项目中的 /var/log/audit-port-execmon.log 汇聚日志，用于外部监听进程命令执行、WebShell、反弹 shell 和主机高危行为识别。",
+  "coverage": {
+    "zones": [
+      "web_hosts",
+      "internal"
+    ],
+    "hosts": [
+      "192.0.2.80",
+      "192.0.2.5",
+      "192.0.2.91",
+      "192.0.2.92",
+      "198.51.100.2",
+      "198.51.100.3",
+      "203.0.113.4"
+    ]
+  },
+  "field_aliases": {
+    "host_name": "host",
+    "time": "timestamp",
+    "__source__": "log_source",
+    "log_source": "host_ip"
+  },
+  "schema": {
+    "fields": [
+      "enterprise_id",
+      "time",
+      "timestamp",
+      "host",
+      "host_name",
+      "host_ip",
+      "event_type",
+      "audit_id",
+      "pid",
+      "pid_name",
+      "ppid",
+      "ppid_name",
+      "uid",
+      "uid_name",
+      "auid",
+      "auid_name",
+      "comm",
+      "exe",
+      "cwd",
+      "command",
+      "command_line",
+      "success",
+      "exit",
+      "key",
+      "tty",
+      "has_tty",
+      "listener_pid",
+      "listener_process",
+      "listener_address",
+      "listener_port"
+    ],
+    "time_field": "time",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "host_exec_by_host_ip_time",
+    "host_exec_by_host_name_time",
+    "host_exec_by_host_time",
+    "host_exec_by_time"
+  ],
+  "sensitivity": "confidential",
+  "pii_fields": [],
+  "masking": {},
+  "quality": {
+    "required_fields": [],
+    "expected_event_type": "exec",
+    "notes": [
+      "SLS 中可使用 __time__ 做时间范围过滤；业务事件时间以 time 字段为准。",
+      "listener_* 字段用于回溯该命令所属的对外监听入口进程。"
+    ]
+  },
+  "tags": [
+    "secweaver",
+    "sls",
+    "host_exec",
+    "exec",
+    "audit-port-execmon",
+    "risk-identification"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/skill-envelope.json",
+  "title": "SecWeaver Skill envelope v1",
+  "type": "object",
+  "required": ["contract_version", "skill"],
+  "properties": {
+    "contract_version": {"const": "1.0"},
+    "skill": {
+      "enum": [
+        "data-source-completeness",
+        "traceability-analysis",
+        "alert-confirmation",
+        "risk-identification",
+        "evidence-fetch"
+      ]
+    },
+    "params": {"type": "object"},
+    "evidence_bundles": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "object"}
+      }
+    },
+    "fetch_summary": {"type": "object"},
+    "completeness_precheck": {
+      "type": ["object", "null"],
+      "description": "Null when no completeness precheck ran; an object when precheck evidence is available."
+    }
+  },
+  "additionalProperties": true
+}

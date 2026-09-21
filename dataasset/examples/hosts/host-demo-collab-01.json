@@ -1,0 +1,30 @@
+{
+  "host_id": "host-demo-collab-01",
+  "name": "Demo Collaboration 01",
+  "hostname": "demo-collab-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "198.51.100.11",
+  "network_id": "net-demo-log-source",
+  "aliases": [
+    "demo-collab-01",
+    "198.51.100.11"
+  ],
+  "roles": [
+    "code-repository",
+    "docs",
+    "issue-tracker"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic collaboration-services host template.",
+  "tags": [
+    "code-repository",
+    "demo",
+    "docs",
+    "issue-tracker",
+    "reference",
+    "server"
+  ]
+}

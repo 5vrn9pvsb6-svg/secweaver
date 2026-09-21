@@ -1,0 +1,29 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "ES 逻辑资产（模板）",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "coverage": {
+    "zones": [
+      "web_zone"
+    ],
+    "apps": [],
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "src_ip",
+      "timestamp",
+      "url",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {}
+}

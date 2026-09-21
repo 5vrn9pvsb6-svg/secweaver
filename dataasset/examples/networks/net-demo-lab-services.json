@@ -1,0 +1,15 @@
+{
+  "network_id": "net-demo-lab-services",
+  "name": "Demo Lab Services 198.51.100.128/27",
+  "cidr": "198.51.100.128/27",
+  "zone": "demo_lab",
+  "network_type": "lab",
+  "trust_level": "internal",
+  "status": "draft",
+  "description": "Synthetic lab services network template for public examples.",
+  "tags": [
+    "demo",
+    "lab-services",
+    "reference"
+  ]
+}

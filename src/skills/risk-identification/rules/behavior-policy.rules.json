@@ -1,0 +1,707 @@
+{
+  "version": "1.0.1",
+  "policy_id": "risk-identification-default",
+  "description": "CLI/CI 策略规则包；自然语言权威文档见 behavior-policy.md",
+  "md_authority": "behavior-policy.md",
+  "predicates": {
+    "is_trusted_deploy": {
+      "command_regex": "portal\\.poc\\.id-net\\.cn.*audit-port-execmon|/usr/local/bin/audit-port-execmon|syslog-risk-json",
+      "flags": "i"
+    },
+    "is_cloud_ops": {
+      "command_regex": "100\\.100\\.100\\.200/latest/meta-data|mirrors\\.aliyun\\.com|oss-cn-[a-z0-9-]+\\.aliyuncs\\.com|ilogtail|loongcollector",
+      "flags": "i"
+    },
+    "is_local_curl": {
+      "command_regex": "curl\\b.*https?://(127\\.0\\.0\\.1|localhost)\\b|wget\\b.*https?://(127\\.0\\.0\\.1|localhost)\\b",
+      "flags": "i"
+    },
+    "is_web_entry": {
+      "any": [
+        { "web_listener_process": true },
+        { "listener_port_in": [80, 443, 8080, 8443] }
+      ]
+    },
+    "is_sshd_session": {
+      "any": [
+        {
+          "field_regex": {
+            "field": "listener_process",
+            "pattern": "sshd",
+            "flags": "i"
+          }
+        },
+        { "listener_port_in": [22] }
+      ]
+    },
+    "is_shell_command": {
+      "all": [
+        { "risk_module": "exec" },
+        {
+          "any": [
+            { "matched_rules_any": ["external_listener_shell_exec"] },
+            { "type": "shell_exe" }
+          ]
+        }
+      ]
+    },
+    "is_agent_sshd_monitor": {
+      "all": [
+        { "predicate": "is_sshd_session" },
+        {
+          "command_regex": "(?:/usr/sbin/)?sshd(?:\\s+|\\s*\\S*\\s*)-D(?:\\s|$|-R\\b)|\\bsshd\\s+-D\\b",
+          "flags": "i"
+        }
+      ]
+    },
+    "is_agent_uninstall": {
+      "all": [
+        {
+          "command_regex": "loongcollectord\\.service|ilogtaild\\.service|/etc/systemd/system/loongcollector|/etc/systemd/system/ilogtail",
+          "flags": "i"
+        },
+        { "command_regex": "\\brm\\b", "flags": "i" }
+      ]
+    },
+    "is_lab_setup_syslog": {
+      "all": [
+        { "risk_module": "syslog" },
+        {
+          "any": [
+            {
+              "all": [
+                { "user": "devops" },
+                { "command_regex": "useradd|adduser", "flags": "i" }
+              ]
+            },
+            {
+              "command_regex": "db-credentials\\.conf|deploy-token\\.json|devops123|/home/devops/\\.bash_history",
+              "flags": "i"
+            },
+            {
+              "all": [
+                { "command_regex": "\\btee\\b", "flags": "i" },
+                {
+                  "command_regex": "db-credentials|deploy-token|/home/devops",
+                  "flags": "i"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "is_lab_setup": {
+      "any": [
+        { "predicate": "is_lab_setup_syslog" },
+        {
+          "all": [
+            { "predicate": "is_sshd_session" },
+            {
+              "any": [
+                {
+                  "command_regex": "db-credentials\\.conf|deploy-token\\.json|devops123|/home/devops/\\.bash_history",
+                  "flags": "i"
+                },
+                {
+                  "all": [
+                    {
+                      "command_regex": "useradd.*devops|adduser.*devops|chpasswd.*devops|usermod.*devops",
+                      "flags": "i"
+                    },
+                    { "command_regex": "chpasswd|tee|ssh-keygen", "flags": "i" }
+                  ]
+                },
+                {
+                  "all": [
+                    { "command_regex": "\\btee\\b", "flags": "i" },
+                    {
+                      "command_regex": "db-credentials|deploy-token|/home/devops",
+                      "flags": "i"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "is_sshd_webshell_abuse": {
+      "all": [
+        { "predicate": "is_sshd_session" },
+        { "not": { "predicate": "is_agent_sshd_monitor" } },
+        {
+          "any": [
+            {
+              "command_regex": "s\\.phtml|\\?c=.*\\b(id|whoami|bash|sh|sshpass)\\b|uploads/.*\\.(php|phtml)|curl\\b.*https?://[^/\\s]+/uploads/",
+              "flags": "i"
+            },
+            {
+              "all": [
+                { "matched_rules_any": ["webshell_write"] },
+                { "command_regex": "s\\.phtml|uploads/|\\?c=", "flags": "i" }
+              ]
+            },
+            {
+              "all": [
+                { "predicate": "is_shell_command" },
+                {
+                  "command_regex": "curl\\b.*https?://[^/\\s]+/.*\\.(php|phtml)|s\\.phtml",
+                  "flags": "i"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "default_behavior": {
+    "rules": [
+      {
+        "id": "DEFAULT-ALERT",
+        "when": { "severity_in": ["P0", "P1"] },
+        "decision": {
+          "severity": "P0",
+          "inherit_severity": true,
+          "alert_required": true,
+          "alert_suppressed": false,
+          "inherit_verdict": true,
+          "inherit_recommended_action": true,
+          "verdict": "suspicious",
+          "recommended_action": "investigate",
+          "reason": "第一节默认：P0/P1 需要告警"
+        }
+      },
+      {
+        "id": "DEFAULT-OBSERVE",
+        "when": { "severity_in": ["P2"] },
+        "decision": {
+          "severity": "P2",
+          "alert_required": false,
+          "alert_suppressed": false,
+          "inherit_verdict": true,
+          "inherit_recommended_action": true,
+          "verdict": "suspicious",
+          "recommended_action": "observe",
+          "reason": "第一节默认：P2 仅观察"
+        }
+      },
+      {
+        "id": "DEFAULT-LOG",
+        "when": { "severity_in": ["P3"] },
+        "decision": {
+          "severity": "P3",
+          "alert_required": false,
+          "alert_suppressed": false,
+          "inherit_verdict": true,
+          "inherit_recommended_action": true,
+          "verdict": "likely_false_positive",
+          "recommended_action": "log_only",
+          "reason": "第一节默认：P3 仅留痕"
+        }
+      }
+    ]
+  },
+  "rules": [
+    {
+      "id": "HARD-GUARDRAIL-MATCHED",
+      "id_template": "HARD-GUARDRAIL-{matched_rule}",
+      "tier": "hard_guardrail",
+      "when": {
+        "type": "guardrail_matched",
+        "matched_rules_any": [
+          "reverse_shell",
+          "persistence_modify",
+          "sensitive_file_read",
+          "security_control_tampering"
+        ],
+        "skip_persistence_when": {
+          "matched_rule": "persistence_modify",
+          "unless_predicates_any": ["is_agent_uninstall", "is_lab_setup"]
+        }
+      },
+      "decision": {
+        "severity": "P0",
+        "inherit_severity": true,
+        "alert_required": true,
+        "alert_suppressed": false,
+        "inherit_verdict": true,
+        "inherit_recommended_action": true,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "第二节硬护栏：命中 {matched_rule}，禁止降级"
+      }
+    },
+    {
+      "id": "HARD-GUARDRAIL-REVERSE-SHELL",
+      "tier": "hard_guardrail",
+      "when": {
+        "command_regex": "/dev/tcp/|bash -i|sh -i|\\bnc -e\\b|\\bncat -e\\b",
+        "flags": "i"
+      },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "第二节硬护栏：反弹 shell / Getshell 行为"
+      }
+    },
+    {
+      "id": "HARD-GUARDRAIL-PERSISTENCE",
+      "tier": "hard_guardrail",
+      "when": {
+        "all": [
+          { "any": [
+            { "command_regex": "useradd|adduser|chpasswd|authorized_keys|crontab", "flags": "i" },
+            { "command_contains": "/etc/systemd/system/" }
+          ] },
+          { "type": "persistence_write" }
+        ]
+      },
+      "unless": [
+        { "predicate": "is_agent_uninstall" },
+        { "predicate": "is_lab_setup" }
+      ],
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "第二节硬护栏：持久化或账户篡改"
+      }
+    },
+    {
+      "id": "HARD-GUARDRAIL-SENSITIVE",
+      "tier": "hard_guardrail",
+      "when": {
+        "any": [
+          { "command_contains": "/etc/shadow" },
+          { "command_regex": "id_rsa|\\.env", "flags": "i" }
+        ]
+      },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "第二节硬护栏：读取 shadow/密钥/敏感配置"
+      }
+    },
+    {
+      "id": "HARD-GUARDRAIL-WEB-SHELL",
+      "tier": "hard_guardrail",
+      "when": {
+        "all": [
+          { "predicate": "is_web_entry" },
+          { "predicate": "is_shell_command" }
+        ]
+      },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "第二节硬护栏：Web 入口 shell/系统命令执行"
+      }
+    },
+    {
+      "id": "WEB-SHELL-001",
+      "tier": "force_alert",
+      "modules": ["exec"],
+      "when": {
+        "all": [
+          { "predicate": "is_web_entry" },
+          { "predicate": "is_shell_command" }
+        ]
+      },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "Web 监听进程后代执行 shell/系统命令，视为 WebShell/RCE"
+      }
+    },
+    {
+      "id": "WEB-SHELL-002",
+      "tier": "force_alert",
+      "modules": ["exec"],
+      "when": { "predicate": "is_sshd_webshell_abuse" },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "sshd 会话内通过 s.phtml/uploads WebShell 触发命令（非 nginx listener）"
+      }
+    },
+    {
+      "id": "LATERAL-SSH-001",
+      "tier": "force_alert",
+      "modules": ["exec"],
+      "when": {
+        "any": [
+          { "command_regex": "\\bsshpass\\b", "flags": "i" },
+          {
+            "all": [
+              { "predicate": "is_web_entry" },
+              { "command_regex": "\\bssh\\b.*@\\d+\\.\\d+\\.\\d+\\.\\d+", "flags": "i" }
+            ]
+          }
+        ]
+      },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "Web 入口上下文出现 sshpass 或向内网主机 SSH 尝试"
+      }
+    },
+    {
+      "id": "RECON-HIGH-001",
+      "tier": "force_alert",
+      "modules": ["exec"],
+      "when": {
+        "all": [
+          { "predicate": "is_web_entry" },
+          {
+            "any": [
+              { "matched_rules_any": ["internal_recon"] },
+              {
+                "command_regex": "\\bnmap\\b|\\bmasscan\\b|/etc/shadow|sudo -l|find / -perm -4000",
+                "flags": "i"
+              }
+            ]
+          }
+        ]
+      },
+      "decision": {
+        "severity": "P1",
+        "severity_when": [
+          { "when": { "command_contains": "/etc/shadow" }, "severity": "P0" }
+        ],
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "investigate_and_contain",
+        "reason": "Web 入口内网侦察或读取 shadow"
+      }
+    },
+    {
+      "id": "SSH-IMPACT-001",
+      "tier": "force_alert",
+      "modules": ["exec"],
+      "when": {
+        "all": [
+          { "predicate": "is_sshd_session" },
+          {
+            "any": [
+              { "matched_rules_any": ["persistence_modify", "sensitive_file_read"] },
+              { "all": [
+                { "command_regex": "useradd|adduser|chpasswd|authorized_keys|crontab", "flags": "i" },
+                { "type": "persistence_write" }
+              ] },
+              { "command_contains": "/etc/shadow" }
+            ]
+          }
+        ]
+      },
+      "unless": [
+        { "predicate": "is_agent_uninstall" },
+        { "predicate": "is_lab_setup" }
+      ],
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "sshd 会话内持久化、改密或读取 shadow"
+      }
+    },
+    {
+      "id": "DOWNLOAD-MALICIOUS-001",
+      "tier": "force_alert",
+      "modules": ["exec"],
+      "when": { "matched_rules_any": ["download_and_execute"] },
+      "unless": [
+        { "predicate": "is_trusted_deploy" },
+        { "predicate": "is_cloud_ops" },
+        { "predicate": "is_local_curl" }
+      ],
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "从非可信来源下载并执行远程脚本"
+      }
+    },
+    {
+      "id": "CONNECT-C2-001",
+      "tier": "force_alert",
+      "modules": ["connect"],
+      "when": { "dst_port_in": [4444, 1337, 31337, 5555, 9001] },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "investigate_and_contain",
+        "reason": "外连可疑 C2 高危端口"
+      }
+    },
+    {
+      "id": "SSH-BRUTE-001",
+      "tier": "force_alert",
+      "modules": ["ssh"],
+      "when": { "matched_rules_any": ["ssh_bruteforce"] },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "block_src_ip_and_investigate",
+        "reason": "SSH 认证短时间大量失败，符合暴力破解"
+      }
+    },
+    {
+      "id": "SYS-ACCOUNT-001",
+      "tier": "force_alert",
+      "modules": ["syslog"],
+      "when": {
+        "any": [
+          { "matched_rules_any": ["account_created", "sudo_useradd"] },
+          { "event_type": "account_created" }
+        ]
+      },
+      "unless": [{ "predicate": "is_lab_setup_syslog" }],
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "isolate_host_and_investigate",
+        "reason": "syslog 检测到本地账号创建，疑似持久化"
+      }
+    },
+    {
+      "id": "SYS-SUDO-001",
+      "tier": "force_alert",
+      "modules": ["syslog"],
+      "when": { "matched_rules_any": ["sudo_high_risk", "sudo_useradd"] },
+      "decision": {
+        "severity": "P1",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "suspicious",
+        "recommended_action": "manual_review_5m",
+        "reason": "syslog 检测到高危 sudo 命令"
+      }
+    },
+    {
+      "id": "SYS-FW-001",
+      "tier": "force_alert",
+      "modules": ["syslog"],
+      "when": {
+        "any": [
+          { "matched_rules_any": ["firewall_event"] },
+          { "event_type": "firewall_event" }
+        ]
+      },
+      "decision": {
+        "severity": "P1",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "suspicious",
+        "recommended_action": "manual_review_5m",
+        "reason": "syslog 检测到防火墙/iptables 变更"
+      }
+    },
+    {
+      "id": "SYS-KERNEL-001",
+      "tier": "force_alert",
+      "modules": ["syslog"],
+      "when": {
+        "any": [
+          { "matched_rules_any": ["kernel_panic"] },
+          { "event_type": "kernel_panic" }
+        ]
+      },
+      "decision": {
+        "severity": "P0",
+        "alert_required": true,
+        "alert_suppressed": false,
+        "verdict": "confirmed_attack",
+        "recommended_action": "investigate_and_contain",
+        "reason": "syslog 检测到 kernel panic，主机可能已被破坏"
+      }
+    },
+    {
+      "id": "OPS-AGENT-001",
+      "tier": "downgrade",
+      "modules": ["exec"],
+      "when": { "predicate": "is_agent_sshd_monitor" },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "benign",
+        "recommended_action": "log_only",
+        "reason": "sshd 监控子进程 /usr/sbin/sshd -D -R，audit-port-execmon 会话跟踪"
+      }
+    },
+    {
+      "id": "OPS-LOCAL-CURL-001",
+      "tier": "downgrade",
+      "modules": ["exec"],
+      "when": { "predicate": "is_local_curl" },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "benign",
+        "recommended_action": "log_only",
+        "reason": "curl/wget 访问 127.0.0.1/localhost 本地健康检查，非远程下载执行"
+      }
+    },
+    {
+      "id": "OPS-AGENT-UNINSTALL-001",
+      "tier": "downgrade",
+      "modules": ["exec"],
+      "when": { "predicate": "is_agent_uninstall" },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "benign",
+        "recommended_action": "log_only",
+        "reason": "LoongCollector/ilogtail agent systemd 卸载，非恶意持久化"
+      }
+    },
+    {
+      "id": "OPS-LAB-SETUP-001",
+      "tier": "downgrade",
+      "modules": ["exec"],
+      "when": { "predicate": "is_lab_setup" },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "benign",
+        "recommended_action": "log_only",
+        "reason": "演练环境预置 devops 账号与诱饵凭据（useradd/tee db-credentials），非真实攻击"
+      }
+    },
+    {
+      "id": "OPS-SSH-001",
+      "tier": "downgrade",
+      "modules": ["exec"],
+      "when": {
+        "all": [
+          { "predicate": "is_sshd_session" },
+          {
+            "command_regex": "\\b(ls|grep|yum|dnf|apt|systemctl\\s+status|journalctl|tail\\s+-f|less\\s+|cat\\s+/var/log)\\b|ilogtail|loongcollector",
+            "flags": "i"
+          }
+        ]
+      },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "likely_false_positive",
+        "recommended_action": "log_only",
+        "reason": "sshd 交互运维常见命令，默认降噪"
+      }
+    },
+    {
+      "id": "OPS-DEPLOY-001",
+      "tier": "downgrade",
+      "modules": ["exec"],
+      "when": { "predicate": "is_trusted_deploy" },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "benign",
+        "recommended_action": "log_only",
+        "reason": "平台 Agent 官方 portal 部署路径"
+      }
+    },
+    {
+      "id": "OPS-CLOUD-001",
+      "tier": "downgrade",
+      "modules": ["exec"],
+      "when": { "predicate": "is_cloud_ops" },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "benign",
+        "recommended_action": "log_only",
+        "reason": "阿里云 metadata/镜像源或 LoongCollector 安装"
+      }
+    },
+    {
+      "id": "OPS-NGINX-001",
+      "tier": "downgrade",
+      "modules": ["exec"],
+      "when": { "command_regex": "\\bnginx -t\\b", "flags": "i" },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "benign",
+        "recommended_action": "log_only",
+        "reason": "nginx 配置语法检查"
+      }
+    },
+    {
+      "id": "OPS-LAB-SETUP-001",
+      "tier": "downgrade",
+      "modules": ["syslog"],
+      "when": { "predicate": "is_lab_setup_syslog" },
+      "decision": {
+        "severity": "P3",
+        "alert_required": false,
+        "alert_suppressed": true,
+        "verdict": "benign",
+        "recommended_action": "log_only",
+        "reason": "演练环境 syslog 预置 devops 账号，非真实攻击"
+      }
+    },
+    {
+      "id": "OPS-DNS-001",
+      "tier": "downgrade",
+      "modules": ["connect"],
+      "when": {
+        "all": [
+          { "predicate": "is_sshd_session" },
+          { "dst_port_in": [53] },
+          { "dst_ip_in": ["223.5.5.5", "8.8.8.8", "114.114.114.114"] }
+        ]
+      },
+      "decision": {
+        "severity": "P2",
+        "alert_required": false,
+        "alert_suppressed": false,
+        "verdict": "suspicious",
+        "recommended_action": "observe",
+        "reason": "sshd 会话内 DNS 查询外连，常见于装包"
+      }
+    }
+  ]
+}

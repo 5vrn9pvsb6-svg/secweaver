@@ -1,0 +1,29 @@
+{
+  "bundle_id": "bundle-incident-trace-default",
+  "name": "外网 IP 溯源运营资产包（SecWeaver）",
+  "description": "运营/实验环境：SecWeaver host_exec/connect/file_op + syslog-risk-json（covers ssh_auth）；CMDB 由 dataasset/hosts/ 注册表提供；无独立防火墙日志",
+  "status": "active",
+  "asset_ids": [
+    "asset-waf-prod-01",
+    "asset-secweaver-gateway-access",
+    "asset-secweaver-host-exec",
+    "asset-secweaver-host-connect",
+    "asset-secweaver-host-file-op",
+	"asset-secweaver-host-process",
+	"asset-secweaver-host-socket",
+	"asset-secweaver-host-identity",
+	"asset-secweaver-host-service",
+	"asset-secweaver-host-kernel-context",
+    "asset-secweaver-sys-risk-alert"
+  ],
+  "notes": "对应 S1/S2/S3/S6；SSH 认证由 syslog-risk-json 覆盖；主机清单见 dataasset/hosts/（host_to_cmdb）；无 firewall_log",
+  "investigation_scenarios": [
+    "S1",
+    "S2",
+    "S3",
+    "S6"
+  ],
+  "registry_covers_asset_types": [
+    "asset_inventory"
+  ]
+}

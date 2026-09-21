@@ -1,0 +1,55 @@
+{
+  "asset_id": "asset-ssh-internal",
+  "name": "内网 SSH 认证日志",
+  "asset_type": "ssh_auth",
+  "domain": "D3",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "draft",
+  "connector_id": "conn-sls-ssh-auth-internal",
+  "connector_ids": [
+    "conn-sls-ssh-auth-internal",
+    "conn-sls-ssh-auth-web-01",
+    "conn-sls-ssh-auth-db-01",
+    "conn-ssh-web-01-auth"
+  ],
+  "aggregate": {
+    "max_events": 5000,
+    "dedupe_by": [
+      "timestamp",
+      "host",
+      "src_ip",
+      "user",
+      "result"
+    ]
+  },
+  "description": "内网 SSH 多源聚合：汇总 logstore + SSH 直读 web-01；host 参数可过滤分 logstore",
+  "coverage": {
+    "hosts": [
+      "192.0.2.5",
+      "198.51.100.10"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "host",
+      "host_ip",
+      "src_ip",
+      "user",
+      "result",
+      "timestamp"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 90
+  },
+  "query_template_ids": [
+    "ssh_auth_by_src_ip_time",
+    "ssh_auth_by_host_time",
+    "ssh_file_grep_auth"
+  ],
+  "sensitivity": "internal",
+  "tags": [
+    "ssh",
+    "demo"
+  ]
+}

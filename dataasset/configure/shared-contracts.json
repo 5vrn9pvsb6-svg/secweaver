@@ -1,0 +1,111 @@
+{
+  "format_version": "1.0",
+  "description": "Classifies multi-root DataAsset JSON files as byte-identical shared contracts, intentional per-root overrides, or root-owned inventory.",
+  "contract_scope": [
+    "assets/*.json",
+    "bundles/*.json",
+    "catalog.json",
+    "configure/*.json",
+    "connectors/*.json",
+    "hosts/*.json",
+    "networks/*.json",
+    "onboarding/*.json",
+    "onboarding/**/*.json",
+    "parsers/*.json",
+    "query-templates/*.json",
+    "scenarios/*.json",
+    "schema/*.json",
+    "trace-profiles/*.json"
+  ],
+  "shared": [
+    "configure/connector-catalog.json",
+    "configure/external-connectors.json",
+    "configure/ip-intel.json",
+    "configure/text-log-parsers.json",
+    "onboarding/data-sources.schema.json",
+    "onboarding/*/asset.json",
+    "onboarding/*/connector.json",
+    "onboarding/*/template.snippet.json",
+    "parsers/*.json",
+    "schema/connector-catalog.schema.json",
+    "schema/connector-onboarding-profile.schema.json",
+    "schema/correlation-matrix.schema.json",
+    "schema/credential-status.schema.json",
+    "schema/data-asset.schema.json",
+    "schema/data-bundle.schema.json",
+    "schema/data-connector.schema.json",
+    "schema/data-host.schema.json",
+    "schema/data-network.schema.json",
+    "schema/external-connectors.schema.json",
+    "schema/query-templates.schema.json",
+    "schema/trace-profile.schema.json"
+  ],
+  "override": [
+    {
+      "pattern": "assets/correlation-matrix.json",
+      "reason": "Each root can expose different evidence types and therefore different valid joins."
+    },
+    {
+      "pattern": "configure/evidence-minimum-fields.json",
+      "reason": "Minimum evidence fields follow the asset types enabled in each root."
+    },
+    {
+      "pattern": "query-templates/templates.json",
+      "reason": "Templates depend on root-specific backends, fields, and registered asset types."
+    },
+    {
+      "pattern": "scenarios/anchor-patterns.json",
+      "reason": "Scenario anchors target the bundles and evidence available in each root."
+    },
+    {
+      "pattern": "schema/anchor-patterns.schema.json",
+      "reason": "Private roots can retain compatibility fields while migrating scenario anchors."
+    }
+  ],
+  "root_owned": [
+    {
+      "pattern": "assets/asset-*.json",
+      "reason": "Assets describe the data inventory enabled in one environment."
+    },
+    {
+      "pattern": "bundles/*.json",
+      "reason": "Bundles select environment-specific assets and scenarios."
+    },
+    {
+      "pattern": "catalog.json",
+      "reason": "The catalog is generated from the files present in one root."
+    },
+    {
+      "pattern": "configure/shared-contracts.json",
+      "reason": "The public root owns the canonical multi-root policy."
+    },
+    {
+      "pattern": "configure/sls-to-es-migration.json",
+      "reason": "The ES root owns its backend migration map."
+    },
+    {
+      "pattern": "connectors/*.json",
+      "reason": "Connectors contain environment endpoints and credential references."
+    },
+    {
+      "pattern": "hosts/*.json",
+      "reason": "Hosts are environment inventory."
+    },
+    {
+      "pattern": "networks/*.json",
+      "reason": "Networks are environment inventory."
+    },
+    {
+      "pattern": "onboarding/examples/*.json",
+      "reason": "Example batches can demonstrate the deployment mode represented by the root."
+    },
+    {
+      "pattern": "schema/shared-contracts.schema.json",
+      "reason": "The public root owns the schema for its canonical multi-root policy."
+    },
+    {
+      "pattern": "trace-profiles/*.json",
+      "reason": "Trace profiles follow root-specific asset and template availability."
+    }
+  ]
+}

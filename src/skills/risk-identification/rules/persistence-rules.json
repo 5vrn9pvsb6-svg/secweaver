@@ -1,0 +1,122 @@
+{
+  "version": "1.0",
+  "engine": "chain",
+  "owner": "security-ops",
+  "description": "host_persistence 检测层规则（secweaver-agent host-persistence）。重点识别 cron、systemd、authorized_keys、sudoers、profile、内核模块与 ld.so.preload 等持久化变更。",
+  "_doc": "verdicts/actions 仅影响检测层输出；告警由 behavior-policy.md 裁决。",
+  "severity_rank": {
+    "P0": 0,
+    "P1": 1,
+    "P2": 2,
+    "P3": 3
+  },
+  "rules": [
+    {
+      "id": "persistence_ld_preload_modify",
+      "severity": "P0",
+      "enabled": true,
+      "note": "ld.so.preload 被写入/修改，常用于进程注入和防御绕过",
+      "when": { "field_regex": { "field": "path", "pattern": "/etc/ld\\.so\\.preload$", "flags": "i" } }
+    },
+    {
+      "id": "persistence_ssh_key_modify",
+      "severity": "P0",
+      "enabled": true,
+      "note": "SSH authorized_keys 变化",
+      "when": { "field_regex": { "field": "path", "pattern": "/\\.ssh/authorized_keys$", "flags": "i" } }
+    },
+    {
+      "id": "persistence_sudoers_modify",
+      "severity": "P1",
+      "enabled": true,
+      "note": "sudoers 或 sudoers.d 变化",
+      "when": { "field_regex": { "field": "path", "pattern": "^/etc/sudoers(\\.d/.*)?$", "flags": "i" } }
+    },
+    {
+      "id": "persistence_systemd_modify",
+      "severity": "P1",
+      "enabled": true,
+      "note": "systemd unit 变化",
+      "when": {
+        "any": [
+          { "field_regex": { "field": "persistence_type", "pattern": "^systemd$", "flags": "i" } },
+          { "field_regex": { "field": "path", "pattern": "^/etc/systemd/system/.*\\.service$", "flags": "i" } }
+        ]
+      }
+    },
+    {
+      "id": "persistence_cron_modify",
+      "severity": "P1",
+      "enabled": true,
+      "note": "cron/crontab 变化",
+      "when": {
+        "any": [
+          { "field_regex": { "field": "persistence_type", "pattern": "^cron$", "flags": "i" } },
+          { "field_regex": { "field": "path", "pattern": "^(/etc/cron\\.|/etc/crontab|/var/spool/cron)", "flags": "i" } }
+        ]
+      }
+    },
+    {
+      "id": "persistence_profile_modify",
+      "severity": "P1",
+      "enabled": true,
+      "note": "shell profile/bashrc/rc.local 变化",
+      "when": {
+        "field_regex": {
+          "field": "path",
+          "pattern": "^(/etc/profile|/etc/profile\\.d/|/etc/rc\\.local|/root/\\.bashrc|/home/[^/]+/\\.(bashrc|profile|bash_profile))",
+          "flags": "i"
+        }
+      }
+    },
+    {
+      "id": "persistence_kernel_module_modify",
+      "severity": "P1",
+      "enabled": true,
+      "note": "内核模块自动加载/黑名单配置变化",
+      "when": {
+        "field_regex": {
+          "field": "path",
+          "pattern": "^/etc/(modules-load\\.d|modprobe\\.d)/",
+          "flags": "i"
+        }
+      }
+    },
+    {
+      "id": "persistence_generic_change",
+      "severity": "P2",
+      "enabled": true,
+      "note": "其他 host_persistence 监控路径变化",
+      "when": { "event_type": "persistence_change" }
+    }
+  ],
+  "message_rules": [],
+  "risk_tags": {
+    "persistence_ld_preload_modify": ["persistence", "defense_evasion"],
+    "persistence_ssh_key_modify": ["persistence", "credential_access"],
+    "persistence_sudoers_modify": ["persistence", "privilege_escalation"],
+    "persistence_systemd_modify": ["persistence"],
+    "persistence_cron_modify": ["persistence"],
+    "persistence_profile_modify": ["persistence"],
+    "persistence_kernel_module_modify": ["persistence", "defense_evasion"],
+    "persistence_generic_change": ["persistence"]
+  },
+  "verdicts": {
+    "P0": "confirmed_attack",
+    "P1": "suspicious",
+    "P2": "suspicious",
+    "P3": "log_only"
+  },
+  "actions": {
+    "P0": "isolate_host_and_investigate",
+    "P1": "manual_review_5m",
+    "P2": "observe",
+    "P3": "log_only"
+  },
+  "confidence_base": {
+    "P0": 0.86,
+    "P1": 0.78,
+    "P2": 0.6,
+    "P3": 0.45
+  }
+}

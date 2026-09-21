@@ -1,0 +1,47 @@
+{
+  "investigation_intent": "WAF 命中 SQL 规则但 payload 为业务 UUID，判断是否误报",
+  "scenario": "S4",
+  "params": {
+    "attacker_ip": "198.51.100.20",
+    "alert_time": "2026-06-21T16:00:00+08:00"
+  },
+  "completeness_precheck": {
+    "overall_verdict": "partial_traceable",
+    "confidence": 0.8,
+    "next_skill_blocked": false
+  },
+  "primary_alerts": [
+    {
+      "alert_id": "WAF-20260621-099",
+      "timestamp": "2026-06-21T16:00:01+08:00",
+      "src_ip": "198.51.100.20",
+      "url": "/api/order/detail",
+      "method": "GET",
+      "rule_id": "942100",
+      "rule_name": "SQL Injection",
+      "payload": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "action": "logged",
+      "host": "web-01"
+    }
+  ],
+  "correlated_evidence": {
+    "web_access_log": [
+      {
+        "evidence_id": "web-fp-001",
+        "src_ip": "198.51.100.20",
+        "timestamp": "2026-06-21T16:00:00+08:00",
+        "url": "/api/order/detail?order_id=a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "status": 200
+      }
+    ],
+    "host_exec": [],
+    "host_connect": [],
+    "host_file_op": []
+  },
+  "_meta": {
+    "scenario_label": "S4 UUID 业务参数误报",
+    "expected_alert_verdict": "false_positive",
+    "expected_attack_outcome": "not_applicable",
+    "expected_attack_success": false
+  }
+}

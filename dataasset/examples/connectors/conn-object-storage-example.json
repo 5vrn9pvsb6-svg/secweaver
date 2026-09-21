@@ -1,0 +1,21 @@
+{
+  "connector_id": "conn-object-storage-example",
+  "name": "对象存储日志归档示例连接器",
+  "connector_type": "object_storage",
+  "status": "draft",
+  "credentials_ref": "vault://object-storage/log-readonly",
+  "description": "示例：描述 OSS / S3 兼容对象存储中的批量日志、归档日志或离线回溯数据。",
+  "config": {
+    "provider": "s3-compatible",
+    "endpoint": "https://object-storage.example.com",
+    "bucket": "security-archive-logs",
+    "prefix": "year=2026/",
+    "format": "jsonl"
+  },
+  "constraints": {
+    "max_objects_per_query": 100,
+    "max_file_size_mb": 512,
+    "request_timeout_sec": 120
+  },
+  "tags": ["example", "object-storage", "archive", "not-for-production"]
+}

@@ -1,0 +1,35 @@
+{
+  "host_id": "host-demo-ops-portal-01",
+  "name": "Demo Ops Portal 01",
+  "hostname": "demo-ops-portal-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "198.51.100.25",
+  "network_id": "net-demo-log-source",
+  "exposure": {
+    "internet_exposed": true,
+    "internet_ip": "203.0.113.25",
+    "exposed_ports": [
+      443
+    ]
+  },
+  "aliases": [
+    "demo-ops-portal-01",
+    "198.51.100.25"
+  ],
+  "roles": [
+    "ops-portal",
+    "app-catalog"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic operations portal template.",
+  "tags": [
+    "app-catalog",
+    "demo",
+    "ops-portal",
+    "reference",
+    "server"
+  ]
+}

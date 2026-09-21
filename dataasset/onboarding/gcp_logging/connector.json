@@ -1,0 +1,22 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "GCP Logging（模板）",
+  "connector_type": "gcp_logging",
+  "status": "draft",
+  "credentials_ref": "vault://gcp/logging-readonly",
+  "description": "Google Cloud Logging 查询模板；默认使用内置 Cloud Logging API fetch，也可通过 executor_endpoint 交给外部执行器。",
+  "config": {
+    "project_id": "YOUR_GCP_PROJECT",
+    "resource_names": []
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 60
+  },
+  "tags": [
+    "template",
+    "gcp",
+    "logging",
+    "live"
+  ]
+}

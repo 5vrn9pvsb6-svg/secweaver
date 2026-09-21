@@ -1,0 +1,21 @@
+{
+  "template_id": "YOUR_TEMPLATE_ID",
+  "asset_types": [
+    "ssh_auth"
+  ],
+  "connector_types": [
+    "syslog_ingest"
+  ],
+  "params": [
+    "grep_pattern",
+    "time_start",
+    "time_end",
+    "limit"
+  ],
+  "defaults": {
+    "grep_pattern": "sshd",
+    "limit": 1000
+  },
+  "syslog_query": "message~'{grep_pattern}' time_start={time_start} time_end={time_end} limit={limit}",
+  "note": "syslog_ingest 通过 endpoint/base_url 转发给外部 syslog executor；未配置 endpoint 时返回 planned meta。"
+}

@@ -1,0 +1,89 @@
+{
+  "asset_id": "asset-secweaver-sys-risk-alert",
+  "name": "SecWeaver syslog-risk-json 报警日志",
+  "asset_type": "syslog_risk_alert",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-sys-risk-alert",
+  "trace_profile_id": "secweaver-syslog-risk-alert",
+  "description": "SecWeaver syslog-risk-json 结构化报警日志，来源 /var/log/syslog-risk-json.log，数据解析于 /var/log/messages 和 /var/log/secure；SSH 登录、PAM 认证、root 会话等认证侧证据由此提供，可替代独立 ssh_auth 资产。",
+  "covers_asset_types": [
+    "ssh_auth"
+  ],
+  "field_aliases": {
+    "__source__": "host_ip"
+  },
+  "coverage": {
+    "hosts": [
+      "198.51.100.2",
+      "198.51.100.3",
+      "192.0.2.91",
+      "192.0.2.92",
+      "203.0.113.3",
+      "203.0.113.4",
+      "203.0.113.3",
+      "192.0.2.80",
+      "198.51.100.71"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "enterprise_id",
+      "timestamp",
+      "host_name",
+      "host_ip",
+      "source_file",
+      "program",
+      "pid",
+      "event_type",
+      "severity",
+      "risk_level",
+      "rule_id",
+      "rule_name",
+      "user",
+      "src_ip",
+      "port",
+      "message",
+      "tags",
+      "fields",
+      "event_id",
+      "parser_version",
+      "__source__",
+      "__topic__",
+      "__tag__:__hostname__",
+      "__tag__:__path__",
+      "__tag__:__client_ip__",
+      "__tag__:__receive_time__"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "syslog_risk_by_time",
+    "syslog_risk_by_host_ip_time",
+    "syslog_risk_by_src_ip_time",
+    "syslog_risk_by_event_type_time",
+    "syslog_risk_by_risk_level_time",
+    "syslog_risk_by_host_time",
+    "ssh_auth_by_src_ip_time",
+    "ssh_auth_by_host_ip_time",
+    "ssh_auth_by_host_name_time",
+    "ssh_auth_failures_by_host_ip_time",
+    "ssh_auth_by_host_time"
+  ],
+  "sensitivity": "internal",
+  "masking": {
+    "message": "truncate_500"
+  },
+  "tags": [
+    "secweaver",
+    "sls",
+    "linux",
+    "messages",
+    "syslog",
+    "syslog-risk-json",
+    "alert"
+  ]
+}

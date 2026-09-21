@@ -1,0 +1,18 @@
+{
+  "connector_id": "conn-aws-cloudwatch-example",
+  "name": "AWS CloudWatch Logs 示例连接器",
+  "connector_type": "aws_cloudwatch",
+  "status": "draft",
+  "credentials_ref": "vault://aws/security-readonly",
+  "description": "示例：从 AWS CloudWatch Logs 查询 CloudTrail、应用日志或 VPC Flow Logs；生产环境需替换 region、log_group 与只读凭证。",
+  "config": {
+    "region": "ap-southeast-1",
+    "log_group": "/aws/cloudtrail/organization",
+    "log_stream_prefix": "2026/"
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 60
+  },
+  "tags": ["example", "aws", "cloudwatch", "not-for-production"]
+}

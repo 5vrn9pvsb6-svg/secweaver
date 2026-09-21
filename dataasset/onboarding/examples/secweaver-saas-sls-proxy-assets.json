@@ -1,0 +1,403 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "connector_type": "sls_proxy",
+    "credentials_ref": "vault://sls/sls-proxy-query",
+    "project": "secweaver",
+    "endpoint": "https://sls-proxy.id-net.cn:30443",
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery",
+    "connector": {
+      "description": "SecWeaver SaaS SLS Proxy 公开资源模板；真实上游 Project、Region、RAM 凭证和 enterprise_id 过滤由服务端管理。",
+      "config": {
+        "fallback_endpoint": "https://sls-proxy.id-net.cn:30443",
+        "tls_verify": true
+      },
+      "constraints": {
+        "max_rows": 5000,
+        "max_time_span_hours": 72,
+        "query_language": "sls_sql"
+      }
+    },
+    "asset": {
+      "coverage": {
+        "zones": [],
+        "apps": [],
+        "hosts": []
+      },
+      "quality": {
+        "notes": [
+          "模板默认处于 discovery；确认字段、时间语义、租户隔离和真实查询后再启用。"
+        ]
+      },
+      "tags": [
+        "secweaver",
+        "saas",
+        "sls-proxy",
+        "template"
+      ]
+    },
+    "template": {
+      "defaults": {
+        "limit": 2000
+      }
+    }
+  },
+  "data_sources": [
+    {
+      "name": "SLS Proxy 主机命令执行",
+      "asset_type": "host_exec",
+      "asset_id": "asset-secweaver-sls-proxy-host-exec",
+      "connector_id": "conn-sls-proxy-host-exec",
+      "template_id": "sls-proxy-host-exec-by-host-time",
+      "logstore": "host-exec",
+      "asset": {
+        "domain": "D2",
+        "description": "主机命令执行事件；与主动外连和文件操作共享用户侧 host-exec Logstore。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "event_type", "command", "command_line", "exe", "cwd", "uid", "user", "success"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询命令执行事件；时间窗由 SLS API 参数控制。",
+        "sls_query": "event_type=\"exec\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 主机主动外连",
+      "asset_type": "host_connect",
+      "asset_id": "asset-secweaver-sls-proxy-host-connect",
+      "connector_id": "conn-sls-proxy-host-connect",
+      "template_id": "sls-proxy-host-connect-by-host-time",
+      "logstore": "host-exec",
+      "asset": {
+        "domain": "D2",
+        "description": "主机主动外连事件；与命令执行和文件操作共享用户侧 host-exec Logstore。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "event_type", "dst_ip", "dst_port", "protocol", "process", "pid", "user", "success"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询主动外连事件。",
+        "sls_query": "event_type=\"active_connect\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 主机文件操作",
+      "asset_type": "host_file_op",
+      "asset_id": "asset-secweaver-sls-proxy-host-file-op",
+      "connector_id": "conn-sls-proxy-host-file-op",
+      "template_id": "sls-proxy-host-file-op-by-host-time",
+      "logstore": "host-exec",
+      "asset": {
+        "domain": "D2",
+        "description": "主机文件操作事件；与命令执行和主动外连共享用户侧 host-exec Logstore。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "event_type", "operation", "path", "process", "pid", "user", "success"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询文件操作事件。",
+        "sls_query": "event_type=\"file_op\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 主机持久化变更",
+      "asset_type": "host_persistence",
+      "asset_id": "asset-secweaver-sls-proxy-host-persistence",
+      "connector_id": "conn-sls-proxy-host-persistence",
+      "template_id": "sls-proxy-host-persistence-by-host-time",
+      "logstore": "host-persistence",
+      "asset": {
+        "domain": "D2",
+        "description": "cron、systemd、authorized_keys、sudoers 等持久化配置变化。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "event_type", "persistence_type", "action", "path", "hash", "previous"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询持久化变更事件。",
+        "sls_query": "event_type=\"persistence_change\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 主机进程快照",
+      "asset_type": "host_process",
+      "asset_id": "asset-secweaver-sls-proxy-host-process",
+      "connector_id": "conn-sls-proxy-host-process",
+      "template_id": "sls-proxy-host-process-by-host-time",
+      "logstore": "host-process",
+      "asset": {
+        "domain": "D2",
+        "description": "主机进程基线、启动、退出和关键属性变化。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "process", "pid", "ppid", "exe", "user", "snapshot_id"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询进程快照及变化。",
+        "sls_query": "asset_type=\"host_process\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 主机监听端口",
+      "asset_type": "host_socket",
+      "asset_id": "asset-secweaver-sls-proxy-host-socket",
+      "connector_id": "conn-sls-proxy-host-socket",
+      "template_id": "sls-proxy-host-socket-by-host-time",
+      "logstore": "host-state",
+      "asset": {
+        "domain": "D2",
+        "description": "主机 TCP 监听和 UDP 本地端点基线与变化；与身份、服务和内核上下文共享 host-state Logstore。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "listen_address", "listen_port", "protocol", "process", "pid", "user", "snapshot_id"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询监听端口和本地端点。",
+        "sls_query": "asset_type=\"host_socket\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 主机身份变化",
+      "asset_type": "host_identity",
+      "asset_id": "asset-secweaver-sls-proxy-host-identity",
+      "connector_id": "conn-sls-proxy-host-identity",
+      "template_id": "sls-proxy-host-identity-by-host-time",
+      "logstore": "host-state",
+      "asset": {
+        "domain": "D2",
+        "description": "本地账户和登录会话基线及变化。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "action", "user", "uid", "gid", "groups", "shell", "source", "previous"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询账户和登录会话变化。",
+        "sls_query": "asset_type=\"host_identity\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 主机服务与计划任务",
+      "asset_type": "host_service",
+      "asset_id": "asset-secweaver-sls-proxy-host-service",
+      "connector_id": "conn-sls-proxy-host-service",
+      "template_id": "sls-proxy-host-service-by-host-time",
+      "logstore": "host-state",
+      "asset": {
+        "domain": "D2",
+        "description": "主机服务、timer、cron 和计划任务基线及变化。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "action", "service_name", "state", "active_state", "task_name", "task_path", "path", "previous"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询服务与计划任务变化。",
+        "sls_query": "asset_type=\"host_service\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 主机内核与容器上下文",
+      "asset_type": "host_kernel_context",
+      "asset_id": "asset-secweaver-sls-proxy-host-kernel-context",
+      "connector_id": "conn-sls-proxy-host-kernel-context",
+      "template_id": "sls-proxy-host-kernel-context-by-host-time",
+      "logstore": "host-state",
+      "asset": {
+        "domain": "D2",
+        "description": "主机内核模块、命名空间、cgroup 和容器运行时上下文。",
+        "schema": {
+          "fields": ["enterprise_id", "time", "timestamp", "host", "host_name", "host_ip", "asset_type", "event_type", "kernel_release", "module_name", "container_id", "container_runtime", "runtime_state", "previous"],
+          "time_field": "time",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "time": "timestamp",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按主机查询内核与容器上下文。",
+        "sls_query": "asset_type=\"host_kernel_context\" and (host=\"{host}\" or host_name=\"{host}\" or host_ip=\"{host}\" or __source__=\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 系统风险日志",
+      "asset_type": "syslog_risk_alert",
+      "asset_id": "asset-secweaver-sls-proxy-sys-risk-alert",
+      "connector_id": "conn-sls-proxy-sys-risk-alert",
+      "template_id": "sls-proxy-sys-risk-by-host-time",
+      "logstore": "host-sys-messages",
+      "asset": {
+        "domain": "D2",
+        "description": "Linux 系统风险、SSH、PAM 和 root 会话等结构化事件。",
+        "schema": {
+          "fields": ["enterprise_id", "timestamp", "host", "host_name", "host_ip", "src_ip", "user", "event_type", "risk_level", "message", "result"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "host_name": "host",
+          "__source__": "log_source"
+        }
+      },
+      "template": {
+        "params": ["host", "time_start", "time_end", "limit"],
+        "description": "按受害主机查询系统风险事件。",
+        "sls_query": "(__source__:\"{host}\" OR host_ip:\"{host}\" OR host_name:\"{host}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 内网 DNS 查询",
+      "asset_type": "dns_log",
+      "asset_id": "asset-secweaver-sls-proxy-dns-internal",
+      "connector_id": "conn-sls-proxy-dns-internal",
+      "template_id": "sls-proxy-dns-by-client-time",
+      "logstore": "dns",
+      "asset": {
+        "domain": "D4",
+        "description": "内网 DNS 查询日志，用于域名解析追踪和 C2 域名分析。",
+        "schema": {
+          "fields": ["enterprise_id", "timestamp", "standard_time", "client_ip", "src_ip", "query", "qname", "query_type", "rcode", "response", "server_ip", "protocol", "latency_ms"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "client_ip": "src_ip",
+          "server_ip": "host_ip"
+        }
+      },
+      "template": {
+        "params": ["client_ip", "time_start", "time_end", "limit"],
+        "description": "按客户端 IP 查询 DNS 事件。",
+        "sls_query": "(client_ip:\"{client_ip}\" OR src_ip:\"{client_ip}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy 网关访问日志",
+      "asset_type": "web_access_log",
+      "asset_id": "asset-secweaver-sls-proxy-gateway-access",
+      "connector_id": "conn-sls-proxy-gateway-access",
+      "template_id": "sls-proxy-gateway-access-by-src-time",
+      "logstore": "wis-waf-access",
+      "asset": {
+        "domain": "D1",
+        "description": "TS 网关访问日志，用于 WEB 访问分析、告警确认和溯源。",
+        "schema": {
+          "fields": ["enterprise_id", "timestamp", "time_local", "remote_addr", "src_ip", "upstream_addr", "target_ip", "http_host", "request_method", "request_uri", "status", "body_bytes_sent", "http_referer", "http_user_agent", "request_time"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "remote_addr": "src_ip",
+          "upstream_addr": "target_ip",
+          "time_local": "timestamp",
+          "request_uri": "url",
+          "request_method": "method",
+          "http_user_agent": "user_agent"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "description": "按源 IP 查询网关访问日志。",
+        "sls_query": "(remote_addr:\"{src_ip}\" OR src_ip:\"{src_ip}\")"
+      }
+    },
+    {
+      "name": "SLS Proxy WAF 网关插件日志",
+      "asset_type": "waf_alert",
+      "asset_id": "asset-secweaver-sls-proxy-waf-gateway-plugin",
+      "connector_id": "conn-sls-proxy-waf-gateway-plugin",
+      "template_id": "sls-proxy-waf-by-src-time",
+      "logstore": "wis-waf-log",
+      "asset": {
+        "domain": "D1",
+        "description": "API 网关 WAF 插件日志；服务端将公开资源映射到获授权的上游 Project。",
+        "schema": {
+          "fields": ["enterprise_id", "timestamp", "url", "request", "action", "level", "plugin_name", "event", "trace_id", "ip", "src_ip", "upstream_addr", "target_ip", "tenant_id", "app_name"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "ip": "src_ip",
+          "upstream_addr": "target_ip",
+          "trace_id": "alert_id"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "description": "按源 IP 查询 WAF 网关插件日志。",
+        "sls_query": "(ip:\"{src_ip}\" OR src_ip:\"{src_ip}\" OR client_ip:\"{src_ip}\")"
+      }
+    }
+  ]
+}

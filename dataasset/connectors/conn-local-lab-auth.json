@@ -1,0 +1,22 @@
+{
+  "connector_id": "conn-local-lab-auth",
+  "name": "Lab 本地 auth.log（开发/POC）",
+  "connector_type": "local_file",
+  "status": "draft",
+  "description": "Claw 主机本地日志目录；无需 Vault 凭证。路径相对 base_path。",
+  "config": {
+    "hostname": "web-01",
+    "base_path": "dataasset/samples/local-logs/web-01",
+    "log_paths": {
+      "ssh_auth": "auth.log",
+      "web_access_log": "nginx-access.log"
+    }
+  },
+  "constraints": {
+    "max_file_size_mb": 50,
+    "max_lines_per_query": 10000,
+    "allowed_read_commands": ["grep", "tail"],
+    "allowed_grep_patterns": ["Accepted", "Failed", "sshd", "GET", "POST"],
+    "forbidden_paths": ["/etc/shadow", "/root/.ssh"]
+  }
+}

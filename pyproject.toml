@@ -1,0 +1,35 @@
+[project]
+name = "secweaver"
+version = "0.3.21"
+description = "Open-source AI-native security operations framework with DataAsset registry, deterministic Skills, and offline investigation demos."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [
+  { name = "SecWeaver Community" }
+]
+dependencies = [
+  "aliyun-log-python-sdk>=0.9.47",
+  "paramiko>=3.4.0",
+  "pymysql>=1.1.0",
+  "psycopg[binary]>=3.1.18",
+  "jsonschema>=4.21.0"
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = [
+  ".venv",
+  "examples/reports",
+  "dataasset/credentials/secrets"
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q"

@@ -1,0 +1,218 @@
+{
+  "alert_type": "data_source_completeness",
+  "scenario": [
+    "S7"
+  ],
+  "scenario_summary": "数据外传",
+  "investigation_params": {
+    "host": "db-01",
+    "time_start": "2026-06-24T01:00:00+08:00",
+    "time_end": "2026-06-24T05:00:00+08:00"
+  },
+  "overall_verdict": "full_traceable",
+  "confidence": 0.95,
+  "can_trace": true,
+  "can_confirm_breach": false,
+  "summary": "数据源满足当前调查场景，可启动下游溯源或确认 Skill。",
+  "requirements_evaluated": [
+    {
+      "requirement_id": "S7-P0-connect",
+      "label": "外连/代理日志",
+      "priority": "P0",
+      "status": "ready",
+      "asset_id": "asset-host-connect-db",
+      "asset_type": "host_connect",
+      "coverage": "full",
+      "gaps": []
+    },
+    {
+      "requirement_id": "S7-P0-file",
+      "label": "敏感文件操作",
+      "priority": "P0",
+      "status": "ready",
+      "asset_id": "asset-host-file-db",
+      "asset_type": "host_file_op",
+      "coverage": "full",
+      "gaps": []
+    },
+    {
+      "requirement_id": "S7-P1-dns",
+      "label": "外传/C2 域名 DNS 查询",
+      "priority": "P1",
+      "status": "ready",
+      "asset_id": "asset-dns-internal",
+      "asset_type": "dns_log",
+      "coverage": "full",
+      "gaps": []
+    },
+    {
+      "requirement_id": "S7-P1-nta",
+      "label": "外传流量体量（全流量/防火墙）",
+      "priority": "P1",
+      "status": "ready",
+      "asset_id": "asset-nta-egress",
+      "asset_type": "network_traffic_audit",
+      "coverage": "full",
+      "gaps": []
+    },
+    {
+      "requirement_id": "S7-P1-exec",
+      "label": "打包/传输命令",
+      "priority": "P1",
+      "status": "ready",
+      "asset_id": "asset-host-exec-db",
+      "asset_type": "host_exec",
+      "coverage": "full",
+      "gaps": []
+    }
+  ],
+  "registered_sources": [
+    {
+      "asset_id": "asset-host-connect-db",
+      "name": "数据库主机主动连接",
+      "type": "host_connect",
+      "domain": "D2",
+      "coverage": [
+        "any"
+      ],
+      "fields": [
+        "host",
+        "dst_ip",
+        "timestamp"
+      ],
+      "canonical_fields": [],
+      "effective_fields": [
+        "dst_ip",
+        "host",
+        "timestamp"
+      ],
+      "correlation_keys": [
+        "timestamp",
+        "host",
+        "dst_ip"
+      ]
+    },
+    {
+      "asset_id": "asset-host-file-db",
+      "name": "数据库主机文件操作",
+      "type": "host_file_op",
+      "domain": "D2",
+      "coverage": [
+        "any"
+      ],
+      "fields": [
+        "host",
+        "path",
+        "action",
+        "timestamp"
+      ],
+      "canonical_fields": [
+        "url"
+      ],
+      "effective_fields": [
+        "action",
+        "host",
+        "path",
+        "timestamp",
+        "url"
+      ],
+      "correlation_keys": [
+        "timestamp",
+        "host"
+      ]
+    },
+    {
+      "asset_id": "asset-dns-internal",
+      "name": "内网 DNS 查询",
+      "type": "dns_log",
+      "domain": "D1",
+      "coverage": [
+        "any"
+      ],
+      "fields": [
+        "client_ip",
+        "query",
+        "timestamp"
+      ],
+      "canonical_fields": [
+        "src_ip"
+      ],
+      "effective_fields": [
+        "client_ip",
+        "query",
+        "src_ip",
+        "timestamp"
+      ],
+      "correlation_keys": [
+        "timestamp",
+        "client_ip"
+      ]
+    },
+    {
+      "asset_id": "asset-nta-egress",
+      "name": "出口全流量审计",
+      "type": "network_traffic_audit",
+      "domain": "D3",
+      "coverage": [
+        "any"
+      ],
+      "fields": [
+        "src_ip",
+        "dst_ip",
+        "bytes",
+        "timestamp"
+      ],
+      "canonical_fields": [],
+      "effective_fields": [
+        "bytes",
+        "dst_ip",
+        "src_ip",
+        "timestamp"
+      ],
+      "correlation_keys": [
+        "timestamp",
+        "src_ip",
+        "dst_ip"
+      ]
+    },
+    {
+      "asset_id": "asset-host-exec-db",
+      "name": "数据库主机命令执行",
+      "type": "host_exec",
+      "domain": "D2",
+      "coverage": [
+        "any"
+      ],
+      "fields": [
+        "host",
+        "command",
+        "timestamp"
+      ],
+      "canonical_fields": [],
+      "effective_fields": [
+        "command",
+        "host",
+        "timestamp"
+      ],
+      "correlation_keys": [
+        "timestamp",
+        "host"
+      ]
+    }
+  ],
+  "missing_critical": [],
+  "recommendations": [],
+  "capability_notes": [
+    {
+      "type": "dns_boundary",
+      "severity": "info",
+      "message": "DNS 查询日志已参与域名/C2/DGA 解释，但不能替代 firewall/NTA/proxy 的会话路径、方向、字节数和代理动作证据。"
+    }
+  ],
+  "correlation_key_score": 0.7,
+  "next_skill": "traceability_analysis",
+  "next_skill_blocked": false,
+  "block_reason": "",
+  "contract_version": "1.0",
+  "skill": "data-source-completeness"
+}

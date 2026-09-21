@@ -1,0 +1,300 @@
+{
+  "version": "1.0",
+  "format_version": "2.0",
+  "description": "External connector type registry. Built-in connector metadata lives in connector-catalog.json; add only config-only external types here without changing SecWeaver Python code.",
+  "connectors": {
+    "external_generic": {
+      "query_key": "external_query",
+      "runtime": "local_or_external_executor",
+      "description": "Generic config-only connector used as the onboarding fallback for external APIs and local samples.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "External connector",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "source:security src_ip:{src_ip} limit {limit}",
+        "hint": "适合配置型新 connector_type；query key 由该 Connector manifest 声明。"
+      }
+    },
+    "datadog_logs": {
+      "query_key": "datadog_query",
+      "runtime": "local_or_external_executor",
+      "description": "Example external connector. Configure endpoint/base_url or local sample_file/sample_dir to execute.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "Datadog Logs",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "waf_alert",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "source:security @network.client.ip:{src_ip} limit {limit}",
+        "hint": "Datadog 示例走外部执行器或本地样本，不进入核心依赖。"
+      }
+    },
+    "okta_system_log": {
+      "query_key": "okta_query",
+      "runtime": "local_or_external_executor",
+      "description": "Example external connector for Okta System Log through local samples or an external executor.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "Okta System Log",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "app_api_log",
+        "template_params": [
+          "user",
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "actor.alternateId eq \"{user}\" or client.ipAddress eq \"{src_ip}\"",
+        "hint": "Okta 示例走外部执行器；适合身份日志溯源。"
+      }
+    },
+    "cloudflare_logs": {
+      "query_key": "cloudflare_query",
+      "runtime": "local_or_external_executor",
+      "description": "Example external connector for Cloudflare logs through local samples or an external executor.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "Cloudflare Logs",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "web_access_log",
+        "template_params": [
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "ClientIP={src_ip} AND EdgeStartTimestamp >= {time_start}",
+        "hint": "Cloudflare 示例走外部执行器或本地样本。"
+      }
+    },
+    "crowdstrike_fdr": {
+      "query_key": "fdr_query",
+      "runtime": "local_or_external_executor",
+      "description": "Example external connector for CrowdStrike FDR through local samples or an external executor.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "CrowdStrike FDR",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "edr_event",
+        "template_params": [
+          "host_id",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "aid:{host_id} event_simpleName:* limit {limit}",
+        "hint": "CrowdStrike FDR 示例走外部执行器或本地样本。"
+      }
+    },
+    "microsoft_entra_signin": {
+      "query_key": "entra_query",
+      "runtime": "local_or_external_executor",
+      "description": "Example external connector for Microsoft Entra ID sign-in logs through local samples or an external executor.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "Microsoft Entra ID Sign-ins",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "app_api_log",
+        "template_params": [
+          "user",
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "SigninLogs | where UserPrincipalName == \"{user}\" or IPAddress == \"{src_ip}\" | where TimeGenerated between (datetime({time_start}) .. datetime({time_end})) | take {limit}",
+        "hint": "Entra ID 登录日志示例走外部执行器或本地样本；tenant/workspace 等字段放 connector.config。"
+      }
+    },
+    "google_workspace_audit": {
+      "query_key": "google_workspace_query",
+      "runtime": "local_or_external_executor",
+      "description": "Example external connector for Google Workspace audit logs through local samples or an external executor.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "Google Workspace Audit",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "app_api_log",
+        "template_params": [
+          "user",
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "applicationName=login userKey={user} ipAddress={src_ip} maxResults={limit}",
+        "hint": "Google Workspace 审计日志示例走外部执行器；服务账号和委派用户放凭证或 connector.config。"
+      }
+    },
+    "microsoft_defender_xdr": {
+      "query_key": "defender_query",
+      "runtime": "local_or_external_executor",
+      "description": "Example external connector for Microsoft Defender XDR Advanced Hunting through local samples or an external executor.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "Microsoft Defender XDR",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "edr_event",
+        "template_params": [
+          "host",
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "DeviceProcessEvents | where DeviceName == \"{host}\" or RemoteIP == \"{src_ip}\" | where Timestamp between (datetime({time_start}) .. datetime({time_end})) | take {limit}",
+        "hint": "Defender XDR Advanced Hunting 示例走外部执行器或本地样本；KQL 查询保存在 defender_query。"
+      }
+    },
+    "sentinelone_events": {
+      "query_key": "sentinelone_query",
+      "runtime": "local_or_external_executor",
+      "description": "Example external connector for SentinelOne event and threat logs through local samples or an external executor.",
+      "onboarding_template": "external_generic",
+      "onboarding_profile": {
+        "label": "SentinelOne Events",
+        "fields": [
+          "endpoint",
+          "base_url",
+          "sample_file",
+          "sample_dir"
+        ],
+        "required": [],
+        "defaults": {
+          "endpoint": "http://127.0.0.1:8788/fetch",
+          "sample_file": "examples/log-format-discovery/waf-jsonl.sample"
+        },
+        "default_asset_type": "edr_event",
+        "template_params": [
+          "host",
+          "src_ip",
+          "time_start",
+          "time_end",
+          "limit"
+        ],
+        "template_defaults": {
+          "limit": 1000
+        },
+        "default_query": "agentComputerName=\"{host}\" OR srcIp=\"{src_ip}\" limit {limit}",
+        "hint": "SentinelOne 示例走外部执行器或本地样本；console_url/site_id 等字段放 connector.config。"
+      }
+    }
+  }
+}

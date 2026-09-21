@@ -1,0 +1,28 @@
+{
+  "version": "1.0",
+  "description": "内置文本日志解析器；资产通过 text_parser 字段选用，运营无需改 Python",
+  "parsers": {
+    "syslog_auth": {
+      "description": "Linux sshd auth.log / secure",
+      "builtin": true,
+      "asset_types": ["ssh_auth"]
+    },
+    "nginx_combined": {
+      "description": "Nginx combined access log",
+      "builtin": true,
+      "asset_types": ["web_access_log"]
+    },
+    "json_lines": {
+      "description": "每行一条 JSON object；字段映射走 field_aliases",
+      "builtin": true
+    },
+    "json_lines2": {
+      "description": "每行一条 JSON object；若字段值本身也是 JSON object 字符串/对象，则展开为 父字段.子字段",
+      "builtin": true
+    },
+    "raw_only": {
+      "description": "不解析，仅保留 raw_line + host",
+      "builtin": true
+    }
+  }
+}

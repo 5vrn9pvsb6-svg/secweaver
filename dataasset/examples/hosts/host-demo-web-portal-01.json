@@ -1,0 +1,28 @@
+{
+  "host_id": "host-demo-web-portal-01",
+  "name": "Demo Web Portal 01",
+  "hostname": "demo-web-portal-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "198.51.100.22",
+  "network_id": "net-demo-log-source",
+  "aliases": [
+    "demo-web-portal-01",
+    "198.51.100.22"
+  ],
+  "roles": [
+    "public-site",
+    "web-portal"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic public web portal template.",
+  "tags": [
+    "demo",
+    "public-site",
+    "reference",
+    "server",
+    "web-portal"
+  ]
+}

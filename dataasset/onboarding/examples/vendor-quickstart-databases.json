@@ -1,0 +1,100 @@
+{
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery"
+  },
+  "data_sources": [
+    {
+      "name": "demo-mysql-db-audit",
+      "connector_type": "database_ro",
+      "asset_type": "db_audit",
+      "credentials_ref": "vault://mysql/security-readonly",
+      "engine": "mysql",
+      "host": "mysql.example.com",
+      "port": 3306,
+      "database": "security_audit",
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "user", "src_ip", "database", "statement", "action"],
+          "time_field": "timestamp",
+          "retention_days": 90
+        },
+        "coverage": {
+          "zones": ["prod-db"],
+          "apps": ["core-db"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "client_ip": "src_ip",
+          "event_time": "timestamp"
+        }
+      },
+      "template": {
+        "params": ["user", "src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "sql": "select event_time as timestamp, user, client_ip as src_ip, db_name as database, statement, action from audit_events where client_ip = :src_ip limit :limit"
+      }
+    },
+    {
+      "name": "demo-sqlserver-audit",
+      "connector_type": "database_ro",
+      "asset_type": "db_audit",
+      "credentials_ref": "vault://sqlserver/security-readonly",
+      "engine": "sqlserver",
+      "host": "sqlserver.example.com",
+      "port": 1433,
+      "database": "SecurityAudit",
+      "driver": "ODBC Driver 18 for SQL Server",
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "user", "src_ip", "database", "statement", "action"],
+          "time_field": "timestamp",
+          "retention_days": 90
+        },
+        "coverage": {
+          "zones": ["prod-db"],
+          "apps": ["finance-db"],
+          "hosts": []
+        }
+      },
+      "template": {
+        "params": ["src_ip", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "sql": "select top (:limit) event_time as timestamp, username as user, client_ip as src_ip, database_name as database, statement_text as statement, action_name as action from dbo.audit_events where client_ip = :src_ip"
+      }
+    },
+    {
+      "name": "demo-sqlite-lab-audit",
+      "connector_type": "database_ro",
+      "asset_type": "db_audit",
+      "engine": "sqlite",
+      "path": "examples/data/security-audit.sqlite",
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "user", "src_ip", "database", "statement", "action"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "coverage": {
+          "zones": ["lab"],
+          "apps": ["sqlite-demo"],
+          "hosts": []
+        }
+      },
+      "template": {
+        "params": ["src_ip", "limit"],
+        "defaults": {
+          "limit": 100
+        },
+        "sql": "select timestamp, user, src_ip, database_name as database, statement, action from audit_events where src_ip = :src_ip limit :limit"
+      }
+    }
+  ]
+}

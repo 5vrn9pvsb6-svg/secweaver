@@ -1,0 +1,17 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "SecWeaver SLS Proxy 连接器（模板）",
+  "connector_type": "sls_proxy",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-proxy-query",
+  "config": {
+    "endpoint": "https://sls-proxy.id-net.cn:30443",
+    "fallback_endpoint": "https://sls-proxy.id-net.cn:30443",
+    "project": "",
+    "logstore": "YOUR_LOGSTORE"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/alert-confirmation-output.json",
+  "title": "AlertConfirmationResult",
+  "allOf": [
+    {"$ref": "https://secweaver.local/schemas/skill-envelope.json"}
+  ],
+  "type": "object",
+  "required": ["contract_version", "skill"],
+  "properties": {
+    "skill": {"const": "alert-confirmation"},
+    "alert_verdict": {
+      "enum": ["false_positive", "scanning_or_probe", "suspicious", "confirmed_attack"]
+    },
+    "attack_outcome": {
+      "enum": ["not_applicable", "blocked", "attempt_failed", "success_confirmed", "success_unknown"]
+    },
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+    "confidence_ceiling": {"type": "number", "minimum": 0, "maximum": 1},
+    "results": {"type": "array", "items": {"type": "object"}},
+    "batch_summary": {"type": "object"},
+    "gateway_miss_scan": {"type": "object"},
+    "fetch_summary": {"type": "object"}
+  },
+  "anyOf": [
+    {"required": ["alert_verdict", "attack_outcome", "confidence"]},
+    {"required": ["results", "batch_summary"]}
+  ],
+  "additionalProperties": true
+}

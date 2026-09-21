@@ -1,0 +1,17 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "SLS 日志连接器（模板）",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/security-readonly",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "YOUR_LOGSTORE"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72
+  }
+}

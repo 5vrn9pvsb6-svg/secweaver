@@ -1,0 +1,31 @@
+name: Documentation
+description: Report unclear, missing, or incorrect docs
+title: "[docs]: "
+labels:
+  - documentation
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Operator guides live under `docs_user/`: English `topic.md` + Chinese `topic.zh-CN.md` in the same folder.
+
+  - type: input
+    id: page
+    attributes:
+      label: Page or file path
+      placeholder: docs_user/03-configure-data-sources.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: What is unclear or wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement (optional)
+      description: If you can, propose corrected text or a PR.

@@ -1,0 +1,26 @@
+{
+  "host_id": "host-demo-build-agent-01",
+  "name": "Demo Build Agent 01",
+  "hostname": "demo-build-agent-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "203.0.113.86",
+  "network_id": "net-demo-lab-core",
+  "aliases": [
+    "demo-build-agent-01",
+    "203.0.113.86"
+  ],
+  "roles": [
+    "build-agent"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic build agent host template.",
+  "tags": [
+    "build-agent",
+    "demo",
+    "reference",
+    "server"
+  ]
+}

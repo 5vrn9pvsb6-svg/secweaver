@@ -1,0 +1,27 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "ClickHouse 日志仓库（模板）",
+  "connector_type": "clickhouse",
+  "status": "draft",
+  "credentials_ref": "vault://clickhouse/security-readonly",
+  "description": "ClickHouse 只读 SQL 查询模板；live fetch 需要 clickhouse-connect。",
+  "config": {
+    "host": "clickhouse.example.com",
+    "port": 8443,
+    "database": "security_logs",
+    "secure": true,
+    "column_denylist": [
+      "raw_secret",
+      "token"
+    ]
+  },
+  "constraints": {
+    "max_records_per_request": 10000,
+    "query_timeout_sec": 60
+  },
+  "tags": [
+    "template",
+    "clickhouse",
+    "warehouse"
+  ]
+}

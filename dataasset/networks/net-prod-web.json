@@ -1,0 +1,15 @@
+{
+  "network_id": "net-prod-web",
+  "name": "Lab Web Zone",
+  "cidr": "192.0.2.0/24",
+  "zone": "production_network",
+  "network_type": "production",
+  "gateway_ip": "192.0.2.1",
+  "trust_level": "internal",
+  "status": "active",
+  "description": "Synthetic web tier CIDR for offline demos.",
+  "tags": [
+    "demo",
+    "web"
+  ]
+}

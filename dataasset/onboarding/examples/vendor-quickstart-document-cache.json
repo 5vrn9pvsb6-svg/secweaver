@@ -1,0 +1,79 @@
+{
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery"
+  },
+  "data_sources": [
+    {
+      "name": "demo-mongodb-web-events",
+      "connector_type": "mongodb",
+      "asset_type": "web_access_log",
+      "credentials_ref": "vault://mongodb/security-readonly",
+      "host": "mongodb.example.com",
+      "port": 27017,
+      "database": "security_logs",
+      "collection": "web_events",
+      "auth_source": "admin",
+      "asset": {
+        "schema": {
+          "fields": ["timestamp", "src_ip", "target_ip", "url", "status", "user_agent"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "coverage": {
+          "zones": ["edge"],
+          "apps": ["web-gateway"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "client_ip": "src_ip",
+          "request_uri": "url"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "mongo_query": "{\"collection\":\"web_events\",\"filter\":{\"src_ip\":\"{src_ip}\"},\"projection\":{\"_id\":0},\"sort\":[[\"timestamp\",-1]],\"limit\":{limit}}"
+      }
+    },
+    {
+      "name": "demo-redis-asset-cache",
+      "connector_type": "redis",
+      "asset_type": "asset_inventory",
+      "credentials_ref": "vault://redis/security-readonly",
+      "host": "redis.example.com",
+      "port": 6379,
+      "db": 0,
+      "ssl": false,
+      "asset": {
+        "schema": {
+          "fields": ["asset_id", "host_name", "host_ip", "owner", "app", "updated_at"],
+          "time_field": "updated_at",
+          "retention_days": 7
+        },
+        "coverage": {
+          "zones": ["inventory"],
+          "apps": ["cmdb-cache"],
+          "hosts": []
+        },
+        "field_aliases": {
+          "ip": "host_ip",
+          "hostname": "host_name"
+        }
+      },
+      "template": {
+        "params": ["key_pattern", "limit"],
+        "defaults": {
+          "key_pattern": "asset:*",
+          "limit": 1000
+        },
+        "redis_query": "{\"command\":\"SCAN\",\"match\":\"{key_pattern}\",\"count\":100,\"limit\":{limit}}"
+      }
+    }
+  ]
+}

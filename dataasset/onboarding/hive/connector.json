@@ -1,0 +1,27 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Hive 日志仓库（模板）",
+  "connector_type": "hive",
+  "status": "draft",
+  "credentials_ref": "vault://hive/security-readonly",
+  "description": "Hive 只读 SQL 查询模板；live fetch 需要 PyHive/thrift/sasl，当前 SQL 使用直接渲染避免 Hive 参数限制。",
+  "config": {
+    "host": "hive.example.com",
+    "port": 10000,
+    "database": "security_logs",
+    "auth": "NONE",
+    "column_denylist": [
+      "raw_secret",
+      "token"
+    ]
+  },
+  "constraints": {
+    "max_records_per_request": 10000,
+    "query_timeout_sec": 120
+  },
+  "tags": [
+    "template",
+    "hive",
+    "warehouse"
+  ]
+}

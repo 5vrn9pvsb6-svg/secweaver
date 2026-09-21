@@ -1,0 +1,11 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "本地文件（模板）",
+  "connector_type": "local_file",
+  "status": "draft",
+  "config": {
+    "hostname": "lab-host",
+    "base_path": "/var/log",
+    "log_paths": { "ssh_auth": "auth.log" }
+  }
+}

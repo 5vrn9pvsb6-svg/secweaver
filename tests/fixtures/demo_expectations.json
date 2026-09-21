@@ -1,0 +1,58 @@
+{
+  "completeness": {
+    "required_keys": [
+      "alert_type",
+      "overall_verdict",
+      "can_trace",
+      "can_confirm_breach"
+    ],
+    "assertions": {
+      "alert_type": "data_source_completeness",
+      "overall_verdict": "full_traceable",
+      "can_trace": true,
+      "can_confirm_breach": true
+    }
+  },
+  "alert": {
+    "required_keys": [
+      "alert_type",
+      "alert_verdict",
+      "attack_success",
+      "attack_outcome"
+    ],
+    "assertions": {
+      "alert_type": "alert_confirmation",
+      "alert_verdict": "confirmed_attack",
+      "attack_success": true,
+      "attack_outcome": "success_confirmed"
+    }
+  },
+  "traceability": {
+    "required_keys": [
+      "alert_type",
+      "overall_verdict",
+      "blocked",
+      "initial_access"
+    ],
+    "assertions": {
+      "alert_type": "traceability_analysis",
+      "overall_verdict": "confirmed_intrusion_chain",
+      "blocked": false
+    }
+  },
+  "risk": {
+    "required_keys": [
+      "skill",
+      "overall_verdict",
+      "summary"
+    ],
+    "assertions": {
+      "skill": "risk-identification",
+      "overall_verdict": "high_risk_detected"
+    },
+    "summary_assertions": {
+      "p0": 2,
+      "risk_items": 2
+    }
+  }
+}

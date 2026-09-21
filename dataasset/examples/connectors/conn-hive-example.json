@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-hive-example",
+  "name": "Hive 数据湖示例连接器",
+  "connector_type": "hive",
+  "status": "draft",
+  "credentials_ref": "vault://hive/security-readonly",
+  "description": "示例：查询 Hive 中的长期留存安全日志、离线审计日志或历史归档数据；模板复用只读 sql。",
+  "config": {
+    "host": "hive.example.com",
+    "port": 10000,
+    "database": "security_ods",
+    "auth": "LDAP",
+    "column_denylist": ["credential", "secret_value"]
+  },
+  "constraints": {
+    "max_records_per_request": 20000,
+    "query_timeout_sec": 120
+  },
+  "tags": ["example", "hive", "data-lake", "not-for-production"]
+}

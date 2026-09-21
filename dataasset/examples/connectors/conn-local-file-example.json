@@ -1,0 +1,23 @@
+{
+  "connector_id": "conn-local-file-example",
+  "name": "本地文件示例连接器",
+  "connector_type": "local_file",
+  "status": "draft",
+  "description": "示例：用于 POC、离线样本回放或本地日志验证；不需要 credentials_ref。",
+  "config": {
+    "hostname": "example-host",
+    "base_path": "dataasset/samples/local-logs/example-host",
+    "log_paths": {
+      "ssh_auth": "auth.log",
+      "web_access_log": "nginx-access.log",
+      "linux_syslog": "syslog"
+    }
+  },
+  "constraints": {
+    "max_file_size_mb": 50,
+    "max_lines_per_query": 10000,
+    "allowed_read_commands": ["grep", "tail"],
+    "forbidden_paths": ["/etc/shadow", "/root/.ssh"]
+  },
+  "tags": ["example", "local-file", "offline", "not-for-production"]
+}

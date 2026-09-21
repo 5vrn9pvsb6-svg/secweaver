@@ -1,0 +1,23 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Tencent CLS（模板）",
+  "connector_type": "tencent_cls",
+  "status": "draft",
+  "credentials_ref": "vault://tencent/cls-readonly",
+  "description": "腾讯云 CLS 查询模板；默认使用内置 TencentCloud API fetch，也可通过 executor_endpoint 交给外部执行器。",
+  "config": {
+    "endpoint": "cls.tencentcloudapi.com",
+    "region": "ap-guangzhou",
+    "topic_id": "YOUR_TOPIC_ID"
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 60
+  },
+  "tags": [
+    "template",
+    "tencent",
+    "cls",
+    "live"
+  ]
+}

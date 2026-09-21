@@ -1,0 +1,17 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "Elasticsearch 连接器（模板）",
+  "connector_type": "es",
+  "status": "draft",
+  "credentials_ref": "vault://es/security-readonly",
+  "config": {
+    "url": "https://es.example.com:9200",
+    "index": "YOUR_INDEX-*",
+    "time_field": "@timestamp",
+    "tls_verify": true
+  },
+  "constraints": {
+    "max_records_per_request": 2000,
+    "request_timeout_sec": 30
+  }
+}

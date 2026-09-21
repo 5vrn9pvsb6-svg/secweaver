@@ -1,0 +1,20 @@
+{
+  "connector_id": "conn-sls-ssh-auth-db-01",
+  "name": "生产 SLS - db-01 SSH auth（分 logstore）",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "多 logstore 聚合示例；hostname 用于 host 参数过滤",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "ssh-auth-db-01",
+    "hostname": "db-01",
+    "host_id": "host-db-01"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 168
+  }
+}

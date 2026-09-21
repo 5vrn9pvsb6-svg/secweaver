@@ -1,0 +1,65 @@
+{
+  "asset_id": "asset-secweaver-host-connect",
+  "name": "SecWeaver 主机主动外连",
+  "asset_type": "host_connect",
+  "domain": "D2",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "active",
+  "connector_id": "conn-sls-secweaver-host-events",
+  "description": "与 secweaver-host-exec 同 logstore；audit-port-execmon 的 active_connect 事件，按 event_type 过滤。",
+  "coverage": {
+    "hosts": [
+      "192.0.2.80",
+      "192.0.2.5",
+      "192.0.2.91",
+      "192.0.2.92",
+      "198.51.100.2",
+      "198.51.100.3",
+      "203.0.113.4"
+    ]
+  },
+  "field_aliases": {
+    "host_name": "host",
+    "time": "timestamp",
+    "__source__": "log_source",
+    "log_source": "host_ip",
+    "connect_address": "dst_ip",
+    "connect_port": "dst_port"
+  },
+  "schema": {
+    "fields": [
+      "enterprise_id",
+      "time",
+      "timestamp",
+      "host",
+      "host_name",
+      "host_ip",
+      "event_type",
+      "pid",
+      "listener_pid",
+      "listener_port",
+      "dst_ip",
+      "dst_port",
+      "connect_address",
+      "connect_port"
+    ],
+    "time_field": "time",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "host_connect_by_host_ip_time",
+    "host_connect_by_host_time"
+  ],
+  "sensitivity": "internal",
+  "quality": {
+    "expected_event_type": "active_connect"
+  },
+  "tags": [
+    "secweaver",
+    "sls",
+    "host_connect",
+    "connect",
+    "audit-port-execmon"
+  ]
+}

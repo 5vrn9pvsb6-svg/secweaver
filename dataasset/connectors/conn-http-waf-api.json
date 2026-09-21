@@ -1,0 +1,19 @@
+{
+  "connector_id": "conn-http-waf-api",
+  "name": "WAF 控制台 OpenAPI",
+  "connector_type": "http_api",
+  "status": "draft",
+  "credentials_ref": "vault://waf/api-readonly",
+  "config": {
+    "base_url": "https://waf.example.com/api/v2",
+    "auth": "oauth2_client_credentials",
+    "endpoints": {
+      "search_alerts": "/alerts/search",
+      "get_alert": "/alerts/{alert_id}"
+    },
+    "rate_limit_rpm": 60
+  },
+  "constraints": {
+    "max_records_per_request": 500
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "investigation_intent": "主机 db-01 疑似向外传输数据，已有文件与外连，但没有流量体量数据",
+  "scenarios": ["S7"],
+  "params": {
+    "host": "db-01",
+    "time_start": "2026-06-24T01:00:00+08:00",
+    "time_end": "2026-06-24T05:00:00+08:00"
+  },
+  "registered_assets": [
+    {
+      "asset_id": "asset-host-connect-db",
+      "name": "数据库主机主动连接",
+      "type": "host_connect",
+      "domain": "D2",
+      "fields": ["host", "dst_ip", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-host-file-db",
+      "name": "数据库主机文件操作",
+      "type": "host_file_op",
+      "domain": "D2",
+      "fields": ["host", "path", "action", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-dns-internal",
+      "name": "内网 DNS 查询",
+      "type": "dns_log",
+      "domain": "D1",
+      "fields": ["client_ip", "query", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-host-exec-db",
+      "name": "数据库主机命令执行",
+      "type": "host_exec",
+      "domain": "D2",
+      "fields": ["host", "command", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    }
+  ],
+  "_meta": {
+    "scenario_label": "S7 P0 齐全、P1 流量体量缺失",
+    "expected_overall_verdict": "partial_traceable",
+    "expected_next_skill_blocked": false
+  }
+}

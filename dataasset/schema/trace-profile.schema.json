@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/trace-profile.json",
+  "title": "SecWeaver TraceProfile",
+  "description": "Declarative per-asset semantics for fetch repair, host identity, session signals, web-entry inference, lateral parse, and syslog→ssh_auth derivation. Interpreted by _shared/data-access/trace_profile.py.",
+  "type": "object",
+  "required": ["profile_id", "version"],
+  "properties": {
+    "profile_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "Template id; file lives at dataasset/trace-profiles/{profile_id}.json"
+    },
+    "version": { "type": "string" },
+    "description": { "type": "string" },
+    "asset_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "host_exec",
+          "host_connect",
+          "syslog_risk_alert",
+          "ssh_auth",
+          "linux_syslog"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "host_identity": {
+      "type": "object",
+      "properties": {
+        "ip_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "minItems": 1
+        },
+        "generic_hosts": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "victim_host_fields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Ordered fields for syslog victim host resolution"
+        }
+      },
+      "additionalProperties": false
+    },
+    "event_repairs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "unwrap_json_in_fields",
+              "fallback_timestamp",
+              "map_source_to_host"
+            ]
+          },
+          "fields": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "skip_if_set": { "type": "string" },
+          "source_field": { "type": "string" },
+          "set_fields": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "generic_hosts": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "victim_marker": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "session_signals": {
+      "type": "object",
+      "properties": {
+        "has_tty_field": { "type": "string" },
+        "tty_field": { "type": "string" },
+        "non_interactive_tty_values": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "interactive_tty_prefixes": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "web_entry_inference": {
+      "type": "object",
+      "properties": {
+        "listener_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "port_field": { "type": "string" },
+        "command_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "web_listeners_ref": { "type": "string" },
+        "ssh_listeners_ref": { "type": "string" },
+        "web_ports_ref": { "type": "string" },
+        "shell_invoke_tokens": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "webshell_substrings": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "indirect_webshell_rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["substrings_all"],
+            "properties": {
+              "substrings_all": {
+                "type": "array",
+                "items": { "type": "string" },
+                "minItems": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "fallback_web_listeners": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "fallback_ssh_listeners": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "fallback_web_ports": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "lateral_parse": {
+      "type": "object",
+      "properties": {
+        "command_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "patterns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "regex"],
+            "properties": {
+              "id": { "type": "string" },
+              "regex": { "type": "string" },
+              "groups": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "default_user": { "type": "string" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ssh_auth_derivation": {
+      "type": "object",
+      "properties": {
+        "success_event_types": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "failed_event_types": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "victim_host_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "src_ip_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "user_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "port_fields": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "impact_on_target_types": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "syslog event_type values treated as target-host impact signals"
+    }
+  },
+  "additionalProperties": false
+}

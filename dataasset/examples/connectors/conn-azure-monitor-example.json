@@ -1,0 +1,18 @@
+{
+  "connector_id": "conn-azure-monitor-example",
+  "name": "Azure Monitor 示例连接器",
+  "connector_type": "azure_monitor",
+  "status": "draft",
+  "credentials_ref": "vault://azure/log-analytics-readonly",
+  "description": "示例：从 Azure Log Analytics Workspace 查询安全日志、审计日志或资源日志；模板使用 KQL。",
+  "config": {
+    "workspace_id": "00000000-0000-0000-0000-000000000000",
+    "tenant_id": "11111111-1111-1111-1111-111111111111",
+    "endpoint": "https://api.loganalytics.io/v1/workspaces/00000000-0000-0000-0000-000000000000/query"
+  },
+  "constraints": {
+    "max_records_per_request": 5000,
+    "request_timeout_sec": 60
+  },
+  "tags": ["example", "azure", "monitor", "kql", "not-for-production"]
+}

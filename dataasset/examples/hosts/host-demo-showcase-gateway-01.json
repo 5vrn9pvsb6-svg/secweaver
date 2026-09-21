@@ -1,0 +1,26 @@
+{
+  "host_id": "host-demo-showcase-gateway-01",
+  "name": "Demo Showcase Gateway 01",
+  "hostname": "demo-showcase-gateway-01",
+  "host_type": "gateway",
+  "host_os": "linux",
+  "host_ip": "198.51.100.140",
+  "network_id": "net-demo-lab-services",
+  "aliases": [
+    "demo-showcase-gateway-01",
+    "198.51.100.140"
+  ],
+  "roles": [
+    "demo-gateway"
+  ],
+  "environment": "development",
+  "status": "draft",
+  "description": "Reference host template with synthetic demo identifiers; not production.",
+  "source_host_description": "Synthetic showcase gateway template.",
+  "tags": [
+    "demo",
+    "demo-gateway",
+    "gateway",
+    "reference"
+  ]
+}

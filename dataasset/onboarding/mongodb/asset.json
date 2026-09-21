@@ -1,0 +1,30 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "MongoDB 日志集合（模板）",
+  "asset_type": "web_access_log",
+  "domain": "D6",
+  "status": "draft",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "MongoDB 集合接入示例；通过 mongo_query JSON 描述 collection、filter、projection、sort 和 limit。",
+  "coverage": {
+    "zones": [
+      "internal"
+    ],
+    "apps": [],
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "src_ip",
+      "host",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {}
+}

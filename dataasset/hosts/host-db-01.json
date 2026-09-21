@@ -1,0 +1,26 @@
+{
+  "host_id": "host-db-01",
+  "name": "DB-01",
+  "hostname": "db-01",
+  "host_type": "server",
+  "host_os": "linux",
+  "host_ip": "198.51.100.10",
+  "network_id": "net-prod-db",
+  "exposure": {
+    "internet_exposed": false
+  },
+  "aliases": [
+    "mysql-primary"
+  ],
+  "roles": [
+    "db",
+    "mysql"
+  ],
+  "environment": "production",
+  "status": "active",
+  "description": "Lab MySQL host for offline demos (SSH auth logstore example).",
+  "tags": [
+    "demo",
+    "db"
+  ]
+}

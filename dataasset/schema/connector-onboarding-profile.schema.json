@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/connector-onboarding-profile.json",
+  "title": "SecWeaver Connector Onboarding Profile",
+  "type": "object",
+  "required": [
+    "label",
+    "fields",
+    "required",
+    "defaults",
+    "default_asset_type",
+    "template_params",
+    "template_defaults",
+    "default_query",
+    "hint"
+  ],
+  "properties": {
+    "label": { "type": "string", "minLength": 1 },
+    "fields": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+      "uniqueItems": true
+    },
+    "required": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+      "uniqueItems": true
+    },
+    "defaults": { "type": "object" },
+    "default_asset_type": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+    "template_params": {
+      "type": "array",
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+      "uniqueItems": true
+    },
+    "template_defaults": { "type": "object" },
+    "default_query": { "type": "string", "minLength": 1 },
+    "hint": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

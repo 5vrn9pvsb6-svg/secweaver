@@ -1,0 +1,43 @@
+{
+  "$schema": "../data-sources.schema.json",
+  "version": "1.0",
+  "output_dir": "dataasset",
+  "defaults": {
+    "owner_team": "security-ops",
+    "environment": "production",
+    "status": "discovery"
+  },
+  "data_sources": [
+    {
+      "name": "demo-datadog-waf",
+      "connector_type": "datadog_logs",
+      "asset_type": "waf_alert",
+      "credentials_ref": "vault://datadog/security-readonly",
+      "endpoint": "http://127.0.0.1:8789/fetch",
+      "sample_file": "examples/log-format-discovery/waf-jsonl.sample",
+      "asset": {
+        "coverage": {
+          "zones": ["edge"],
+          "apps": ["demo-gateway"],
+          "hosts": []
+        },
+        "schema": {
+          "fields": ["timestamp", "src_ip", "url", "action", "rule_id"],
+          "time_field": "timestamp",
+          "retention_days": 30
+        },
+        "field_aliases": {
+          "client_ip": "src_ip",
+          "request_url": "url"
+        }
+      },
+      "template": {
+        "params": ["src_ip", "time_start", "time_end", "limit"],
+        "defaults": {
+          "limit": 1000
+        },
+        "datadog_query": "source:security @client_ip:{src_ip}"
+      }
+    }
+  ]
+}

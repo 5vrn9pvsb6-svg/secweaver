@@ -1,0 +1,54 @@
+{
+  "investigation_intent": "账号 alice 出现异常 SSH 登录，检查登录后执行、持久化和网络活动",
+  "scenarios": ["S6"],
+  "params": {
+    "user": "alice",
+    "time_start": "2026-06-23T08:00:00+08:00",
+    "time_end": "2026-06-23T12:00:00+08:00",
+    "hosts": ["app-01"]
+  },
+  "registered_assets": [
+    {
+      "asset_id": "asset-ssh-auth-app",
+      "name": "应用区 SSH 认证",
+      "type": "ssh_auth",
+      "domain": "D3",
+      "fields": ["host", "user", "src_ip", "timestamp", "result"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-host-exec-app",
+      "name": "应用区命令执行",
+      "type": "host_exec",
+      "domain": "D2",
+      "fields": ["host", "command", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-host-persistence-app",
+      "name": "应用区持久化变更",
+      "type": "host_persistence",
+      "domain": "D2",
+      "fields": ["host", "path", "action", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    },
+    {
+      "asset_id": "asset-firewall-app",
+      "name": "应用区防火墙日志",
+      "type": "firewall_log",
+      "domain": "D3",
+      "fields": ["src_ip", "dst_ip", "timestamp"],
+      "coverage": ["any"],
+      "retention_days": 30
+    }
+  ],
+  "_meta": {
+    "scenario_label": "S6 账号失陷调查数据源齐全",
+    "expected_overall_verdict": "full_traceable",
+    "expected_next_skill_blocked": false,
+    "expected_next_skill": "traceability_analysis"
+  }
+}

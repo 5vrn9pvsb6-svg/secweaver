@@ -1,0 +1,24 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "External Connector 资产（模板）",
+  "asset_type": "waf_alert",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "Generic external connector asset; override schema, coverage and parser from config.",
+  "coverage": {
+    "zones": ["external"],
+    "apps": [],
+    "hosts": []
+  },
+  "schema": {
+    "fields": ["timestamp", "src_ip", "target_ip", "url", "action"],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": ["YOUR_TEMPLATE_ID"],
+  "field_aliases": {},
+  "tags": ["template", "external"]
+}

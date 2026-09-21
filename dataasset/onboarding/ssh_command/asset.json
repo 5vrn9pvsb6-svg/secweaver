@@ -1,0 +1,40 @@
+{
+  "asset_id": "YOUR_ASSET_ID",
+  "name": "SSH 命令采集（模板）资产",
+  "asset_type": "ssh_auth",
+  "domain": "D1",
+  "owner_team": "security-ops",
+  "environment": "production",
+  "status": "discovery",
+  "connector_id": "YOUR_CONN_ID",
+  "description": "受控 SSH 命令采集；生产环境必须配合最小权限账号和命令白名单。",
+  "text_parser": "syslog_auth",
+  "coverage": {
+    "zones": [
+      "edge"
+    ],
+    "apps": [],
+    "hosts": [
+      "YOUR_HOST"
+    ]
+  },
+  "schema": {
+    "fields": [
+      "timestamp",
+      "host",
+      "user",
+      "src_ip",
+      "action"
+    ],
+    "time_field": "timestamp",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "YOUR_TEMPLATE_ID"
+  ],
+  "field_aliases": {},
+  "tags": [
+    "template",
+    "ssh-command"
+  ]
+}

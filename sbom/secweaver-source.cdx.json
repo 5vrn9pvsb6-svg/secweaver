@@ -1,0 +1,543 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "bom-ref": "pkg:golang/github.com/beorn7/perks@v1.0.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/beorn7/perks",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "indirect"
+        }
+      ],
+      "purl": "pkg:golang/github.com/beorn7/perks@v1.0.1",
+      "type": "library",
+      "version": "v1.0.1"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/cespare/xxhash/v2@v2.2.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/cespare/xxhash/v2",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "indirect"
+        }
+      ],
+      "purl": "pkg:golang/github.com/cespare/xxhash/v2@v2.2.0",
+      "type": "library",
+      "version": "v2.2.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/cilium/ebpf@v0.16.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "github.com/cilium/ebpf",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        }
+      ],
+      "purl": "pkg:golang/github.com/cilium/ebpf@v0.16.0",
+      "type": "library",
+      "version": "v0.16.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/prometheus/client_golang@v1.19.1",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "github.com/prometheus/client_golang",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        }
+      ],
+      "purl": "pkg:golang/github.com/prometheus/client_golang@v1.19.1",
+      "type": "library",
+      "version": "v1.19.1"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/prometheus/client_model@v0.5.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "github.com/prometheus/client_model",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        }
+      ],
+      "purl": "pkg:golang/github.com/prometheus/client_model@v0.5.0",
+      "type": "library",
+      "version": "v0.5.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/prometheus/common@v0.48.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "github.com/prometheus/common",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "indirect"
+        }
+      ],
+      "purl": "pkg:golang/github.com/prometheus/common@v0.48.0",
+      "type": "library",
+      "version": "v0.48.0"
+    },
+    {
+      "bom-ref": "pkg:golang/github.com/prometheus/procfs@v0.12.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "github.com/prometheus/procfs",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "indirect"
+        }
+      ],
+      "purl": "pkg:golang/github.com/prometheus/procfs@v0.12.0",
+      "type": "library",
+      "version": "v0.12.0"
+    },
+    {
+      "bom-ref": "pkg:golang/go.uber.org/goleak@v1.3.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "go.uber.org/goleak",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        }
+      ],
+      "purl": "pkg:golang/go.uber.org/goleak@v1.3.0",
+      "type": "library",
+      "version": "v1.3.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/exp@v0.0.0-20230224173230-c95f2b4c22f2",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "golang.org/x/exp",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "indirect"
+        }
+      ],
+      "purl": "pkg:golang/golang.org/x/exp@v0.0.0-20230224173230-c95f2b4c22f2",
+      "type": "library",
+      "version": "v0.0.0-20230224173230-c95f2b4c22f2"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/mod@v0.16.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "golang.org/x/mod",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        }
+      ],
+      "purl": "pkg:golang/golang.org/x/mod@v0.16.0",
+      "type": "library",
+      "version": "v0.16.0"
+    },
+    {
+      "bom-ref": "pkg:golang/golang.org/x/sys@v0.20.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "golang.org/x/sys",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        }
+      ],
+      "purl": "pkg:golang/golang.org/x/sys@v0.20.0",
+      "type": "library",
+      "version": "v0.20.0"
+    },
+    {
+      "bom-ref": "pkg:golang/google.golang.org/protobuf@v1.33.0",
+      "licenses": [
+        {
+          "license": {
+            "id": "BSD-3-Clause"
+          }
+        }
+      ],
+      "name": "google.golang.org/protobuf",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "golang"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "indirect"
+        }
+      ],
+      "purl": "pkg:golang/google.golang.org/protobuf@v1.33.0",
+      "type": "library",
+      "version": "v1.33.0"
+    },
+    {
+      "bom-ref": "pkg:pypi/aliyun-log-python-sdk",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "aliyun-log-python-sdk",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        },
+        {
+          "name": "secweaver:version-constraint",
+          "value": ">=0.9.47"
+        }
+      ],
+      "purl": "pkg:pypi/aliyun-log-python-sdk",
+      "type": "library"
+    },
+    {
+      "bom-ref": "pkg:pypi/jsonschema",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "jsonschema",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        },
+        {
+          "name": "secweaver:version-constraint",
+          "value": ">=4.21.0"
+        }
+      ],
+      "purl": "pkg:pypi/jsonschema",
+      "type": "library"
+    },
+    {
+      "bom-ref": "pkg:pypi/paramiko",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-2.1-or-later"
+          }
+        }
+      ],
+      "name": "paramiko",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        },
+        {
+          "name": "secweaver:version-constraint",
+          "value": ">=3.4.0"
+        }
+      ],
+      "purl": "pkg:pypi/paramiko",
+      "type": "library"
+    },
+    {
+      "bom-ref": "pkg:pypi/psycopg",
+      "licenses": [
+        {
+          "license": {
+            "id": "LGPL-3.0-only"
+          }
+        }
+      ],
+      "name": "psycopg",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        },
+        {
+          "name": "secweaver:version-constraint",
+          "value": ">=3.1.18; extras=binary,pool"
+        }
+      ],
+      "purl": "pkg:pypi/psycopg",
+      "type": "library"
+    },
+    {
+      "bom-ref": "pkg:pypi/pymysql",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ],
+      "name": "pymysql",
+      "properties": [
+        {
+          "name": "secweaver:ecosystem",
+          "value": "pypi"
+        },
+        {
+          "name": "secweaver:dependency-scope",
+          "value": "direct"
+        },
+        {
+          "name": "secweaver:version-constraint",
+          "value": ">=1.1.0"
+        }
+      ],
+      "purl": "pkg:pypi/pymysql",
+      "type": "library"
+    }
+  ],
+  "dependencies": [
+    {
+      "dependsOn": [
+        "pkg:golang/github.com/beorn7/perks@v1.0.1",
+        "pkg:golang/github.com/cespare/xxhash/v2@v2.2.0",
+        "pkg:golang/github.com/cilium/ebpf@v0.16.0",
+        "pkg:golang/github.com/prometheus/client_golang@v1.19.1",
+        "pkg:golang/github.com/prometheus/client_model@v0.5.0",
+        "pkg:golang/github.com/prometheus/common@v0.48.0",
+        "pkg:golang/github.com/prometheus/procfs@v0.12.0",
+        "pkg:golang/go.uber.org/goleak@v1.3.0",
+        "pkg:golang/golang.org/x/exp@v0.0.0-20230224173230-c95f2b4c22f2",
+        "pkg:golang/golang.org/x/mod@v0.16.0",
+        "pkg:golang/golang.org/x/sys@v0.20.0",
+        "pkg:golang/google.golang.org/protobuf@v1.33.0",
+        "pkg:pypi/aliyun-log-python-sdk",
+        "pkg:pypi/jsonschema",
+        "pkg:pypi/paramiko",
+        "pkg:pypi/psycopg",
+        "pkg:pypi/pymysql"
+      ],
+      "ref": "pkg:pypi/secweaver@0.3.21"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/github.com/beorn7/perks@v1.0.1"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/github.com/cespare/xxhash/v2@v2.2.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/github.com/cilium/ebpf@v0.16.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/github.com/prometheus/client_golang@v1.19.1"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/github.com/prometheus/client_model@v0.5.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/github.com/prometheus/common@v0.48.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/github.com/prometheus/procfs@v0.12.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/go.uber.org/goleak@v1.3.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/golang.org/x/exp@v0.0.0-20230224173230-c95f2b4c22f2"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/golang.org/x/mod@v0.16.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/golang.org/x/sys@v0.20.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:golang/google.golang.org/protobuf@v1.33.0"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/aliyun-log-python-sdk"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/jsonschema"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/paramiko"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/psycopg"
+    },
+    {
+      "dependsOn": [],
+      "ref": "pkg:pypi/pymysql"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "pkg:pypi/secweaver@0.3.21",
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "secweaver",
+      "type": "application",
+      "version": "0.3.21"
+    },
+    "properties": [
+      {
+        "name": "secweaver:inventory-completeness",
+        "value": "source-declared-dependencies"
+      }
+    ]
+  },
+  "specVersion": "1.6",
+  "version": 1
+}

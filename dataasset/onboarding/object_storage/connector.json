@@ -1,0 +1,25 @@
+{
+  "connector_id": "YOUR_CONN_ID",
+  "name": "对象存储日志归档（模板）",
+  "connector_type": "object_storage",
+  "status": "draft",
+  "credentials_ref": "vault://object-storage/log-readonly",
+  "description": "OSS/S3 兼容对象存储离线日志；可用本地 bucket/prefix 样本执行 POC，或配置 endpoint 转发外部执行器。",
+  "config": {
+    "provider": "s3-compatible",
+    "endpoint": "https://object-storage.example.com",
+    "bucket": "examples/log-format-discovery",
+    "prefix": "year=2026/",
+    "format": "jsonl"
+  },
+  "constraints": {
+    "max_objects_per_query": 100,
+    "max_file_size_mb": 512,
+    "request_timeout_sec": 120
+  },
+  "tags": [
+    "template",
+    "object-storage",
+    "planned"
+  ]
+}

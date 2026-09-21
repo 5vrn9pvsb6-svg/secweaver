@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://secweaver.local/schemas/data-host.json",
+  "title": "SecWeaver Host",
+  "type": "object",
+  "required": ["host_id", "name", "hostname", "host_type", "status"],
+  "properties": {
+    "host_id": { "type": "string", "pattern": "^host-[a-z0-9-]+$" },
+    "name": { "type": "string", "description": "展示名，如 WEB-01" },
+    "hostname": {
+      "type": "string",
+      "description": "短主机名；用于展示和日志 host/host_name 字段匹配，不用于 asset.coverage.hosts"
+    },
+    "host_type": {
+      "type": "string",
+      "enum": ["server", "network_device", "endpoint", "gateway"],
+      "description": "主机类型：server=服务器；network_device=网络产品主机；endpoint=终端；gateway=网关"
+    },
+    "host_os": {
+      "type": "string",
+      "enum": ["linux", "windows", "macos", "network_os", "other"],
+      "description": "操作系统：linux/windows/macos；network_os=网络设备固件；other=其他"
+    },
+    "host_ip": { "type": "string", "description": "主机主地址；必须尽量填写真实 IP（业务 IP、内网 IP 或主地址），不要用 hostname 代替" },
+    "network_id": {
+      "type": "string",
+      "pattern": "^net-[a-z0-9-]+$",
+      "description": "主业务 IP 所属 network 段；引用 dataasset/networks/net-*.json"
+    },
+    "interfaces": {
+      "type": "array",
+      "description": "可选；仅多网卡 / 多地址 / 跨网段场景填写，用于横向、NAT 和外传路径解释",
+      "items": {
+        "type": "object",
+        "required": ["name", "ip"],
+        "properties": {
+          "name": { "type": "string" },
+          "ip": { "type": "string" },
+          "network_id": { "type": "string", "pattern": "^net-[a-z0-9-]+$" },
+          "mac": { "type": "string" },
+          "role": { "type": "string", "enum": ["primary", "management", "storage", "backup", "external", "other"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "nat": {
+      "type": "object",
+      "description": "可选；仅在需要解释复杂 NAT/EIP 路径时填写。公网与内网地址分别由 exposure.internet_ip 和 host_ip/interfaces 表达",
+      "properties": {
+        "public_ip": { "type": "string", "deprecated": true, "description": "已废弃；使用 exposure.internet_ip" },
+        "private_ip": { "type": "string", "deprecated": true, "description": "已废弃；使用 host_ip 或 interfaces[].ip" },
+        "nat_gateway": { "type": "string" },
+        "mapping_type": { "type": "string", "enum": ["static", "dynamic", "snat", "dnat", "eip"] }
+      },
+      "additionalProperties": false
+    },
+    "exposure": {
+      "type": "object",
+      "description": "对外暴露面与监听服务摘要；详细证据仍来自 host_connect/firewall/NTA",
+      "properties": {
+        "internet_exposed": { "type": "boolean" },
+        "internet_ip": {
+          "type": "string",
+          "description": "公网 IP、EIP 或对外访问入口 IP；internet_exposed=true 时建议填写"
+        },
+        "exposed_ports": {
+          "type": "array",
+          "description": "对外暴露端口。推荐使用整数数组，如 [443, 80, 10081]；兼容旧对象格式。",
+          "items": {
+            "oneOf": [
+              { "type": "integer", "minimum": 1, "maximum": 65535 },
+              {
+                "type": "object",
+                "properties": {
+                  "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+                  "protocol": { "type": "string" },
+                  "service": { "type": "string" },
+                  "source": { "type": "string" }
+                },
+                "required": ["port"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "management_ip": {
+      "type": "string",
+      "deprecated": true,
+      "description": "已废弃；使用 interfaces 中 role=management 的网卡 IP"
+    },
+    "management_gateway_ip": {
+      "type": "string",
+      "deprecated": true,
+      "description": "已废弃；通过管理网卡的 network_id 引用 network.gateway_ip"
+    },
+    "external_ip": {
+      "type": "string",
+      "deprecated": true,
+      "description": "已废弃；使用 exposure.internet_ip"
+    },
+    "gateway_ip": {
+      "type": "string",
+      "deprecated": true,
+      "description": "已废弃；通过 host.network_id 引用 network.gateway_ip"
+    },
+    "aliases": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "主机别名、历史名、FQDN、日志中可能出现的 host/host_name 字段值；不用于 asset.coverage.hosts"
+    },
+    "roles": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "web、db、bastion、jump 等角色标签"
+    },
+    "environment": { "enum": ["production", "staging", "development"] },
+    "status": { "enum": ["draft", "active", "retired"] },
+    "description": { "type": "string" },
+    "source_host_description": {
+      "type": "string",
+      "description": "Source inventory description retained for audit without replacing the normalized description."
+    },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "extensions": {
+      "type": "object",
+      "description": "Named vendor or deployment extensions; common fields should be added to the schema.",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

