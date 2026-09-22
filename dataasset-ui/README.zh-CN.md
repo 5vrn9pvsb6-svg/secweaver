@@ -183,3 +183,35 @@ SECWEAVER_LOGTAIL_ALIUID=1234567890123456 \
 ES 默认校验证书，支持私有 CA；查询不完整状态会进入取数摘要和报告。
 自动证据 ID 已升级为 v2；源日志敏感字段仍需显式配置 masking。
 发布检查、兼容性、迁移参数与脱敏示例见[使用说明](../docs_user/community-release-and-data-safety.zh-CN.md)。
+
+## 外部 ES Operator
+
+ES 部署为可选能力，由独立私有项目 `secweaver-es-operator` 维护。
+启动 Studio 前，在服务端环境配置可信本地路径；HTTP 请求不能指定可执行程序：
+
+```bash
+SECWEAVER_PORTABLE_ROOT=/path/to/secweaver-es-operator \
+SECWEAVER_PORTABLE_RUNTIME=/path/to/operator-runtime make ui
+```
+
+可选 `SECWEAVER_PORTABLE_COMMAND` 指定具体二进制或启动脚本；否则优先使用项目根目录
+启动器，再查找 `bin/secweaver-portable`。运行目录默认是 `<operator-root>/runtime`。
+路径可用绝对路径，或相对 Community 根目录的路径。Studio 向 CLI 传递所选 `DATAASSET_ROOT`。
+未显式配置时兼容旧仓库内路径；Operator 缺失时部署接口返回不可用，其他 Studio 功能继续工作。
+需要兼容版本的 Operator CLI 及其运行依赖；此配置不会自动安装或启动 ES。
+可通过 `/api/portable/status` 验证（未初始化时执行 `doctor`，初始化后执行 `status`）。
+
+安装表单按企业、平台和架构选择安装配置，支持选择 Filebeat、Fluent Bit 或 SecWeaver
+Shipper（具体平台支持由 Operator 校验）。吊销需填写 `secweaver-portable list-enrollments`
+返回的 enrollment key，不再使用主机名；关闭只影响所选配置后续的 ES 凭据接入。
+两者都不撤销 Agent Gateway 设备身份或令牌。请在 Studio 启动环境中配置
+`SECWEAVER_AGENT_CONTROL_URL`（HTTPS origin）及 `SECWEAVER_AGENT_ENROLLMENT_TOKEN`，
+不要将令牌写入前端文件。Agent 升级签名可能还需 `SECWEAVER_AGENT_UPDATE_PUBLIC_KEY`。
+当前验证基线为 Operator 0.3.20 的 CLI。修改适配器或升级 Operator 后，在 Community 根目录执行：
+
+```bash
+SECWEAVER_OPERATOR_TEST_COMMAND=/absolute/path/secweaver-es-operator/bin/secweaver-portable make test-operator-contract
+```
+
+该只读参数契约检查需要 Python 和本机可运行的 Operator 二进制，不初始化 OpenSearch、
+不签发凭据。真实注册、上传及吊销仍需在可丢弃部署环境中验收。

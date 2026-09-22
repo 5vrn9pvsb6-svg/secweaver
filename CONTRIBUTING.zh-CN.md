@@ -94,6 +94,15 @@ DataAsset 校验、规则同步、测试和 demo。以上命令假设 `make setu
 
 不要包含 `.DS_Store`、本地表格、临时导出、解密后的 vault 文件或生成的私有报告。
 
+根目录 [`.gitignore`](.gitignore) 排除本地依赖与缓存、Agent 编译产物、发布归档、
+`outputs/`、私有 `dataasset_my/` 副本及生成的 AI 工具适配文件。
+规范 Skill 源码 `src/skills/`、DataAsset/凭证示例、离线日志样本、`examples/reports/`、
+Studio 前端源码及 Agent 嵌入的 eBPF `.o` 文件仍需提交。
+原有 `dataasset/credentials/.gitignore` 继续排除本地 SOPS vault。
+用 `git check-ignore -v --no-index <路径>` 检查规则；向 GitLab/GitHub 推送前，
+用 `git ls-files -ci --exclude-standard` 检查已被跟踪的本地文件。
+忽略规则不会移除索引或历史中的文件；清理索引应保留本地文件，并单独审阅。
+
 ## 贡献示例 DataAsset
 
 **脱敏模板**是最有价值的社区贡献之一。它们帮助用户接入 SLS、ES、SSH、Splunk、数据库和文件源，
@@ -194,3 +203,7 @@ make open-source-export OUTPUT=/tmp/secweaver-community.tar.gz
 ## 文档与发布要求
 
 遵循 [AGENTS.md](AGENTS.md)：每次代码变更必须同步行为文档和中英文版本，注释非显然的实现意图，并执行对应检查。Agent 打包内容变更必须在构建新包前更新 canonical `VERSION`，不得复用已发布版本。未能运行的检查需说明原因，局部测试不等同于 `make ci`。
+
+提交前运行 `make hygiene-check`。忽略规则也需落实到 Git 索引：缓存、本地 AI 适配器和临时输出应取消跟踪，可以保留本地副本。公开示例放在 `examples/`，不放在 `outputs/`；CI 会拒绝已跟踪但命中忽略规则的文件。
+
+独立仓库须同时保留 `.gitattributes` 归档策略与 `.gitignore`。即使私有项目已移走，发布扫描仍会校验归档排除规则；缺失该文件会使源码导出验证失败。

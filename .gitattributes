@@ -1,0 +1,46 @@
+# Defense in depth for company GitLab archives. The release scanner still blocks
+# these paths if somebody force-adds them to an open-source release candidate.
+/dataasset_my/ export-ignore
+/dataasset_es/ export-ignore
+/dataasset_sls_proxy/ export-ignore
+/docs_my/ export-ignore
+/src/server/ export-ignore
+/src/secweaver-server/ export-ignore
+/book/ export-ignore
+/portable/ export-ignore
+/src/es-operator/ export-ignore
+/tmp/ export-ignore
+/testdatasets/ export-ignore
+/dataasset/credentials/secrets/ export-ignore
+
+# Apply the same rule to files nested below each private directory. The
+# directory entries above keep the policy readable; these recursive patterns
+# make the intent explicit for attribute-aware tooling and future Git versions.
+/dataasset_my/** export-ignore
+/dataasset_es/** export-ignore
+/dataasset_sls_proxy/** export-ignore
+/docs_my/** export-ignore
+/src/server/** export-ignore
+/src/secweaver-server/** export-ignore
+/book/** export-ignore
+/portable/** export-ignore
+/src/es-operator/** export-ignore
+/tmp/** export-ignore
+/testdatasets/** export-ignore
+/dataasset/credentials/secrets/** export-ignore
+
+**/.DS_Store export-ignore
+**/__pycache__/ export-ignore
+**/__pycache__/** export-ignore
+
+# The reproducible Attack Lab is public, but binary presentations and reports
+# captured from the internal validation environment are not Community assets.
+/attack_test/environmentDeployment/*.pdf export-ignore
+/attack_test/environmentDeployment/attack-case-skill-analysis.md export-ignore
+/attack_test/environmentDeployment/attack-timeline-2026-07-05.md export-ignore
+
+# Historical P0 notes are not versioned release acceptance evidence.
+/src/tools/secweaver-agent/P0_FIXES_VERIFICATION_REPORT.md export-ignore
+
+/outputs/ export-ignore
+/outputs/** export-ignore

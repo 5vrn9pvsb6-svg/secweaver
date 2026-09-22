@@ -59,16 +59,18 @@ function initPortableText() {
     portableIngestPort: "portable.ingestPort",
     portableQueryPort: "portable.queryPort",
     portableDataassetRoot: "portable.dataassetRoot",
-    portableHostName: "portable.hostName",
+    portableEnrollmentKey: "portable.enrollmentKey",
+    portableArch: "portable.arch",
+    portableShipper: "portable.shipper",
     portableEnterpriseId: "portable.enterpriseId",
     portablePlatform: "portable.platform",
     portableAgentPackage: "portable.agentPackage",
-    portableFluentPackage: "portable.fluentPackage",
+    portableShipperPackage: "portable.shipperPackage",
     portableBufferLimit: "portable.bufferLimit",
   };
   Object.entries(labels).forEach(([id, key]) => setPortableLabel(id, portableT(key)));
   setPortableCheckboxLabel("portableReuseAgent", portableT("portable.reuseAgent"));
-  setPortableCheckboxLabel("portableReuseFluent", portableT("portable.reuseFluent"));
+  setPortableCheckboxLabel("portableReuseShipper", portableT("portable.reuseShipper"));
   setPortableCheckboxLabel("portableRotate", portableT("portable.rotate"));
   const buttons = {
     portableInitBtn: "portable.init",
@@ -134,16 +136,18 @@ function portableInitPayload() {
   };
 }
 
+// Installer profiles belong to an enterprise/platform/architecture, not a host name.
 function portableEnrollPayload() {
   return {
-    name: portable$("portableHostName").value.trim(),
+    arch: portable$("portableArch").value,
+    shipper: portable$("portableShipper").value,
     enterprise_id: portable$("portableEnterpriseId").value.trim(),
     platform: portable$("portablePlatform").value,
     agent_package: portable$("portableAgentPackage").value.trim(),
-    fluent_bit_package: portable$("portableFluentPackage").value.trim(),
+    shipper_package: portable$("portableShipperPackage").value.trim(),
     buffer_limit: portable$("portableBufferLimit").value.trim() || "2G",
     reuse_agent: portable$("portableReuseAgent").checked,
-    reuse_fluent_bit: portable$("portableReuseFluent").checked,
+    reuse_shipper: portable$("portableReuseShipper").checked,
     rotate: portable$("portableRotate").checked,
   };
 }
@@ -152,7 +156,23 @@ function reportPortableError(action, error) {
   portable$("portableStatus").textContent = portableT("portable.failed", { action, message: error.message });
 }
 
+// Windows has no Filebeat enrollment or loong64 build. Keep the form on a
+// supported choice when switching platforms; Operator still validates requests.
+function syncPortablePlatform() {
+  const windows = portable$("portablePlatform").value === "windows";
+  for (const option of portable$("portableArch").options) {
+    option.disabled = windows && option.value === "loong64";
+  }
+  if (windows && portable$("portableArch").value === "loong64") portable$("portableArch").value = "amd64";
+  for (const option of portable$("portableShipper").options) {
+    option.disabled = windows && option.value === "filebeat";
+  }
+  if (windows && portable$("portableShipper").value === "filebeat") portable$("portableShipper").value = "secweaver";
+}
+
 function bindPortableActions() {
+  portable$("portablePlatform").addEventListener("change", syncPortablePlatform);
+  syncPortablePlatform();
   portable$("portableRefreshBtn").addEventListener("click", () => {
     loadPortableStatus().catch((error) => reportPortableError(portableT("portable.refresh"), error));
   });
@@ -184,12 +204,12 @@ function bindPortableActions() {
   });
   portable$("portableCloseEnrollBtn").addEventListener("click", () => {
     if (!window.confirm(portableT("portable.closeConfirm"))) return;
-    runPortableAction("close_enrollment", { name: portable$("portableHostName").value.trim() })
+    runPortableAction("close_enrollment", portableEnrollPayload())
       .catch((error) => reportPortableError("close_enrollment", error));
   });
   portable$("portableRevokeBtn").addEventListener("click", () => {
     if (!window.confirm(portableT("portable.revokeConfirm"))) return;
-    runPortableAction("revoke", { name: portable$("portableHostName").value.trim() })
+    runPortableAction("revoke", { enrollment_key: portable$("portableEnrollmentKey").value.trim() })
       .catch((error) => reportPortableError("revoke", error));
   });
   portable$("portableCopyBtn").addEventListener("click", async () => {

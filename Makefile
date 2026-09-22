@@ -62,7 +62,7 @@ ai-setup-all:
 ai-showcase: setup
 	$(VENV_PY) src/scripts/run_ai_showcase.py $(CASE)
 
-ci: setup release-scan docs-check sbom-check agent-check attack-lab-check validate-all-roots validate-policy test demo ci-final-release-scan
+ci: setup hygiene-check release-scan docs-check sbom-check agent-check attack-lab-check validate-all-roots validate-policy test demo ci-final-release-scan
 
 # Demo generation rewrites published report fixtures, so scan the final tree too.
 ci-final-release-scan: $(VENV_PY)
@@ -151,3 +151,12 @@ test: setup
 
 clean-reports:
 	rm -f examples/reports/demo-*-output.json
+
+.PHONY: test-operator-contract
+# Private integration is explicit; public CI must not fetch private source.
+test-operator-contract:
+	REQUIRE_OPERATOR_CONTRACT_TESTS=1 $(PYTHON) -m unittest discover -s tests -p test_operator_standalone.py -v
+
+.PHONY: hygiene-check
+hygiene-check:
+	$(PYTHON) src/scripts/check_tracked_hygiene.py

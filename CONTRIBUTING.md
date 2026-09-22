@@ -99,6 +99,17 @@ Use placeholders such as `REPLACE_ME`, `YOUR_SLS_PROJECT`, or `vault://...` for 
 
 Do not include `.DS_Store`, local spreadsheets, temporary exports, decrypted vault files, or generated private reports.
 
+The root [`.gitignore`](.gitignore) excludes local dependencies/caches, Agent builds,
+release archives, `outputs/`, private `dataasset_my/` copies and generated AI-host
+adapters. Keep canonical `src/skills/`, DataAsset/credential examples, offline log
+samples, `examples/reports/`, Studio source assets and the Agent's embedded eBPF
+`.o` file tracked. The existing `dataasset/credentials/.gitignore` continues to
+exclude the local SOPS vault. Inspect a rule with `git check-ignore -v --no-index
+<path>`; review `git ls-files -ci --exclude-standard` for already tracked local
+files before pushing to GitLab/GitHub. Ignoring a path does not remove it from the
+index or history; any index cleanup must preserve local files and be reviewed
+separately.
+
 ## Contributing example DataAssets
 
 Community PRs for **sanitized templates** are one of the highest-value contributions. They help others connect SLS, ES, SSH, Splunk, databases, and file sources without exposing real environments.
@@ -194,3 +205,7 @@ Unless explicitly stated otherwise, contributions are accepted under the Apache 
 ## Documentation and release requirements
 
 Follow [AGENTS.md](AGENTS.md): every code change must update its behavior documentation and English/Chinese siblings, document non-obvious implementation intent, and run the relevant gates. Agent packaged content changes require a new canonical `VERSION` before a new package is built. Record unavailable checks; a partial test run is not `make ci`.
+
+Run `make hygiene-check` before committing. Ignore rules also apply to the Git index: generated caches, local AI adapters and temporary outputs must be untracked while their local copies can remain. Public examples belong in `examples/`, not `outputs/`. CI rejects tracked ignored files.
+
+Keep the standalone `.gitattributes` archive policy alongside `.gitignore`. The release scanner checks its exclusions even when private projects are absent; removing it breaks source-export verification.

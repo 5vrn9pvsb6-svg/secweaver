@@ -182,3 +182,43 @@ Open Data Source Onboarding
 ES verifies certificates by default and supports private CAs. Incomplete queries appear
 in fetch summaries and reports. Generated evidence IDs now use v2; sensitive source-log
 fields still require explicit masking. See [release, compatibility, migration and masking guidance](../docs_user/community-release-and-data-safety.md).
+
+## External ES Operator
+
+ES deployment is optional and maintained in the independent private
+`secweaver-es-operator` project. Before starting Studio, configure trusted local
+paths in the server environment (never via an HTTP request):
+
+```bash
+SECWEAVER_PORTABLE_ROOT=/path/to/secweaver-es-operator \
+SECWEAVER_PORTABLE_RUNTIME=/path/to/operator-runtime make ui
+```
+
+`SECWEAVER_PORTABLE_COMMAND` optionally selects a specific executable or launcher;
+otherwise Studio uses the project's launcher, then `bin/secweaver-portable`.
+Runtime defaults to `<operator-root>/runtime`. Paths may be absolute or relative
+to the Community repository root. Studio forwards its selected `DATAASSET_ROOT`
+to the CLI. Without explicit settings it retains the old in-repository lookup;
+when the Operator is absent, deployment endpoints report unavailable while other
+Studio functions remain usable. Requires a compatible Operator CLI and its
+runtime prerequisites; this does not install or start ES automatically. Verify
+with `/api/portable/status` (`doctor` before initialization, `status` afterwards).
+
+The enrollment form targets enterprise/platform/architecture installer profiles,
+with Filebeat, Fluent Bit or SecWeaver Shipper selection (Operator validates platform
+support). Revoke uses an enrollment key from `secweaver-portable list-enrollments`,
+not a host name; close affects only the selected profile's future ES bootstrap.
+Neither operation revokes Agent Gateway identities/tokens. Configure
+`SECWEAVER_AGENT_CONTROL_URL` (HTTPS origin) and `SECWEAVER_AGENT_ENROLLMENT_TOKEN`
+in Studio's startup environment; do not store tokens in frontend files. Agent
+update signing may additionally require `SECWEAVER_AGENT_UPDATE_PUBLIC_KEY`.
+Operator 0.3.20's CLI is the verified baseline. After changing this adapter or
+upgrading Operator, run (from Community root):
+
+```bash
+SECWEAVER_OPERATOR_TEST_COMMAND=/absolute/path/secweaver-es-operator/bin/secweaver-portable make test-operator-contract
+```
+
+This read-only parser contract check requires Python and a native Operator binary;
+it never initializes OpenSearch or issues credentials. Real registration, shipping
+and revocation still require a disposable deployment acceptance test.

@@ -322,3 +322,21 @@ Run `make sbom-check` after changing `requirements-data-access.txt` or the Agent
 must add its platform/runtime packages separately.
 
 See also: [`CHANGELOG.md`](CHANGELOG.md).
+
+The private Operator CI also runs the real Studio enroll/close/revoke lifecycle
+against an explicit full `COMMUNITY_CONTRACT_COMMIT`. Select a committed Community
+revision containing `OperatorLifecycleContractTests`; missing/old pins fail CI.
+For local acceptance with Operator 0.3.21+, set both
+`SECWEAVER_OPERATOR_TEST_COMMAND=/absolute/path/to/bin/secweaver-portable` and
+`SECWEAVER_OPERATOR_TEST_ROOT=/absolute/path/to/secweaver-es-operator`, then run
+`make test-operator-contract`. Python 3 and OpenSSL are required. Tests use temporary
+runtime state and disable Docker, seed a device credential, and verify profile
+closure preserves credentials until explicit revocation. They do not perform a
+real ES deployment or Agent Gateway enrollment.
+
+The private Agent Server compatibility gate pins a full Community commit and runs
+`go run ./cmd/secweaver-agent-contract-fixture -agent-version <VERSION>` from the
+Agent module. The command emits short-lived, deterministically keyed test requests
+for enrollment and heartbeat signature verification. Its key is public test data;
+the output is a CI protocol fixture, not an enrollment credential or production
+device identity. Run it only for compatibility testing.

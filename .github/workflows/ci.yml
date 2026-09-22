@@ -36,6 +36,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-data-access.txt
 
+      - name: Tracked file hygiene
+        run: make hygiene-check
+
       - name: Open-source release gate
         run: python src/scripts/release_scan.py
 

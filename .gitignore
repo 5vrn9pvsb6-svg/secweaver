@@ -1,0 +1,126 @@
+# Standalone Community repository. Keep source, schemas, sanitized examples,
+# dependency locks, SBOMs and published example reports under version control.
+
+# Python dependencies, bytecode and tooling caches.
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.venv-*/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+*.egg-info/
+.cache/
+
+outputs/
+.DS_Store
+
+# Build outputs and release archives. Do not ignore *.o: the Agent embeds
+# src/tools/secweaver-agent/pkg/processtracker/ebpf/processlifecycle_bpfel.o.
+/bin/
+/build/
+dist/
+/src/tools/secweaver-agent/secweaver-agent
+*.exe
+*.test
+*.prof
+.gocache/
+.gomodcache/
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Optional local frontend tooling; dataasset-ui's JS/CSS/HTML are source.
+node_modules/
+.npm/
+.pnpm-store/
+.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Generated reports, test results and private working data. Do not blanket
+# ignore *.log or examples/reports/: offline demonstrations depend on them.
+/outputs/
+/logs/
+/runtime/
+/private/
+/backups/
+/dataasset_my/
+/docs_my/
+/testdatasets/
+coverage/
+coverage.out
+coverage.*.out
+.coverage
+.coverage.*
+htmlcov/
+test-results/
+playwright-report/
+*.xlsx
+*.xlsm
+*.xls
+
+# `make ai-setup` regenerates these adapters; canonical Skills live in src/skills.
+# Ignore only generated host wiring, not all AI configuration or instructions.
+/.agents/skills/secweaver/
+/.claude/skills/secweaver/
+/.cursor/rules/secweaver-skills.mdc
+/.workbuddy/skills/secweaver/
+/.workbuddy/memory/
+/skills/secweaver/
+
+# Local environment/overrides and secret material. The credentials directory's
+# own .gitignore retains its examples/scripts and excludes its local SOPS vault.
+.env
+.env.*
+*.env
+*.local.json
+*.local.yaml
+*.local.yml
+*.local.toml
+*.local.ini
+.age/
+.master-key
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+*.dec.yaml
+*.plain.yaml
+*.tmp.yaml
+/src/skills/traceability-analysis/webhook-config.json
+!.env.example
+!.env.sample
+!.env.template
+!*.env.example
+!*.env.sample
+!*.env.template
+
+# OS/editor metadata and temporary exports.
+.DS_Store
+._*
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+~$*
+
+# Ignore rules do not untrack existing files. Review with
+# `git ls-files -ci --exclude-standard` before pushing an existing repository.
+.DS_Store

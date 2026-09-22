@@ -132,20 +132,22 @@
             <section class="portable-stage">
               <div class="portable-stage-heading">
                 <span>02</span>
-                <div><strong>签发主机接入</strong><small>Agent · Fluent Bit · 独立写入凭证</small></div>
+                <div><strong>签发主机接入</strong><small>Agent · Shipper · 独立写入凭证</small></div>
               </div>
               <div class="portable-form-grid">
-                <label>主机名称<input id="portableHostName" placeholder="web-01" /></label>
+                <label>凭据注册键<input id="portableEnrollmentKey" /></label>
                 <label>企业 ID<input id="portableEnterpriseId" maxlength="16" placeholder="16 位字母或数字" /></label>
                 <label>平台<select id="portablePlatform"><option value="linux">Linux</option><option value="windows">Windows</option></select></label>
+                <label>架构<select id="portableArch"><option value="amd64">amd64</option><option value="arm64">arm64</option><option value="loong64">loong64 (Linux)</option></select></label>
+                <label>日志发送器<select id="portableShipper"><option value="filebeat">Filebeat (Linux)</option><option value="secweaver">SecWeaver Shipper</option><option value="fluent-bit">Fluent Bit</option></select></label>
                 <label>Agent 安装包<input id="portableAgentPackage" placeholder="/path/secweaver-agent.tar.gz" /></label>
-                <label>Fluent Bit 安装包<input id="portableFluentPackage" placeholder="/path/fluent-bit.tar.gz" /></label>
+                <label>日志发送器安装包<input id="portableShipperPackage" placeholder="/path/shipper.tar.gz" /></label>
                 <label>离线缓冲上限<input id="portableBufferLimit" value="2G" /></label>
               </div>
               <div class="portable-options">
                 <label class="check-row"><input id="portableReuseAgent" type="checkbox" /> 复用已安装 Agent</label>
-                <label class="check-row"><input id="portableReuseFluent" type="checkbox" /> 复用已安装 Fluent Bit</label>
-                <label class="check-row"><input id="portableRotate" type="checkbox" /> 轮换已有主机凭证</label>
+                <label class="check-row"><input id="portableReuseShipper" type="checkbox" /> 复用已安装日志发送器</label>
+                <label class="check-row"><input id="portableRotate" type="checkbox" /> 轮换企业安装地址</label>
               </div>
               <div class="portable-actions">
                 <button id="portableEnrollBtn" class="button primary" type="button">生成安装命令</button>
