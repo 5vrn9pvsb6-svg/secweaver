@@ -9,6 +9,7 @@
 从包含 `Makefile` 的仓库根目录执行。Python 开发和离线体验使用 Linux/macOS 的 POSIX 终端、Python 3.10+、venv/pip 和 Make；Fork、分支及提交需要 Git，首次安装依赖需要包下载网络。原生 Windows PowerShell 不适用本文的 `.venv/bin/python` 和 Make 命令；Windows Agent 的支持与此开发路径不同，WSL 路径尚未完成端到端验收。
 
 全文使用 `.venv/bin/python` 调用项目 Python，**不要求激活虚拟环境**。创建 `.venv` 后仍运行系统 `python3`，可能找不到装在虚拟环境里的依赖。
+`make setup` 和 `make quickstart` 会在安装依赖前检查指定解释器及已有 `.venv`；两者都必须是 Python 3.10 或更高版本。
 
 | 目标 | 额外要求 |
 |---|---|

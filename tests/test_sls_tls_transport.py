@@ -30,6 +30,15 @@ class SLSTLSTransportTests(unittest.TestCase):
         self.assertIs(tls_policy({}), True)
         self.assertIs(tls_policy({"tls_verify": False}), False)
 
+    def test_tls_policy_defers_annotation_evaluation_for_direct_imports(self):
+        """Keep the shared helper importable before any Skill code executes.
+
+        Direct Skill-script imports must not evaluate PEP 604 annotations while the
+        module loads; older launch environments otherwise fail before TLS policy
+        validation can report a useful configuration error.
+        """
+        self.assertEqual(tls_policy.__annotations__["return"], "bool | str")
+
     @unittest.skipUnless(shutil.which("openssl"), "openssl required for ephemeral TLS fixture")
     def test_probe_and_real_sdk_enforce_same_trust_policy(self):
         # Generate disposable key material outside the repository. Loopback

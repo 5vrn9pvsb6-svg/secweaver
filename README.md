@@ -91,6 +91,10 @@ runs four offline demos, and generates local adapters for Codex, Cursor, Claude
 Code, OpenClaw, and WorkBuddy. All adapters reference `src/skills/` without copying
 Skill content. Initial dependency installation needs network access; install and
 sign in to your chosen intelligent agent separately.
+The Makefile checks both the selected `PYTHON` interpreter and any existing `.venv`
+before installing dependencies. It exits with a version message when either is
+below Python 3.10; use `PYTHON=python3.10 make quickstart` after removing an old
+`.venv` if necessary.
 The four demos are initialization-time script samples; the offline assessment cases below
 are investigation tasks for the agent. Native Windows PowerShell cannot use these
 Make commands as written. WSL/Linux is a possible Windows route, but has not completed

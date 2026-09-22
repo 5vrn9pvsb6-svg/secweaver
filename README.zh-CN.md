@@ -81,6 +81,9 @@ make quickstart
 该命令创建 Python 环境、安装依赖、校验 DataAsset、运行四个离线 demo，并生成
 Codex、Cursor、Claude Code、OpenClaw、WorkBuddy 的本地适配器。适配器统一引用
 `src/skills/`，不复制 Skill 内容。首次安装依赖需要联网；智能体需自行安装并登录。
+Makefile 会在安装依赖前同时检查 `PYTHON` 指定的解释器和已有的 `.venv`；任一版本低于
+Python 3.10 都会输出版本提示并退出。如需切换解释器，删除旧 `.venv` 后执行
+`PYTHON=python3.10 make quickstart`。
 这里的“四个 demo”是初始化时运行的脚本样例；下方 27 个离线评估案例是供智能体运行的调查任务。
 原生 Windows PowerShell 不适用这些 Make 命令；Windows 可考虑 WSL/Linux 环境，
 但本项目尚未完成该路径的端到端验收。客户端环境要求不等同于 Agent 的采集平台支持。

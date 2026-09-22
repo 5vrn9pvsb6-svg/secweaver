@@ -1,5 +1,7 @@
 """One TLS policy for SLS SDK queries and Proxy availability probes."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any
 

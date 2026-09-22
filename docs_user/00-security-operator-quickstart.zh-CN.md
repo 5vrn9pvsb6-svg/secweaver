@@ -33,6 +33,8 @@ make quickstart
 
 成功后会创建 `.venv`、校验 DataAsset、运行四个离线 demo，并生成五种智能体的薄适配器。
 适配器只引用 `src/skills/`，不复制 Skill。不要把“适配器生成成功”当成 AI 已完成分析。
+安装依赖前，Makefile 会同时检查 `PYTHON` 指定的解释器和已有的 `.venv`；任一版本低于
+Python 3.10，命令都会输出处理提示并退出。
 终端出现 `SecWeaver quickstart completed.` 表示初始化完成。接着在智能体中打开同一个项目目录，执行第 2 步。
 
 ## 2. 在智能体中运行案例
@@ -103,6 +105,7 @@ make ai-showcase
 | 现象 | 下一步 |
 |---|---|
 | `make` 提示找不到 Makefile 或 quickstart 目标 | 回到包含 `Makefile` 的项目根目录 |
+| quickstart 提示 Python 低于 3.10 后退出 | 删除旧 `.venv`，安装 Python 3.10+，再执行 `PYTHON=python3.10 make quickstart` |
 | 报告中的主机显示为 IP | 对照样例映射：web-01=`10.0.1.5`，db-01=`10.0.2.10`，app-02=`10.0.2.20` |
 | 依赖安装失败 | 检查 Python 版本和包下载网络，再运行 `make quickstart` |
 | 适配器提示拒绝覆盖 | 备份或手动合并已有智能体配置，不删除用户自己的规则 |

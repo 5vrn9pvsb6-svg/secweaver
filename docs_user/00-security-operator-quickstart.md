@@ -39,6 +39,8 @@ make quickstart
 This creates `.venv`, validates DataAsset, runs four offline demos, and generates thin
 adapters for five AI agents. Adapters reference `src/skills/` without copying Skill content.
 Adapter generation does not mean the AI investigation has run.
+Before dependency installation, Make checks the selected `PYTHON` interpreter and the
+existing `.venv`. If either is below Python 3.10, it exits with a remediation message.
 When the terminal prints `SecWeaver quickstart completed.`, initialization is complete.
 Open the same project directory in your AI agent and continue with step 2.
 
@@ -106,6 +108,7 @@ See the [case catalog](../examples/ai-showcase/README.md) for all current cases 
 | Symptom | Next step |
 |---|---|
 | Make cannot find the Makefile or quickstart target | Return to the project root containing `Makefile` |
+| Quickstart exits because Python is below 3.10 | Remove the old `.venv`, install Python 3.10+, then run `PYTHON=python3.10 make quickstart` |
 | The report displays hosts as IPs | Use the sample mapping: web-01=`10.0.1.5`, db-01=`10.0.2.10`, app-02=`10.0.2.20` |
 | Dependency installation fails | Check Python version and package-download connectivity, then rerun `make quickstart` |
 | Adapter refuses to overwrite | Back up or merge existing AI agent configuration; preserve user-owned rules |

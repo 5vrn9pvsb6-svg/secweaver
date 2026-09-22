@@ -18,6 +18,8 @@ an explicit `false` diagnostic parameter. Use `ca_file` for a private PEM CA (ab
 combined with verification disabled. Proxy probes and SDK queries share this policy,
 and certificate failures do not trigger endpoint fallback. See the
 [SLS Proxy onboarding guide](../../../../docs_user/30-sls-proxy-onboarding.md).
+The shared TLS helper defers annotation evaluation so direct compatibility imports do
+not fail during module loading; the repository's supported runtime remains Python 3.10+.
 
 ES, HTTP API, Splunk, and external HTTP executors share a strict transport policy:
 remote endpoints require HTTPS, plain HTTP is limited to explicit loopback addresses,

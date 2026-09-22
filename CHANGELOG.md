@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Fixed direct shared-Skill imports by deferring the SLS TLS helper's PEP 604
+  annotation evaluation, preventing an import-time `TypeError` before Skill
+  validation runs. The documented runtime remains Python 3.10+.
+
+- `make setup` and `make quickstart` now stop before dependency installation when
+  the selected Python interpreter or existing virtual environment is below 3.10,
+  with a remediation message for selecting a newer interpreter.
+
 - Document the Operator repository's checked-in Community contract lock and the
   exact-clean-checkout workflow used by its required lifecycle CI.
 

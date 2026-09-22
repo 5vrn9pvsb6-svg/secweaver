@@ -23,6 +23,7 @@ SLS 与 SLS Proxy 的 HTTPS 查询默认验证证书。`tls_verify` 必须是布
 Connector 必须保持 `true`，专用探测接口才保留显式 `false` 诊断参数。私有 PEM CA
 使用 `ca_file`（绝对路径或相对于 `DATAASSET_ROOT`），不能与关闭验证同时配置。Proxy 探测和 SDK 查询共用该策略，
 证书失败不切换备用入口。详见 [SLS Proxy 接入指南](../../../../docs_user/30-sls-proxy-onboarding.zh-CN.md)。
+共享 TLS helper 会延迟类型注解求值，避免兼容性导入在模块加载阶段失败；仓库支持的运行时仍为 Python 3.10+。
 
 ES、HTTP API、Splunk 和外部 HTTP 执行器共用严格传输策略：远程地址必须使用
 HTTPS，HTTP 只允许明确的回环地址；请求不跟随重定向，避免认证头跨目标或降级转发。

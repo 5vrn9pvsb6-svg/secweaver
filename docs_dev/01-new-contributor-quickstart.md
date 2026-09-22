@@ -9,6 +9,8 @@ This page is the shortest path for developers who want to contribute to SecWeave
 Run from the repository root containing `Makefile`. Python development and offline use require a Linux/macOS POSIX terminal, Python 3.10+, venv/pip and Make. Forks, branches and commits require Git; initial dependency installation needs package-download access. Native Windows PowerShell does not support this guide's `.venv/bin/python` and Make commands. Windows Agent support is separate; the WSL development path has not completed end-to-end acceptance.
 
 Use `.venv/bin/python` for project Python commands throughout; **activation is unnecessary**. Running system `python3` after creating `.venv` can miss dependencies installed in the virtual environment.
+`make setup` and `make quickstart` validate both the selected interpreter and the existing
+`.venv` before installing dependencies; either must be Python 3.10 or newer.
 
 | Goal | Additional prerequisites |
 |---|---|
