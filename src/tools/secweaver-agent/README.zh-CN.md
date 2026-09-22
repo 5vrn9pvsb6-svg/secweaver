@@ -1,5 +1,9 @@
 # secweaver-agent
 
+源码 0.3.36 将升级清单签名改为可选。未配置升级公钥时，Agent 默认接受 HTTPS 清单，
+但仍严格校验每个下载文件的大小和 SHA-256。配置 `public_key` 或 `trusted_public_keys`
+后进入严格签名模式；信任变更、紧急停止和远程回退仍只能由签名清单触发。
+
 源码 0.3.33 将安装示例改为显式填写已下载归档的实际版本，避免复制旧版包名。
 运行时行为、配置和 Schema 均未改变。
 
@@ -30,7 +34,7 @@ eBPF/Audit 历史评估。运行时行为、配置和 Schema 均未改变。
 | SaaS 用户安装主机采集端 | [Data Cloud 客户快速上手](../../../docs_user/29-secweaver-data-system-quickstart.zh-CN.md) |
 | Community 用户把日志写入自建 ES | [公开初始化、独立安装和 Filebeat 接入](../../../src/tools/secweaver-agent/elasticsearch/README.zh-CN.md) |
 | 开发者编译公开二进制 | [构建](#构建)：`make build` 不要求 SaaS 部署参数 |
-| 维护者制作托管发布包 | [托管发布打包](#托管发布打包)：需要签名及 Bootstrap 前置配置 |
+| 维护者制作托管发布包 | [托管发布打包](#托管发布打包)：需要 Bootstrap 前置配置，签名可选 |
 
 托管 SaaS 用户指南随 Community 源码归档提供；如果使用解压后的 Agent 发布包接入自建 ES，
 可直接阅读包内 `elasticsearch/README.md` 和 `elasticsearch/README.zh-CN.md`，其中包含初始化脚本
@@ -158,32 +162,31 @@ go build -o secweaver-agent .
 
 ```bash
 cd src/tools/secweaver-agent
-go run ./cmd/update-sign -generate-key /secure/path/update-signing.key
-UPDATE_SIGNING_PRIVATE_KEY_FILE=/secure/path/update-signing.key make build-cross
+make build-cross
 ```
 
-`build-cross.sh` 会签名每个平台二进制和 manifest 信封，并生成 `dist/update-manifest.json`。
-发布产物默认使用 `ed25519-sha256` 摘要签名；只有兼容不认识 `signature_format` 的旧客户端时，
-才显式设置 `UPDATE_ARTIFACT_SIGNATURE_FORMAT=ed25519`。私钥只留在发布环境，
-`update-signing.key.pub` 的内容配置到客户端 `update.public_key`。
+`build-cross.sh` 默认生成无签名的 `dist/update-manifest.json`。设置
+`UPDATE_SIGNING_PRIVATE_KEY_FILE` 后才会签名每个平台二进制和 manifest 信封，发布产物默认
+使用 `ed25519-sha256` 摘要签名。私钥只留在发布环境，签名构建生成的
+`update-signing-key.pub` 内容配置到客户端 `update.public_key`。
 `UPDATE_BASE_URL` 设置绝对下载地址，`UPDATE_DOWNLOAD_SPREAD_SECONDS=3600` 设置一小时下载
 削峰。`UPDATE_ROLLOUT_PERCENTAGE` 只用于无控制面的 standalone 部署；托管服务发布门禁会拒绝它。
 
 ### 托管发布打包
 
-本节面向已配置签名环境和托管 Bootstrap 参数的发布维护者，不是 `make build` 或自建 ES
-接入的前置步骤。下列命令会执行托管发布门禁；不依赖这些服务的源码独立安装请按公开 ES 指南执行。
+本节面向配置了托管 Bootstrap 参数的发布维护者。签名环境是可选的；省略
+`UPDATE_SIGNING_PRIVATE_KEY_FILE` 即采用 HTTPS 加 SHA-256 的默认升级路径。本节不是
+`make build` 或自建 ES 接入的前置步骤。
 
 统一发布包：
 
 ```bash
 cd src/tools/secweaver-agent
-UPDATE_SIGNING_PRIVATE_KEY_FILE=/secure/path/update-signing.key \
 make package
 ```
 
 `VERSION` 是 Agent 发布版本的唯一来源，构建脚本同时注入主命令和
-`audit-port-execmon -version`。签名交叉构建和正式打包默认拒绝 Agent 源码脏
+`audit-port-execmon -version`。交叉构建和正式打包默认拒绝 Agent 源码脏
 工作区，并同时生成 `SOURCE.sha256` 与 `SOURCE.commit` 溯源信息。
 `ALLOW_DIRTY_RELEASE=1` 仅供本地非生产打包测试使用。
 Agent 版本是不可复用的发布身份：Agent 源码、配置、安装程序、包内文档或发布策略任一变化，
@@ -208,8 +211,9 @@ source /srv/secweaver-sls-proxy/releases/logtail/release.env
 ```
 
 发布脚本会自动计算 `BOOTSTRAP_LOGTAIL_INSTALL_SHA256`。`package-release.sh` 会拒绝占位
-Logtail URL、空 SHA 或缺失的升级签名私钥，并生成 `dist/updates/stable/` 下的签名 manifest、
-发布公钥和各平台原始升级二进制。私钥不得进入发布包或 Git。
+Logtail URL 和空 SHA，并在 `dist/updates/stable/` 下生成无签名 manifest；设置
+`UPDATE_SIGNING_PRIVATE_KEY_FILE` 时则生成签名 manifest、公钥和各平台原始升级二进制。
+私钥不得进入发布包或 Git。
 
 发布包输出到 `dist/packages/`。Linux 输出 `.tar.gz`，Windows 输出 `.zip`，每个包只包含一个 `secweaver-agent` 二进制，同时带对应平台安装脚本和示例配置。每个平台的归档还包含 `elasticsearch/` 目录，内置独立 ES 模板初始化脚本、Filebeat 示例和中英文说明。目录顶层还会生成可托管为 `/secweaver-agent/install.sh` 和 `/secweaver-agent/install.ps1` 的双平台 Bootstrap。
 
@@ -288,8 +292,8 @@ Windows 包包含：
 自升级能力由统一 `secweaver-agent` 二进制负责，不再由单个内置模块负责：
 
 ```bash
-secweaver-agent update check -manifest-url https://example.com/releases/stable/update-manifest.json -public-key BASE64_ED25519_PUBLIC_KEY -device-id IMMUTABLE_DEVICE_ID
-sudo secweaver-agent update install -manifest-url https://example.com/releases/stable/update-manifest.json -public-key BASE64_ED25519_PUBLIC_KEY -device-id IMMUTABLE_DEVICE_ID
+secweaver-agent update check -manifest-url https://example.com/releases/stable/update-manifest.json -device-id IMMUTABLE_DEVICE_ID
+sudo secweaver-agent update install -manifest-url https://example.com/releases/stable/update-manifest.json -device-id IMMUTABLE_DEVICE_ID
 sudo secweaver-agent update rollback
 ```
 
@@ -298,9 +302,9 @@ sudo secweaver-agent update rollback
 | 参数 | 说明 |
 |---|---|
 | `-manifest-url` | HTTPS URL 或本地 manifest 路径；默认读取 `SECWEAVER_AGENT_UPDATE_MANIFEST_URL` |
-| `-public-key` | 必填的受信 Ed25519 发布公钥（Base64）；回滚不需要 |
-| `-allow-unsigned-local` | 仅本地开发：允许无签名本地 manifest，不能用于远程 URL |
-| `-allow-insecure-http` | 仅开发诊断：允许 HTTP；远程 manifest 仍必须验签 |
+| `-public-key` | 可选的受信 Ed25519 发布公钥（Base64）；配置后强制要求签名清单 |
+| `-allow-unsigned-local` | 废弃兼容参数；未配置公钥时默认就是无签名清单 |
+| `-allow-insecure-http` | 仅开发诊断：允许 HTTP；默认仍要求 HTTPS |
 | `-channel` | 请求的升级通道，默认 `stable` |
 | `-state-dir` | 升级锁、状态、待替换文件、备份目录；默认 `/opt/secweaver-agent/data/update` 或 `C:\ProgramData\SecWeaver\Agent\data\update` |
 | `-self-path` | 要替换的 agent 二进制路径；默认当前可执行文件 |
@@ -324,7 +328,6 @@ sudo secweaver-agent update rollback
     "retry_initial_seconds": 60,
     "retry_max_seconds": 3600,
     "auto_install": true,
-    "public_key": "BASE64_ED25519_PUBLIC_KEY",
     "require_server_policy": true,
     "health_timeout_seconds": 90,
     "lock_stale_seconds": 3600,
@@ -355,7 +358,10 @@ sudo secweaver-agent update rollback
 
 升级服务器、nginx、manifest 和客户端配置示例见 [`examples/update-server/README.zh-CN.md`](examples/update-server/README.zh-CN.md)。
 
-对外发布的是签名信封，`payload` 是 Base64 编码的 manifest JSON，`signature` 覆盖解码后的原始字节：
+启用签名时，对外发布的是签名信封；未配置公钥时，Agent 直接接受 HTTPS manifest，
+仍校验二进制 URL、大小和 SHA-256。只要配置或曾持久化任一可信公钥，Agent 就强制要求签名，
+因此完成签名信任轮换后不会静默降级到无签名 manifest。签名信封的 `payload` 是 Base64 编码的 manifest JSON，
+`signature` 覆盖解码后的原始字节：
 
 ```json
 {

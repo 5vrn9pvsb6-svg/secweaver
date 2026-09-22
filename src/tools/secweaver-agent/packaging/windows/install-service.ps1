@@ -234,33 +234,38 @@ if ($EnterpriseEnrollmentToken) {
   }
 }
 
-if ($UpdateManifestUrl -or $UpdatePublicKey) {
+if ($UpdatePublicKey -and -not $UpdateManifestUrl) {
+  throw "UpdateManifestUrl is required when UpdatePublicKey is set."
+}
+if ($UpdateManifestUrl) {
   if ($UpdateManifestUrl -notmatch '^https://') {
     throw "UpdateManifestUrl must use HTTPS."
   }
-  if ($UpdatePublicKey -notmatch '^[A-Za-z0-9+/]{43}=$') {
+  if ($UpdatePublicKey -and $UpdatePublicKey -notmatch '^[A-Za-z0-9+/]{43}=$') {
     throw "UpdatePublicKey must be a base64 Ed25519 public key."
   }
   if (-not $UpdateDeviceId) {
-    throw "UpdateDeviceId is required when signed updates are enabled."
+    throw "UpdateDeviceId is required when updates are enabled."
   }
   $UpdateArgs = @(
     "config", "set-update",
     "-config", $ConfigPath,
     "-manifest-url", $UpdateManifestUrl,
-    "-public-key", $UpdatePublicKey,
     "-device-id", $UpdateDeviceId,
     "-channel", "stable",
     "-auto-install", "true",
     "-require-server-policy", $UpdateRequireServerPolicy,
     "-health-timeout-seconds", "90"
   )
+  if ($UpdatePublicKey) {
+    $UpdateArgs += @("-public-key", $UpdatePublicKey)
+  }
   if ($UpdateCAFile) {
     $UpdateArgs += @("-ca-file", $UpdateCAFile)
   }
   & $BinarySource @UpdateArgs
   if ($LASTEXITCODE -ne 0) {
-    throw "Failed to configure signed Agent updates in $ConfigPath"
+    throw "Failed to configure Agent updates in $ConfigPath"
   }
 }
 

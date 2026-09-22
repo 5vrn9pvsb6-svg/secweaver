@@ -53,14 +53,14 @@ if ($EmbeddedLicenseServerUrl -notmatch '^https://') {
   throw "The Windows Bootstrap has no valid HTTPS authorization origin."
 }
 if ($EmbeddedUpdateManifestUrl -notmatch '^https://' -or $EmbeddedUpdateManifestUrl -match 'YOUR_DATA_CLOUD_HOST') {
-  throw "The Windows Bootstrap has no valid signed update manifest URL."
+  throw "The Windows Bootstrap has no valid update manifest URL."
 }
-if ($EmbeddedUpdatePublicKey -notmatch '^[A-Za-z0-9+/]{43}=$') {
-  throw "The Windows Bootstrap has no valid Ed25519 update public key."
+if ($EmbeddedUpdatePublicKey -and $EmbeddedUpdatePublicKey -notmatch '^[A-Za-z0-9+/]{43}=$') {
+  throw "The Windows Bootstrap has an invalid Ed25519 update public key."
 }
 # Resolve once before changing the host, without an embedded-version fallback.
-# Initial trust remains HTTPS + SHA-256; the installed Agent verifies signed
-# update manifests separately. A malformed publication must fail closed.
+# Initial trust and unsigned updates use HTTPS + SHA-256. When an update public
+# key is embedded, the installed Agent also requires manifest signatures.
 if (-not $Version) {
   $response = Invoke-WebRequest -UseBasicParsing -Uri "$($EmbeddedReleaseBaseUrl.TrimEnd('/'))/latest-version.txt" -MaximumRedirection 0 -TimeoutSec 30
   if ($response.Content.Length -gt 65) { throw "Release version pointer exceeds 65 bytes." }
@@ -102,8 +102,10 @@ try {
     LicenseServerUrl = $EmbeddedLicenseServerUrl
     InstallRoot = $InstallRoot
     UpdateManifestUrl = $EmbeddedUpdateManifestUrl
-    UpdatePublicKey = $EmbeddedUpdatePublicKey
     NoStart = $NoStart
+  }
+  if ($EmbeddedUpdatePublicKey) {
+    $installArgs.UpdatePublicKey = $EmbeddedUpdatePublicKey
   }
   & $installer @installArgs
   if ($LASTEXITCODE -and $LASTEXITCODE -ne 0) {

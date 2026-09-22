@@ -505,21 +505,26 @@ if [[ -n "${LICENSE_SERVER_URL}" ]]; then
 elif [[ -n "${LICENSE_ENROLLMENT_ID}" ]]; then
   fatal "--license-enrollment-id requires --license-server-url"
 fi
-if [[ -n "${UPDATE_MANIFEST_URL}" || -n "${UPDATE_PUBLIC_KEY}" ]]; then
+if [[ -n "${UPDATE_PUBLIC_KEY}" && -z "${UPDATE_MANIFEST_URL}" ]]; then
+  fatal "--update-manifest-url is required when --update-public-key is set"
+fi
+if [[ -n "${UPDATE_MANIFEST_URL}" ]]; then
   [[ "${UPDATE_MANIFEST_URL}" =~ ^https:// ]] || fatal "--update-manifest-url must use HTTPS"
-  [[ "${UPDATE_PUBLIC_KEY}" =~ ^[A-Za-z0-9+/]{43}=$ ]] || fatal "--update-public-key must be a base64 Ed25519 public key"
+  [[ -z "${UPDATE_PUBLIC_KEY}" || "${UPDATE_PUBLIC_KEY}" =~ ^[A-Za-z0-9+/]{43}=$ ]] || fatal "--update-public-key must be a base64 Ed25519 public key"
   [[ -n "${UPDATE_DEVICE_ID}" ]] || fatal "--update-device-id is required when updates are enabled"
   [[ "${UPDATE_REQUIRE_SERVER_POLICY}" == "true" || "${UPDATE_REQUIRE_SERVER_POLICY}" == "false" ]] || fatal "--update-require-server-policy must be true or false"
   update_args=(
     -config "${CONFIG_DIR}/config.json"
     -manifest-url "${UPDATE_MANIFEST_URL}"
-    -public-key "${UPDATE_PUBLIC_KEY}"
     -device-id "${UPDATE_DEVICE_ID}"
     -channel stable
     -auto-install true
     -require-server-policy "${UPDATE_REQUIRE_SERVER_POLICY}"
     -health-timeout-seconds 90
   )
+  if [[ -n "${UPDATE_PUBLIC_KEY}" ]]; then
+    update_args+=( -public-key "${UPDATE_PUBLIC_KEY}" )
+  fi
   if [[ -n "${UPDATE_CA_FILE}" ]]; then
     update_args+=( -ca-file "${UPDATE_CA_FILE}" )
   fi

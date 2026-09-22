@@ -43,7 +43,6 @@
     "retry_initial_seconds": 60,
     "retry_max_seconds": 3600,
     "auto_install": true,
-    "public_key": "BASE64_ED25519_PUBLIC_KEY",
     "status_output": "/opt/secweaver-agent/logs/secweaver-agent-update.log"
   },
 

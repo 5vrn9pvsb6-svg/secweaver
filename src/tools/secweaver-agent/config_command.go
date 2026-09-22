@@ -73,10 +73,10 @@ func runConfigCommand(args []string) int {
 		cfg := updateConfig{Enabled: true, Channel: "stable", IntervalSeconds: 21600, InitialDelaySeconds: 60, JitterSeconds: 300, RetryInitialSeconds: 60, RetryMaxSeconds: 3600, HealthTimeoutSeconds: 90, LockStaleSeconds: 3600, MaxBackups: 3, MinFreeSpaceMB: 256}
 		autoInstall := true
 		fs.StringVar(&configPath, "config", configPath, "agent JSON config path")
-		fs.BoolVar(&cfg.Enabled, "enabled", true, "enable signed Agent updates")
-		fs.StringVar(&cfg.ManifestURL, "manifest-url", "", "signed update manifest HTTPS URL")
+		fs.BoolVar(&cfg.Enabled, "enabled", true, "enable Agent updates")
+		fs.StringVar(&cfg.ManifestURL, "manifest-url", "", "update manifest HTTPS URL")
 		fs.StringVar(&cfg.CAFile, "ca-file", "", "optional PEM CA file for the update HTTPS endpoint")
-		fs.StringVar(&cfg.PublicKey, "public-key", "", "trusted Ed25519 update public key in base64")
+		fs.StringVar(&cfg.PublicKey, "public-key", "", "optional trusted Ed25519 update public key in base64; enables signed-manifest verification")
 		fs.StringVar(&cfg.DeviceID, "device-id", "", "immutable rollout device ID for standalone updates")
 		fs.StringVar(&cfg.Channel, "channel", "stable", "update channel")
 		fs.IntVar(&cfg.IntervalSeconds, "interval-seconds", 21600, "periodic update check interval")
@@ -84,7 +84,7 @@ func runConfigCommand(args []string) int {
 		fs.IntVar(&cfg.JitterSeconds, "jitter-seconds", 300, "stable update check jitter")
 		fs.IntVar(&cfg.RetryInitialSeconds, "retry-initial-seconds", 60, "initial retry delay after an update failure")
 		fs.IntVar(&cfg.RetryMaxSeconds, "retry-max-seconds", 3600, "maximum retry delay after repeated update failures")
-		fs.BoolVar(&autoInstall, "auto-install", true, "install an eligible signed update automatically")
+		fs.BoolVar(&autoInstall, "auto-install", true, "install an eligible update automatically")
 		fs.BoolVar(&cfg.RequireServerPolicy, "require-server-policy", true, "require managed server heartbeat approval before installation")
 		fs.IntVar(&cfg.HealthTimeoutSeconds, "health-timeout-seconds", 90, "new version health confirmation window")
 		fs.IntVar(&cfg.LockStaleSeconds, "lock-stale-seconds", 3600, "remove an abandoned update lock after this age")
@@ -293,6 +293,8 @@ func setLicenseInConfig(path string, licenseCfg agentlicense.Config) error {
 	return validateAndWriteConfig(path, payload)
 }
 
+// setUpdateInConfig keeps signing opt-in: an omitted public key writes the
+// HTTPS plus artifact-hash mode, while a supplied key is validated immediately.
 func setUpdateInConfig(path string, cfg updateConfig) error {
 	cfg.ManifestURL = strings.TrimSpace(cfg.ManifestURL)
 	cfg.PublicKey = strings.TrimSpace(cfg.PublicKey)
@@ -301,8 +303,10 @@ func setUpdateInConfig(path string, cfg updateConfig) error {
 		if !strings.HasPrefix(strings.ToLower(cfg.ManifestURL), "https://") {
 			return fmt.Errorf("update manifest_url must use HTTPS")
 		}
-		if _, err := parseEd25519PublicKey(cfg.PublicKey); err != nil {
-			return fmt.Errorf("update public_key: %w", err)
+		if cfg.PublicKey != "" {
+			if _, err := parseEd25519PublicKey(cfg.PublicKey); err != nil {
+				return fmt.Errorf("update public_key: %w", err)
+			}
 		}
 	}
 	body, err := os.ReadFile(path)
@@ -586,7 +590,7 @@ func printConfigUsage(out *os.File) {
 	fmt.Fprintf(out, `Usage:
   secweaver-agent config set-enterprise-id -config <path> -enterprise-id <16-char-id>
   secweaver-agent config set-license -config <path> -protocol <legacy_v1|device_v2> -server-url <url> [-ca-file <path>] [-enrollment-id <id>]
-  secweaver-agent config set-update -config <path> -manifest-url <https-url> -public-key <base64> [-ca-file <path>] [flags]
+  secweaver-agent config set-update -config <path> -manifest-url <https-url> [-public-key <base64>] [-ca-file <path>] [flags]
   secweaver-agent config ensure-host-process-snapshot -config <path>
   secweaver-agent config ensure-host-state-snapshot -config <path>
   secweaver-agent config optimize-collectors -config <path>

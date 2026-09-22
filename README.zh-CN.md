@@ -43,7 +43,7 @@ SecWeaver 由数据资产、调查技能、主机采集和数据资产可视化�
 |---|---|---|---|
 | **DataAsset（数据资产）** | 登记日志源、连接器、字段含义、查询模板、调查资产包及证据关联关系，让 AI 知道有哪些数据、如何查询和关联。 | 接入自己的日志，或维护调查所需的数据与规则。 | [DataAsset 参考](dataasset/README.zh-CN.md) · [数据源接入](docs_user/03-configure-data-sources.zh-CN.md) |
 | **Skills（调查技能）** | 定义取数、完整性检查、告警确认、风险识别和溯源的工作流，供智能体加载；包含脚本分析技能和纯提示词研判技能。 | 用自然语言发起调查，获取带证据引用和数据缺口的报告。 | [Skills 索引](src/skills/README.zh-CN.md) · [智能体配置](docs_user/38-ai-agent-host-setup.zh-CN.md) |
-| **secweaver-agent（主机采集端）** | 在受支持的 Linux 主机和试点支持的 Windows 主机上采集命令、认证、持久化、进程和状态证据，配合日志输送器写入 SLS 或自建 ES；提供预检、签名升级和回滚。 | 需要补充主机侧行为数据时，在目标主机安装。 | [平台支持与模块说明](src/tools/secweaver-agent/README.zh-CN.md) · [安装与升级](docs_user/29-secweaver-data-system-quickstart.zh-CN.md) |
+| **secweaver-agent（主机采集端）** | 在受支持的 Linux 主机和试点支持的 Windows 主机上采集命令、认证、持久化、进程和状态证据，配合日志输送器写入 SLS 或自建 ES；提供预检、可选签名升级和回滚。 | 需要补充主机侧行为数据时，在目标主机安装。 | [平台支持与模块说明](src/tools/secweaver-agent/README.zh-CN.md) · [安装与升级](docs_user/29-secweaver-data-system-quickstart.zh-CN.md) |
 | **DataAsset Studio （可选）** | 在本地页面中编辑数据源、主机、网段和凭证引用，预览接入配置、运行校验并查看样例报告。 | 通过表单管理 DataAsset；执行 `make ui`，默认编辑 `dataasset/`，也可用 `dataasset_my/` 隔离。 | [Studio 说明](dataasset-ui/README.zh-CN.md) · [数据源接入](docs_user/03-configure-data-sources.zh-CN.md) |
 | **SaaS 企业工作台** | 提供企业注册与登录；Owner/Admin 在“智能体配置”中获取 Proxy 查询 AK/SK，供本地客户端接入获授权的 SaaS SLS 数据。 | 选择 SaaS SLS 数据底座时，先取得企业凭证并确认日志资源授权。 | [打开企业工作台](https://sc.id-net.cn:30443/) · [SLS Proxy 接入指南](docs_user/30-sls-proxy-onboarding.zh-CN.md) |
 
@@ -122,7 +122,7 @@ make reports           # 生成四类 demo 的 JSON 与脚本版 Markdown 报告
 
 为了获得更完整的分析与溯源证据，可以在主机上安装 SecWeaver Agent。Agent 只负责在目标主机采集行为证据；
 采集端支持 Linux 主机，Windows 当前为试点支持，可提供审计、认证、持久化、
-进程、端口、服务、身份和内核上下文证据，以及预检、健康信号、签名升级和回滚能力。
+进程、端口、服务、身份和内核上下文证据，以及预检、健康信号、HTTPS 升级、可选强制签名验证和回滚能力。
 
 按下面的路径选择日志去向：
 

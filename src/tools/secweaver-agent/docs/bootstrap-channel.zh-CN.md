@@ -7,7 +7,8 @@ Agent 源码 0.3.21 移除 Linux/Windows Bootstrap 的固定安装版本。固�
 
 版本文件为最多 64 字符的 ASCII 版本，可带一个结尾 LF。缺失、为空、非法或不可达时，
 在修改主机前停止，不回退到旧版本。首次安装的信任机制仍为 HTTPS 发布和安装包 SHA-256，
-该版本文件本身没有独立签名；安装后的升级仍验证签名清单。此入口仅决定新安装版本，
+该版本文件本身没有独立签名；安装后的升级默认使用 HTTPS 加文件大小、SHA-256 校验。
+配置升级公钥后才强制验证签名清单；信任变更、紧急停止和远程回退仍只能在签名模式使用。此入口仅决定新安装版本，
 不会强制升级存量设备。
 
 Linux 支持 amd64/arm64/loong64，要求 Bash、curl/wget、tar、SHA-256 工具、coreutils
@@ -45,15 +46,15 @@ python3 scripts/publish-release-channel.py --release-root /srv/secweaver-agent/r
 失败保留旧指针。整个目录应归发布者所有，发布操作需串行。可显式把新安装入口切回较旧版本，
 但已安装设备仍必须走签名授权的回滚流程，不能用修改指针绕过。
 
-只重新生成 Bootstrap 时，保留正常 `BOOTSTRAP_*` 配置，设置 `BOOTSTRAP_ONLY=1`、
-`BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE=<已有公钥路径>`、`OUT_DIR=<全新输出目录>` 后运行
-`./scripts/package-release.sh`。此模式不需要签名私钥，也不重建 Agent 包；源码版本和来源
-门禁仍生效，脏构建仅用于测试。不能静默更换现有升级信任公钥。
+只重新生成 Bootstrap 时，保留正常 `BOOTSTRAP_*` 配置，可选设置
+`BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE=<已有公钥路径>`，再设置 `BOOTSTRAP_ONLY=1`、
+`OUT_DIR=<全新输出目录>` 后运行 `./scripts/package-release.sh`。此模式不需要签名私钥，也不重建
+Agent 包；源码版本和来源门禁仍生效，脏构建仅用于测试。省略公钥即保留无签名升级模式，不能静默更换已有信任公钥。
 普通打包不会自动提升线上安装版本；必须在真实服务目录的全部包就绪后显式提升。
 
 Agent Gateway（服务端 rc.8+）通过白名单提供 `AGENT_RELEASE_ROOT/releases/latest-version.txt`；
-查询服务不会提供此路径。安装脚本、版本目录、配置好的 Logtail 安装脚本及有效签名升级资源
-全部发布并验收后，才能声明完整安装/升级可用。
+查询服务不会提供此路径。安装脚本、版本目录和配置好的 Logtail 安装脚本全部发布并验收后，
+才能声明完整安装/升级可用；选择签名模式时还必须发布并验收对应公钥和签名升级资源。
 
 ## 验证
 

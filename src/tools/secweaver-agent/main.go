@@ -125,9 +125,9 @@ func runUpdateAction(action string, args []string) int {
 	fs.StringVar(&deviceID, "device-id", "", "immutable rollout device identity")
 	fs.StringVar(&hostID, "host-id", "", "deprecated alias for -device-id")
 	fs.StringVar(&statusOutput, "status-output", statusOutput, "write update status JSON Lines to path; - means stderr")
-	fs.StringVar(&publicKeyText, "public-key", "", "trusted Ed25519 public key in base64")
+	fs.StringVar(&publicKeyText, "public-key", "", "optional trusted Ed25519 public key in base64; enables signed-manifest verification")
 	fs.BoolVar(&allowInsecureHTTP, "allow-insecure-http", false, "development only: allow HTTP update URLs")
-	fs.BoolVar(&allowUnsignedLocal, "allow-unsigned-local", false, "development only: allow an unsigned local manifest")
+	fs.BoolVar(&allowUnsignedLocal, "allow-unsigned-local", false, "deprecated compatibility flag; unsigned manifests require no configured public key")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -452,12 +452,18 @@ func printUpdateUsage(out *os.File) {
 
 Flags:
   -manifest-url       update manifest URL or local file path; defaults to SECWEAVER_AGENT_UPDATE_MANIFEST_URL
+  -ca-file            optional PEM CA file for the update HTTPS endpoint
+  -public-key         optional trusted Ed25519 key; setting it requires signed manifests
   -channel            update channel (default stable)
   -state-dir          update state, backup, and lock directory
   -self-path          path to secweaver-agent binary; defaults to current executable
-	  -device-id          immutable rollout device identity
-	  -host-id            deprecated alias for -device-id
+  -device-id          immutable rollout device identity
+  -host-id            deprecated alias for -device-id
   -status-output      status JSON Lines path; - means stderr
+  -allow-insecure-http
+                      development only: allow HTTP update URLs
+  -allow-unsigned-local
+                      deprecated compatibility flag; omit -public-key for unsigned manifests
 
 `)
 }

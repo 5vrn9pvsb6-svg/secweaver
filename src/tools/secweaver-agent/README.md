@@ -1,5 +1,11 @@
 # secweaver-agent
 
+Source 0.3.36 makes update-manifest signatures optional. When no update public key is
+configured, the Agent accepts an HTTPS manifest and still requires each downloaded
+artifact's SHA-256 and size to match. Configuring `public_key` or `trusted_public_keys`
+enables strict signed-envelope verification; trust changes, emergency stops, and remote
+rollbacks remain signed-only.
+
 Source 0.3.33 replaces hard-coded archive versions in installation examples with
 an explicit downloaded-version variable. Runtime behavior, configuration, and schemas
 are unchanged.
@@ -35,7 +41,7 @@ Versions in archive-name examples refer to the archive you downloaded. Use its a
 | SaaS customer installing a host collector | [Data Cloud customer quickstart](../../../docs_user/29-secweaver-data-system-quickstart.md) |
 | Community user sending logs to a self-managed ES | [Public initialization, standalone install, and Filebeat guide](../../../src/tools/secweaver-agent/elasticsearch/README.md) |
 | Developer building the public binary | [Build](#build): `make build` needs no SaaS deployment values |
-| Release maintainer producing managed packages | [Managed release packaging](#managed-release-packaging): signing and Bootstrap prerequisites apply |
+| Release maintainer producing managed packages | [Managed release packaging](#managed-release-packaging): Bootstrap prerequisites apply; signing is optional |
 
 The managed SaaS customer guides are in the Community source archive. An extracted Agent
 package includes `elasticsearch/README.md` and `elasticsearch/README.zh-CN.md` for the
@@ -170,7 +176,7 @@ The supervisor and modules come from the same binary. This keeps deployment to o
 ## Build
 
 The Agent has its own version and does not follow the ES Server, SLS Proxy, or Operator Bundle
-version. Use one Agent `VERSION` for its binaries, packages, signed update manifest, and rollout
+version. Use one Agent `VERSION` for its binaries, packages, update manifest, and rollout
 target; server bundle builders select that release with `AGENT_VERSION`.
 
 ```bash
@@ -186,16 +192,22 @@ Cross-build:
 
 ```bash
 cd src/tools/secweaver-agent
-go run ./cmd/update-sign -generate-key /secure/path/update-signing.key
-UPDATE_SIGNING_PRIVATE_KEY_FILE=/secure/path/update-signing.key make build-cross
+make build-cross
 ```
 
-`build-cross.sh` signs every platform binary and the manifest envelope, then writes `dist/update-manifest.json`. Release artifacts default to `ed25519-sha256` digest signatures; `UPDATE_ARTIFACT_SIGNATURE_FORMAT=ed25519` is an explicit compatibility override for legacy clients only. Keep the private key in the release environment and configure clients with the contents of `update-signing.key.pub` as `update.public_key`. `UPDATE_BASE_URL` controls artifact URLs and `UPDATE_DOWNLOAD_SPREAD_SECONDS` controls bandwidth spreading. `UPDATE_ROLLOUT_PERCENTAGE` is only for standalone deployments; managed-service release gates reject it.
+`build-cross.sh` writes `dist/update-manifest.json` without a signature by default. Set
+`UPDATE_SIGNING_PRIVATE_KEY_FILE` to sign every platform binary and the manifest envelope;
+signed artifacts default to `ed25519-sha256` digest signatures. Keep the private key in the
+release environment and configure clients with `update-signing-key.pub` as `update.public_key`.
+`UPDATE_BASE_URL` controls artifact URLs and `UPDATE_DOWNLOAD_SPREAD_SECONDS` controls bandwidth
+spreading. `UPDATE_ROLLOUT_PERCENTAGE` is only for standalone deployments; managed-service release
+gates reject it.
 
 ### Managed Release Packaging
 
-This section is for maintainers with a configured signing environment and managed
-Bootstrap delivery values, not a prerequisite for `make build` or standalone ES ingestion.
+This section is for maintainers with managed Bootstrap delivery values. A signing environment is
+optional; omit `UPDATE_SIGNING_PRIVATE_KEY_FILE` for the default HTTPS plus SHA-256 update path.
+It is not a prerequisite for `make build` or standalone ES ingestion.
 The commands below intentionally enforce managed release gates; follow the public ES guide
 for a source-built standalone installation without those services.
 
@@ -203,12 +215,11 @@ Unified release packages:
 
 ```bash
 cd src/tools/secweaver-agent
-UPDATE_SIGNING_PRIVATE_KEY_FILE=/secure/path/update-signing.key \
 make package
 ```
 
 `VERSION` is the single Agent release-version source and is injected into both the root command
-and `audit-port-execmon -version`. Signed cross-builds and packages reject a
+and `audit-port-execmon -version`. Cross-builds and packages reject a
 dirty Agent source tree by default and write both `SOURCE.sha256` and `SOURCE.commit` provenance.
 `ALLOW_DIRTY_RELEASE=1` is reserved for local non-production package tests.
 Agent versions are immutable: any change under the Agent source/package boundary requires incrementing
@@ -234,9 +245,9 @@ source /srv/secweaver-sls-proxy/releases/logtail/release.env
 ```
 
 The publishing script calculates `BOOTSTRAP_LOGTAIL_INSTALL_SHA256`. `package-release.sh` rejects
-placeholder Logtail URLs, empty checksums, and a missing update signing key. It writes the signed
-manifest, public key, and raw platform update binaries under `dist/updates/stable/`. The private key
-must never enter a package or Git.
+placeholder Logtail URLs and empty checksums. It writes an unsigned manifest by default, or a signed
+manifest plus public key when `UPDATE_SIGNING_PRIVATE_KEY_FILE` is set, alongside raw platform update
+binaries under `dist/updates/stable/`. The private key must never enter a package or Git.
 
 Packages are written to `dist/packages/`. Linux packages are `.tar.gz`; Windows packages are `.zip`. Each package contains one `secweaver-agent` binary plus the platform installer and example config. Every platform archive also includes an `elasticsearch/` directory with a standalone ES template initializer, Filebeat example, and bilingual instructions. The directory also contains Linux and Windows Bootstrap scripts that can be hosted as `/secweaver-agent/install.sh` and `/secweaver-agent/install.ps1`.
 
@@ -318,8 +329,8 @@ Windows packages include:
 Self-update is owned by the unified `secweaver-agent` binary, not by individual modules:
 
 ```bash
-secweaver-agent update check -manifest-url https://example.com/releases/stable/update-manifest.json -public-key BASE64_ED25519_PUBLIC_KEY -device-id IMMUTABLE_DEVICE_ID
-sudo secweaver-agent update install -manifest-url https://example.com/releases/stable/update-manifest.json -public-key BASE64_ED25519_PUBLIC_KEY -device-id IMMUTABLE_DEVICE_ID
+secweaver-agent update check -manifest-url https://example.com/releases/stable/update-manifest.json -device-id IMMUTABLE_DEVICE_ID
+sudo secweaver-agent update install -manifest-url https://example.com/releases/stable/update-manifest.json -device-id IMMUTABLE_DEVICE_ID
 sudo secweaver-agent update rollback
 ```
 
@@ -328,9 +339,9 @@ The update command emits one JSON status record to stderr by default. Use `-stat
 | Flag | Description |
 |---|---|
 | `-manifest-url` | HTTPS URL or local manifest path; defaults to `SECWEAVER_AGENT_UPDATE_MANIFEST_URL` |
-| `-public-key` | Required trusted Ed25519 release public key in Base64; rollback does not need it |
-| `-allow-unsigned-local` | Local development only: allow an unsigned local manifest |
-| `-allow-insecure-http` | Development diagnostics only: allow HTTP; remote manifests still require signatures |
+| `-public-key` | Optional trusted Ed25519 release public key in Base64; setting it requires signed manifests |
+| `-allow-unsigned-local` | Deprecated compatibility flag; unsigned manifests are already the default when no public key is configured |
+| `-allow-insecure-http` | Development diagnostics only: allow HTTP; HTTPS remains required by default |
 | `-channel` | Requested channel, default `stable` |
 | `-state-dir` | Update lock, state, pending, and backup directory; default `/opt/secweaver-agent/data/update` or `C:\ProgramData\SecWeaver\Agent\data\update` |
 | `-self-path` | Binary path to replace; defaults to the current executable |
@@ -354,7 +365,6 @@ Scheduled updates are disabled by default. Enable the `update` block in `config.
     "retry_initial_seconds": 60,
     "retry_max_seconds": 3600,
     "auto_install": true,
-    "public_key": "BASE64_ED25519_PUBLIC_KEY",
     "require_server_policy": true,
     "health_timeout_seconds": 90,
     "lock_stale_seconds": 3600,
@@ -388,7 +398,11 @@ available for startup health confirmation or automatic rollback.
 
 Update server, nginx, manifest, and client config examples live in [`examples/update-server/README.md`](examples/update-server/README.md).
 
-Published manifests use a signed envelope. `payload` is the Base64-encoded manifest JSON and `signature` covers the decoded bytes:
+When signing is enabled, published manifests use a signed envelope. Without a configured public key,
+the Agent accepts the plain manifest over HTTPS and still verifies artifact URL, size, and SHA-256.
+Any configured or previously persisted trusted key makes signing mandatory, so a signed trust
+rotation cannot silently fall back to an unsigned manifest.
+Signed `payload` is the Base64-encoded manifest JSON and `signature` covers the decoded bytes:
 
 ```json
 {

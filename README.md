@@ -47,7 +47,7 @@ provides enterprise query credentials.
 |---|---|---|---|
 | **DataAsset** | Registers log sources, connectors, field semantics, query templates, investigation bundles, and evidence relationships so the agent knows what data exists and how to query and correlate it. | Connect your logs or maintain investigation data and rules. | [DataAsset reference](dataasset/README.md) · [Source onboarding](docs_user/03-configure-data-sources.md) |
 | **Skills** | Defines workflows for fetching evidence, checking completeness, confirming alerts, identifying risks, and tracing incidents in an intelligent agent; includes analysis scripts and pure prompt skills. | Request an investigation in natural language and receive a report with evidence citations and data gaps. | [Skills index](src/skills/README.md) · [Agent setup](docs_user/38-ai-agent-host-setup.md) |
-| **secweaver-agent (host collector)** | Collects command, authentication, persistence, process, and state evidence on supported Linux hosts and pilot-supported Windows hosts for shippers to send to SLS or your ES; includes preflight, signed updates, and rollback. | Install on target hosts when additional host behavior evidence is needed. | [Platform and module support](src/tools/secweaver-agent/README.md) · [Installation and upgrades](docs_user/29-secweaver-data-system-quickstart.md) |
+| **secweaver-agent (host collector)** | Collects command, authentication, persistence, process, and state evidence on supported Linux hosts and pilot-supported Windows hosts for shippers to send to SLS or your ES; includes preflight, optional signed updates, and rollback. | Install on target hosts when additional host behavior evidence is needed. | [Platform and module support](src/tools/secweaver-agent/README.md) · [Installation and upgrades](docs_user/29-secweaver-data-system-quickstart.md) |
 | **DataAsset Studio UI (optional)** | Provides local forms for data sources, hosts, networks, and credential references, with onboarding previews, validation, and sample report viewing. | Manage DataAsset through forms; run `make ui` and edit `dataasset/` by default, or isolate configuration in `dataasset_my/`. | [Studio guide](dataasset-ui/README.md) · [Source onboarding](docs_user/03-configure-data-sources.md) |
 | **SaaS enterprise workspace** | Provides enterprise registration and login; Owner/Admin members obtain Proxy query AK/SK under **Agent configuration** for local clients to access authorized SaaS SLS data. | Obtain enterprise credentials and confirm log resource grants when choosing SaaS SLS storage. | [Open enterprise workspace](https://sc.id-net.cn:30443/) · [SLS Proxy onboarding](docs_user/30-sls-proxy-onboarding.md) |
 
@@ -144,7 +144,7 @@ Install SecWeaver Agent on your hosts to supply behavior evidence for more compl
 analysis and incident tracing. The Agent collects evidence on target hosts. On supported
 Linux hosts and pilot-supported Windows hosts, its modules cover audit, authentication, persistence, processes,
 ports, services, identity, and kernel context, with preflight diagnostics, health signals,
-signed updates, and rollback.
+HTTPS updates with optional signature enforcement, and rollback.
 
 Choose the destination first:
 

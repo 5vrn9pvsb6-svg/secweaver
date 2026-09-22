@@ -10,7 +10,9 @@ The pointer is one ASCII version (at most 64 characters), optionally followed by
 one LF. Empty, malformed, missing or unavailable pointers stop installation before
 host changes; there is no old-version fallback. Initial installation trusts the
 HTTPS publication plus archive SHA-256, not a detached signature on this pointer.
-Signed update-manifest verification after installation remains unchanged.
+After installation, unsigned updates are accepted by default with HTTPS plus artifact SHA-256/size
+verification. Configure an update public key to require signed manifests; signed trust changes,
+emergency stops, and remote rollbacks remain available only in that mode.
 This channel applies to new installs, not forced upgrades of existing devices.
 
 Linux prerequisites remain Bash, curl/wget, tar, SHA-256 tooling, coreutils and
@@ -59,18 +61,20 @@ pointer. Keep the entire tree publisher-owned and serialize publications. An
 explicit older version may be promoted for new installs only; existing devices
 still require the signed downgrade authorization workflow.
 
-To render only new Bootstrap scripts, retain all normal `BOOTSTRAP_*` configuration
-and run `BOOTSTRAP_ONLY=1 BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE=<existing-public-key>
-OUT_DIR=<fresh-output-directory> ./scripts/package-release.sh`. No signing private
-key or Agent rebuild is required in this mode. Source provenance/version gates
-still apply; dirty builds are test-only. Never rotate the update trust key silently.
+To render only new Bootstrap scripts, retain all normal `BOOTSTRAP_*` configuration and optionally
+set `BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE=<existing-public-key>` before running
+`BOOTSTRAP_ONLY=1 OUT_DIR=<fresh-output-directory> ./scripts/package-release.sh`. No signing private
+key or Agent rebuild is required in this mode. Source provenance/version gates still apply; dirty
+builds are test-only. An omitted key preserves unsigned-update mode; never rotate an existing trust
+key silently.
 Regular packaging does not promote a channel automatically: promotion happens only
 after the archives have reached the actual serving directory.
 
 Agent Gateway (server rc.8+) serves the allowlisted pointer from
 `AGENT_RELEASE_ROOT/releases/latest-version.txt`; the query service cannot serve it.
-Deploy `install.sh`, `install.ps1`, versioned archives, configured Logtail installer
-and valid signed update assets before claiming full installation/upgrade readiness.
+Deploy `install.sh`, `install.ps1`, versioned archives, and the configured Logtail installer before
+claiming full installation/upgrade readiness. Publish the update public key and signed assets only
+when the optional signed-update mode is selected.
 
 ## Verification
 

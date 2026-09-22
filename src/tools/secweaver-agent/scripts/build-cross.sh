@@ -9,7 +9,7 @@ REPO_ROOT="$(cd "${ROOT_DIR}/../../.." && pwd)"
 VERSION="${VERSION:-$(tr -d '[:space:]' <"${ROOT_DIR}/VERSION")}"
 ALLOW_DIRTY_RELEASE="${ALLOW_DIRTY_RELEASE:-0}"
 
-# Signed cross-builds are release evidence. Refuse ambiguous source trees by
+# Cross-builds are release evidence. Refuse ambiguous source trees by
 # default so the binary manifest can always be mapped back to one Git commit.
 if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9][A-Za-z0-9.-]*)?$ ]]; then
   echo "invalid Agent VERSION: ${VERSION}" >&2
@@ -20,7 +20,7 @@ if git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   SOURCE_COMMIT="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
   SOURCE_CHANGES="$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=all -- src/tools/secweaver-agent src/scripts/source_fingerprint.py)"
   if [[ -n "${SOURCE_CHANGES}" && "${ALLOW_DIRTY_RELEASE}" != "1" ]]; then
-    echo "refusing signed Agent build from a dirty source tree; commit the release or set ALLOW_DIRTY_RELEASE=1 for a non-production build" >&2
+    echo "refusing Agent build from a dirty source tree; commit the release or set ALLOW_DIRTY_RELEASE=1 for a non-production build" >&2
     printf '%s\n' "${SOURCE_CHANGES}" >&2
     exit 1
   fi
@@ -39,11 +39,7 @@ TARGETS=(
   "windows arm64"
 )
 
-if [[ -z "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" ]]; then
-  echo "UPDATE_SIGNING_PRIVATE_KEY_FILE is required; generate one with: go run ./cmd/update-sign -generate-key /secure/path/update-signing.key" >&2
-  exit 1
-fi
-if [[ ! -f "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" ]]; then
+if [[ -n "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" && ! -f "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" ]]; then
   echo "update signing private key not found: ${UPDATE_SIGNING_PRIVATE_KEY_FILE}" >&2
   exit 1
 fi
@@ -146,14 +142,19 @@ download_spread_seconds="${UPDATE_DOWNLOAD_SPREAD_SECONDS:-}"
   printf '}\n'
 } >"${unsigned_manifest}"
 
-go run ./cmd/update-sign \
-  -manifest "${unsigned_manifest}" \
-  -artifact-dir "${OUT_DIR}" \
-  -private-key-file "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" \
-  -artifact-signature-format "${artifact_signature_format}" \
-  -public-key-out "${OUT_DIR}/update-signing-key.pub" \
-  -out "${manifest}"
-
-echo "wrote signed ${manifest}"
+if [[ -n "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" ]]; then
+  go run ./cmd/update-sign \
+    -manifest "${unsigned_manifest}" \
+    -artifact-dir "${OUT_DIR}" \
+    -private-key-file "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" \
+    -artifact-signature-format "${artifact_signature_format}" \
+    -public-key-out "${OUT_DIR}/update-signing-key.pub" \
+    -out "${manifest}"
+  echo "wrote signed ${manifest}"
+else
+  mv "${unsigned_manifest}" "${manifest}"
+  rm -f "${OUT_DIR}/update-signing-key.pub"
+  echo "wrote unsigned ${manifest}; set UPDATE_SIGNING_PRIVATE_KEY_FILE to enable signing"
+fi
 python3 "${REPO_ROOT}/src/scripts/source_fingerprint.py" "${ROOT_DIR}" >"${OUT_DIR}/SOURCE.sha256"
 printf '%s\n' "${SOURCE_COMMIT}" >"${OUT_DIR}/SOURCE.commit"

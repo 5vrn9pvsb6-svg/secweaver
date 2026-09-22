@@ -98,7 +98,7 @@
         "interval_seconds": {"type": "integer", "minimum": 0},
         "initial_delay_seconds": {"type": "integer", "minimum": 0},
         "jitter_seconds": {"type": "integer", "minimum": 0},
-        "public_key": {"type": "string"},
+        "public_key": {"type": "string", "description": "Optional Base64 Ed25519 key; when set, update manifests must be signed."},
         "require_signature": {"type": "boolean"},
         "allow_unsigned": {"type": "boolean"}
       }
@@ -133,7 +133,7 @@
           "uniqueItems": true
         },
         "allow_insecure_http": {"type": "boolean"},
-        "allow_unsigned_local": {"type": "boolean"},
+        "allow_unsigned_local": {"type": "boolean", "description": "Deprecated compatibility field; unsigned manifests are the default when no trusted key is configured."},
         "require_server_policy": {"type": "boolean"},
         "health_timeout_seconds": {"type": "integer", "minimum": 0},
         "lock_stale_seconds": {"type": "integer", "minimum": 0},

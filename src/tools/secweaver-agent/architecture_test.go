@@ -139,13 +139,13 @@ func TestReleaseVersionGateRejectsEnvironmentOnlyVersioning(t *testing.T) {
 	}
 }
 
-func TestCrossBuildDefaultsToDigestSignatures(t *testing.T) {
+func TestSignedCrossBuildDefaultsToDigestSignatures(t *testing.T) {
 	body, err := os.ReadFile("scripts/build-cross.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Production builds must not silently fall back to signing arbitrarily large
-	// artifact bodies; the legacy mode remains an explicit release override.
+	// When signing is enabled, builds must not silently fall back to signing
+	// arbitrarily large artifact bodies; the legacy mode is an explicit override.
 	if !strings.Contains(string(body), `UPDATE_ARTIFACT_SIGNATURE_FORMAT:-ed25519-sha256`) {
 		t.Fatal("cross-build does not default to ed25519-sha256 artifact signatures")
 	}

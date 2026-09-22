@@ -40,7 +40,7 @@ type Options struct {
 	TrustedPublicKeys    map[string]ed25519.PublicKey
 	RevokedKeyIDs        []string
 	AllowInsecureHTTP    bool
-	AllowUnsignedLocal   bool
+	AllowUnsignedLocal   bool // Deprecated: unsigned manifests are the default when no trust key is configured.
 	ServerManaged        bool
 	SkipDownloadDelay    bool
 	LockStaleAfter       time.Duration

@@ -99,6 +99,43 @@ func TestCheckRejectsTamperedSignedManifest(t *testing.T) {
 	}
 }
 
+func TestFetchManifestAcceptsUnsignedHTTPSByDefault(t *testing.T) {
+	body := []byte(`{"schema_version":"1","app":"secweaver-agent","channel":"stable","latest":{"version":"0.3.0"},"binaries":{}}`)
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(body)
+	}))
+	defer server.Close()
+
+	caPath := filepath.Join(t.TempDir(), "update-ca.pem")
+	caPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+	if err := os.WriteFile(caPath, caPEM, 0600); err != nil {
+		t.Fatal(err)
+	}
+	manifest, err := fetchManifest(server.URL, Options{CAFile: caPath, StateDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Latest.Version != "0.3.0" {
+		t.Fatalf("latest version = %q", manifest.Latest.Version)
+	}
+}
+
+func TestFetchManifestRequiresSignatureWhenPublicKeyConfigured(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "manifest.json")
+	if err := os.WriteFile(path, []byte(`{"schema_version":"1","app":"secweaver-agent","channel":"stable","latest":{"version":"0.3.0"},"binaries":{}}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = fetchManifest(path, Options{PublicKey: publicKey, StateDir: filepath.Join(dir, "state")})
+	if err == nil || !strings.Contains(err.Error(), "must use a signed envelope") {
+		t.Fatalf("unsigned manifest error = %v", err)
+	}
+}
+
 func TestReadManifestRejectsHTTPByDefault(t *testing.T) {
 	if _, err := readSmallURLOrFile("http://updates.example.com/manifest.json", 1024, false, ""); err == nil {
 		t.Fatal("expected insecure HTTP URL to be rejected")
@@ -311,7 +348,7 @@ func TestCheckUpdateFromLocalManifest(t *testing.T) {
 	if err := os.WriteFile(manifestPath, []byte(manifest), 0600); err != nil {
 		t.Fatal(err)
 	}
-	status, err := Check(Options{ManifestURL: manifestPath, Channel: "stable", CurrentVersion: "0.2.0", DeviceID: "device-local-01", AllowUnsignedLocal: true})
+	status, err := Check(Options{ManifestURL: manifestPath, Channel: "stable", CurrentVersion: "0.2.0", DeviceID: "device-local-01"})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -215,7 +215,7 @@ render_bootstrap_installer() {
   local destination="$1"
   local line
   local skip_embedded_config=0
-  [[ "${BOOTSTRAP_UPDATE_PUBLIC_KEY}" =~ ^[A-Za-z0-9+/]{43}=$ ]] || {
+  [[ -z "${BOOTSTRAP_UPDATE_PUBLIC_KEY}" || "${BOOTSTRAP_UPDATE_PUBLIC_KEY}" =~ ^[A-Za-z0-9+/]{43}=$ ]] || {
     echo "BOOTSTRAP_UPDATE_PUBLIC_KEY must be a base64 Ed25519 public key" >&2
     exit 1
   }
@@ -285,12 +285,17 @@ PY
 }
 
 # Render a fresh, version-independent entry point without rebuilding immutable
-# Agent archives. The existing public trust key is enough; never rotate it here.
+# Agent archives. An optional existing trust key preserves signed-update mode.
 if [[ "${BOOTSTRAP_ONLY}" == "1" ]]; then
   validate_bootstrap_inputs
   "${ROOT_DIR}/scripts/verify-release-version.sh" "${VERSION}"
-  : "${BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE:?existing update public key file required}"
-  BOOTSTRAP_UPDATE_PUBLIC_KEY="$(tr -d '[:space:]' <"${BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE}")"
+  if [[ -n "${BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE:-}" ]]; then
+    [[ -f "${BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE}" ]] || {
+      echo "update public key not found: ${BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE}" >&2
+      exit 1
+    }
+    BOOTSTRAP_UPDATE_PUBLIC_KEY="$(tr -d '[:space:]' <"${BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE}")"
+  fi
   mkdir -p "${PACKAGE_DIR}"
   [[ ! -e "${PACKAGE_DIR}/install.sh" && ! -e "${PACKAGE_DIR}/install.ps1" ]] || {
     echo "refusing to overwrite published Bootstrap scripts; use a fresh OUT_DIR" >&2
@@ -303,11 +308,7 @@ fi
 
 if [[ "${INSTALL_PACKAGES_ONLY}" != "1" ]]; then
 validate_bootstrap_inputs
-[[ -n "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" ]] || {
-  echo "UPDATE_SIGNING_PRIVATE_KEY_FILE is required for production Agent packages" >&2
-  exit 1
-}
-[[ -f "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" ]] || {
+[[ -z "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" || -f "${UPDATE_SIGNING_PRIVATE_KEY_FILE}" ]] || {
   echo "update signing private key not found: ${UPDATE_SIGNING_PRIVATE_KEY_FILE}" >&2
   exit 1
 }
@@ -332,7 +333,9 @@ mkdir -p "${STAGING_DIR}" "${PACKAGE_DIR}" "${UPDATE_DIR}"
   UPDATE_SIGNING_PRIVATE_KEY_FILE="${UPDATE_SIGNING_PRIVATE_KEY_FILE}" \
     ./scripts/build-cross.sh
 )
-BOOTSTRAP_UPDATE_PUBLIC_KEY="$(tr -d '[:space:]' <"${UPDATE_DIR}/update-signing-key.pub")"
+if [[ -f "${UPDATE_DIR}/update-signing-key.pub" ]]; then
+  BOOTSTRAP_UPDATE_PUBLIC_KEY="$(tr -d '[:space:]' <"${UPDATE_DIR}/update-signing-key.pub")"
+fi
 
 render_bootstrap_installer "${PACKAGE_DIR}/install.sh"
 render_windows_bootstrap_installer "${PACKAGE_DIR}/install.ps1"

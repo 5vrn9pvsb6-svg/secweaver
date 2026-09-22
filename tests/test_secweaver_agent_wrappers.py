@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import tarfile
@@ -193,7 +194,7 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             self.assertIn("64 hexadecimal characters", result.stderr)
             self.assertNotIn("building secweaver-agent", result.stdout)
 
-    def test_release_package_requires_update_signing_key_before_build(self) -> None:
+    def test_release_package_allows_unsigned_updates_by_default(self) -> None:
         release_script = REPO_ROOT / "src/tools/secweaver-agent/scripts/package-release.sh"
         with TemporaryDirectory(dir="/tmp") as temp_dir:
             env = os.environ.copy()
@@ -218,13 +219,19 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                 env=env,
                 text=True,
                 capture_output=True,
-                timeout=10,
+                timeout=120,
                 check=False,
             )
 
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("UPDATE_SIGNING_PRIVATE_KEY_FILE is required", result.stderr)
-            self.assertNotIn("building secweaver-agent", result.stdout)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            manifest = Path(temp_dir) / "updates" / "stable" / "update-manifest.json"
+            self.assertTrue(manifest.is_file())
+            manifest_payload = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual(manifest_payload["schema_version"], "1")
+            self.assertNotIn("payload", manifest_payload)
+            self.assertNotIn("signature", manifest_payload)
+            self.assertFalse((manifest.parent / "update-signing-key.pub").exists())
+            self.assertIn("wrote unsigned", result.stdout)
 
     def test_bootstrap_downloads_verifies_and_invokes_package_installer(self) -> None:
         bootstrap = REPO_ROOT / "src/tools/secweaver-agent/packaging/bootstrap-install.sh"
@@ -302,7 +309,7 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                     "SECWEAVER_BOOTSTRAP_ALLOW_FILE": "1",
                     "SECWEAVER_AGENT_EMBEDDED_RELEASE_BASE_URL": f"file://{root}/releases",
                     "SECWEAVER_AGENT_EMBEDDED_UPDATE_MANIFEST_URL": "https://updates.example.com/secweaver-agent/updates/stable/update-manifest.json",
-                    "SECWEAVER_AGENT_EMBEDDED_UPDATE_PUBLIC_KEY": TEST_UPDATE_PUBLIC_KEY,
+                    "SECWEAVER_AGENT_EMBEDDED_UPDATE_PUBLIC_KEY": "",
                     "SECWEAVER_LOGTAIL_EMBEDDED_INSTALL_URL": f"file://{fake_logtail_installer}",
                     "SECWEAVER_LOGTAIL_EMBEDDED_INSTALL_SHA256": logtail_installer_sha256,
                     "SECWEAVER_LOGTAIL_EMBEDDED_ALIUID": "1234567890123456",
@@ -340,6 +347,7 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             self.assertIn("--license-server-url https://shield.example.com", install_args)
             self.assertIn(f"--license-enrollment-id {enrollment_id}", install_args)
             self.assertIn("--license-heartbeat-interval-seconds 180", install_args)
+            self.assertNotIn("--update-public-key", install_args)
             self.assertIn(
                 "preflight -config /opt/secweaver-agent/etc/config.json -strict",
                 preflight_record.read_text(encoding="utf-8"),

@@ -120,7 +120,6 @@ func TestScheduledUpdateDefaults(t *testing.T) {
 	cfg, err := scheduledUpdateFromConfig(updateConfig{
 		Enabled:     true,
 		ManifestURL: "https://updates.example.com/secweaver-agent/stable/update-manifest.json",
-		PublicKey:   base64.StdEncoding.EncodeToString(make([]byte, ed25519.PublicKeySize)),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -139,6 +138,9 @@ func TestScheduledUpdateDefaults(t *testing.T) {
 	}
 	if cfg.Options.DeviceID != "" || cfg.Options.HostID != "" {
 		t.Fatal("update identity must not default to mutable hostname")
+	}
+	if len(cfg.Options.PublicKey) != 0 || len(cfg.Options.TrustedPublicKeys) != 0 {
+		t.Fatal("update signature verification must remain opt-in")
 	}
 }
 

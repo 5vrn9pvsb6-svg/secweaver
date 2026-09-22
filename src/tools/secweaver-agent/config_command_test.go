@@ -183,6 +183,28 @@ func TestSetUpdateInConfigEnablesSignedServerManagedUpdates(t *testing.T) {
 	}
 }
 
+func TestSetUpdateInConfigDefaultsToUnsignedUpdates(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	body := []byte(`{"enterprise_id":"6X13NGV4G9CVK92E","modules":{"syslog-risk-json":{"enabled":true}}}`)
+	if err := os.WriteFile(path, body, 0640); err != nil {
+		t.Fatal(err)
+	}
+	if err := setUpdateInConfig(path, updateConfig{
+		Enabled:     true,
+		ManifestURL: "https://updates.example.com/secweaver-agent/updates/stable/update-manifest.json",
+		Channel:     "stable",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := loadConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Update.PublicKey != "" || len(cfg.Update.TrustedPublicKeys) != 0 {
+		t.Fatalf("unsigned update configuration unexpectedly contains trust keys: %+v", cfg.Update)
+	}
+}
+
 func TestEnsureHostProcessSnapshotAddsMissingModule(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.json")
 	body := []byte(`{

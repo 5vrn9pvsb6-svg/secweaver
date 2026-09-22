@@ -84,12 +84,15 @@ func fetchManifest(location string, opts Options) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
+	// A configured or previously persisted trust key opts this installation into
+	// strict signature verification. With no trust key, HTTPS and the artifact
+	// SHA-256 remain the default integrity boundary for simpler deployments.
+	keys, revoked, err := effectiveTrustedKeys(opts)
+	if err != nil {
+		return Manifest{}, err
+	}
 	var envelope ManifestEnvelope
 	if err := decodeJSONStrict(data, &envelope); err == nil && strings.TrimSpace(envelope.Payload) != "" {
-		keys, revoked, err := effectiveTrustedKeys(opts)
-		if err != nil {
-			return Manifest{}, err
-		}
 		keyID := strings.TrimSpace(envelope.KeyID)
 		if keyID == "" && len(opts.PublicKey) == ed25519.PublicKeySize {
 			keyID = PublicKeyID(opts.PublicKey)
@@ -132,8 +135,8 @@ func fetchManifest(location string, opts Options) (Manifest, error) {
 		manifest.verifiedDigest = hex.EncodeToString(digest[:])
 		return manifest, nil
 	}
-	if !opts.AllowUnsignedLocal || isHTTPURL(location) {
-		return Manifest{}, fmt.Errorf("update manifest must use a signed envelope")
+	if len(keys) > 0 {
+		return Manifest{}, fmt.Errorf("update manifest must use a signed envelope because a trusted public key is configured")
 	}
 	var manifest Manifest
 	if err := decodeJSONStrict(data, &manifest); err != nil {

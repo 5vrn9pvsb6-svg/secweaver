@@ -103,7 +103,7 @@ type updateConfig struct {
 	TrustedPublicKeys    map[string]string `json:"trusted_public_keys,omitempty"`
 	RevokedKeyIDs        []string          `json:"revoked_key_ids,omitempty"`
 	AllowInsecureHTTP    bool              `json:"allow_insecure_http,omitempty"`
-	AllowUnsignedLocal   bool              `json:"allow_unsigned_local,omitempty"`
+	AllowUnsignedLocal   bool              `json:"allow_unsigned_local,omitempty"` // Deprecated compatibility field.
 	RequireServerPolicy  bool              `json:"require_server_policy,omitempty"`
 	HealthTimeoutSeconds int               `json:"health_timeout_seconds,omitempty"`
 	LockStaleSeconds     int               `json:"lock_stale_seconds,omitempty"`
@@ -412,12 +412,6 @@ func scheduledUpdateFromConfig(cfg updateConfig) (*scheduledUpdateConfig, error)
 			return nil, fmt.Errorf("trusted_public_keys key ID %q does not match derived ID %q", keyID, derived)
 		}
 		trustedPublicKeys[keyID] = key
-	}
-	if len(publicKey) == 0 && len(trustedPublicKeys) == 0 && !cfg.AllowUnsignedLocal {
-		return nil, fmt.Errorf("public_key or trusted_public_keys is required when update.enabled=true; allow_unsigned_local is only for local development")
-	}
-	if cfg.AllowUnsignedLocal && isRemoteLocation(manifestURL) {
-		return nil, fmt.Errorf("allow_unsigned_local cannot be used with a remote manifest_url")
 	}
 	opts := agentupdate.Options{
 		ManifestURL:        manifestURL,
