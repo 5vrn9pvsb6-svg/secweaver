@@ -131,7 +131,9 @@ func main() {
 		}},
 	}
 	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
+	// Keep nested request bodies byte-identical to the bytes that were signed.
+	// Pretty-printing RawMessage would rewrite whitespace and invalidate the
+	// heartbeat signature even though its parsed JSON value stayed unchanged.
 	if err := encoder.Encode(output); err != nil {
 		panic(err)
 	}
