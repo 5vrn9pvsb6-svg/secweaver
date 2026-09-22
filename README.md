@@ -323,16 +323,15 @@ must add its platform/runtime packages separately.
 
 See also: [`CHANGELOG.md`](CHANGELOG.md).
 
-The private Operator CI also runs the real Studio enroll/close/revoke lifecycle
-against an explicit full `COMMUNITY_CONTRACT_COMMIT`. Select a committed Community
-revision containing `OperatorLifecycleContractTests`; missing/old pins fail CI.
-For local acceptance with Operator 0.3.21+, set both
-`SECWEAVER_OPERATOR_TEST_COMMAND=/absolute/path/to/bin/secweaver-portable` and
-`SECWEAVER_OPERATOR_TEST_ROOT=/absolute/path/to/secweaver-es-operator`, then run
-`make test-operator-contract`. Python 3 and OpenSSL are required. Tests use temporary
-runtime state and disable Docker, seed a device credential, and verify profile
-closure preserves credentials until explicit revocation. They do not perform a
-real ES deployment or Agent Gateway enrollment.
+The private Operator repository pins the accepted Community revision, Agent version
+and lifecycle suite in its checked-in `contracts/community.lock.json`. Its required
+CI job clones that exact revision and runs the real Studio enroll/close/revoke
+lifecycle; missing or stale locks fail. For offline acceptance, run the Operator's
+`make community-contract` with absolute `SECWEAVER_COMMUNITY_ROOT` pointing to a
+clean checkout at the locked commit. Python 3 and OpenSSL are required. Tests use
+temporary runtime state and disable Docker, seed a device credential, and verify
+profile closure preserves credentials until explicit revocation. They do not
+perform a real ES deployment or Agent Gateway enrollment.
 
 The private Agent Server compatibility gate pins a full Community commit and runs
 `go run ./cmd/secweaver-agent-contract-fixture -agent-version <VERSION>` from the

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Document the Operator repository's checked-in Community contract lock and the
+  exact-clean-checkout workflow used by its required lifecycle CI.
+
 - Documentation checks now validate same-page and cross-file Markdown anchors,
   including explicit IDs and duplicate headings. Missing bilingual Skill
   references were added, Community data-foundation boundaries no longer expose

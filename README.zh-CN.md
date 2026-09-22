@@ -274,14 +274,12 @@ CycloneDX 源码 SBOM 见 [`sbom/secweaver-source.cdx.json`](sbom/secweaver-sour
 
 版本记录见：[`CHANGELOG.md`](CHANGELOG.md)。
 
-私有 Operator CI 还会针对明确的完整 `COMMUNITY_CONTRACT_COMMIT` 执行真实 Studio
-创建/关闭/吊销生命周期测试。应选择包含 `OperatorLifecycleContractTests` 的
-已提交 Community 版本；缺失或旧提交会使 CI 失败。本地使用 Operator 0.3.21+
-验收时，同时设置 `SECWEAVER_OPERATOR_TEST_COMMAND=/绝对路径/bin/secweaver-portable`
-和 `SECWEAVER_OPERATOR_TEST_ROOT=/绝对路径/secweaver-es-operator`，执行
-`make test-operator-contract`。需要 Python 3 和 OpenSSL；测试使用临时 runtime、
-禁用 Docker、预置设备凭据，验证关闭入口保留凭据、显式吊销才删除凭据，不执行
-真实 ES 部署或 Agent Gateway 注册。
+私有 Operator 仓库在其 `contracts/community.lock.json` 中固定评审通过的 Community
+提交、Agent 版本和生命周期测试套件。必需 CI 任务检出该精确版本并执行真实 Studio
+创建/关闭/吊销生命周期测试；锁缺失或过期会失败。离线验收在 Operator 仓库执行
+`make community-contract`，并把绝对路径 `SECWEAVER_COMMUNITY_ROOT` 指向锁定提交的
+干净检出。需要 Python 3 和 OpenSSL；测试使用临时 runtime、禁用 Docker、预置设备
+凭据，验证关闭入口保留凭据、显式吊销才删除凭据，不执行真实 ES 部署或 Agent Gateway 注册。
 
 私有 Agent Server 兼容性门禁会固定完整的 Community commit，并在 Agent
 模块中执行 `go run ./cmd/secweaver-agent-contract-fixture -agent-version <VERSION>`。
