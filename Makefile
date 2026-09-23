@@ -42,7 +42,9 @@ check-python:
 	@command -v "$(PYTHON)" >/dev/null 2>&1 || { echo "Python interpreter '$(PYTHON)' was not found; set PYTHON=python3.10 or newer."; exit 2; }
 	@$(PYTHON) -c 'import sys; actual = sys.version_info[:2]; minimum = (3, 10); sys.exit("SecWeaver requires Python 3.10+; found Python {}.{}".format(*actual)) if actual < minimum else None'
 
-$(VENV_PY): check-python
+# Keep the interpreter check on every Make invocation without making an existing
+# venv perpetually stale just because check-python is a phony target.
+$(VENV_PY): | check-python
 	$(PYTHON) -m venv $(VENV_DIR)
 
 # An existing venv may have been created by an older system Python, so validate
@@ -53,13 +55,10 @@ check-venv-python: $(VENV_PY)
 setup: check-venv-python
 	$(VENV_PY) -m pip install -r requirements-data-access.txt
 
-quickstart: setup validate demo ai-setup-all
-	@echo ""
-	@echo "SecWeaver quickstart completed."
-	@echo "Reports: $(REPORT_DIR)/"
-	@echo "AI hosts: Codex, Cursor, Claude Code, OpenClaw, WorkBuddy"
-	@echo "Next: open an AI host in this repository and ask: Run the SecWeaver offline showcase."
-	@echo "Cases: examples/ai-showcase/README.md"
+# The Python orchestrator is shared with native Windows PowerShell so both
+# quickstarts execute the same validation, demos, and adapter setup sequence.
+quickstart:
+	$(PYTHON) src/scripts/quickstart.py --venv-dir "$(VENV_DIR)" --report-dir "$(REPORT_DIR)"
 
 ai-setup:
 	@test -n "$(HOST)" || { echo "HOST=all|codex|cursor|claude|openclaw|workbuddy is required"; exit 2; }

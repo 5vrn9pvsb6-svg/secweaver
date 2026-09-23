@@ -81,13 +81,20 @@ After configuration, run the dry-run and live checks in §5, followed by `catalo
 
 ## 2. Prepare the Local Query Environment
 
-Use a Linux/macOS POSIX terminal with Python 3.10+, Make, SOPS, and age. See the [quickstart](00-security-operator-quickstart.md) for environment limits. Run from the repository root:
+Use a Linux/macOS POSIX terminal or WSL2 with Python 3.10+, Make, SOPS, and age. In WSL2,
+keep the checkout and virtual environment inside the WSL filesystem; do not share the
+WSL `.venv` with native Windows. See the [quickstart](00-security-operator-quickstart.md)
+for environment limits. Run from the repository root:
 
 ```bash
 make quickstart
 source .venv/bin/activate
 export DATAASSET_ROOT=dataasset
 ```
+
+WSL2 can run the Python query client and SLS Proxy workflow, but it does not provide
+Windows Event Log, Security 4688, Sysmon, or Windows service collection. Install the
+Windows Agent on the native Windows host when those Windows sources are required.
 
 Edit `dataasset/` directly by default. To isolate local configuration from the repository examples, optionally run the following before saving configuration or credentials:
 

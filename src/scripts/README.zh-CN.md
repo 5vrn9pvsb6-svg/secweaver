@@ -4,6 +4,7 @@
 
 | 脚本 | 用途 |
 |---|---|
+| `quickstart.py` | 创建当前平台虚拟环境并运行 POSIX/Windows 共用的快速上手流程 |
 | `release_scan.py` | 扫描私有内容、密钥、占位符和 Community 版本漂移 |
 | `check_docs_links.py` | 离线检查 Markdown 本地路径及同页/跨文件章节锚点 |
 | `ai_host_setup.py` | 生成不覆盖用户配置、仅路由到 `src/skills` 的本地智能体适配器 |
@@ -16,6 +17,7 @@
 ```bash
 make release-scan
 make docs-check
+make quickstart
 make ai-setup HOST=all
 make ai-setup HOST=codex
 make ai-showcase
@@ -35,6 +37,7 @@ Project `wis-log` 和 Logstore `gateway_plugin_log` 是有意公开的接入标�
 
 ```bash
 python3 src/scripts/release_scan.py --json
+python3 src/scripts/quickstart.py
 python3 src/scripts/check_docs_links.py
 python3 src/scripts/check_public_doc_commands.py
 python3 src/scripts/ai_host_setup.py --host all

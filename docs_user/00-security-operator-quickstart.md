@@ -8,13 +8,13 @@ Real-data onboarding is an optional next step. For your first experience, comple
 
 ## Before You Start
 
-Use a Linux/macOS POSIX terminal with Python 3.10+, Make, and an AI agent that can read
-the local repository and run commands. The AI agent needs permission to read the repository,
-execute `.venv/bin/python`, and write to `outputs/ai-showcase/`, with the repository root
-as its working directory. Native Windows PowerShell is not supported by
-these Make snippets: the virtual environment uses `.venv/bin/python`, not `Scripts/python.exe`.
-WSL/Linux is a possible Windows route, but project end-to-end acceptance is still pending.
-For a verified first run, use Linux/macOS; Windows Agent collection support is a separate matter.
+Use Python 3.10+ with `venv` and `pip`, plus an AI agent that can read the local
+repository and run commands. Linux/macOS also needs Make. Native Windows uses Windows
+PowerShell 5.1+ or PowerShell 7 and does not need Make. The AI agent needs permission
+to read the repository, execute `.venv/bin/python` on POSIX or
+`.venv\Scripts\python.exe` on Windows, and write to `outputs/ai-showcase/`, with the
+repository root as its working directory. Native Windows quickstart is verified in
+public CI; full contributor and release gates remain based on Ubuntu.
 Initial dependency downloads and hosted-model calls need a network. “Offline” means evidence
 does not come from external data sources, not that the model runs offline.
 The ten-minute estimate starts with dependencies and the AI agent available; initial environment setup takes additional time.
@@ -22,7 +22,9 @@ The ten-minute estimate starts with dependencies and the AI agent available; ini
 ## 1. Initialize
 
 Download and extract the project, or clone its repository. In your terminal, enter the directory
-containing `README.md`, `Makefile`, and `src/`, rather than `docs_user/`. Check the tools first:
+containing `README.md`, `Makefile`, and `src/`, rather than `docs_user/`.
+
+On Linux/macOS, check the tools and initialize:
 
 ```bash
 python3 --version
@@ -36,11 +38,44 @@ install the tool or ask your administrator for help before continuing:
 make quickstart
 ```
 
+### WSL2
+
+WSL2 follows the Linux/POSIX instructions above. Run them inside the WSL distribution,
+prefer a checkout under the WSL filesystem such as `~/src/secweaver-community`, and
+use a WSL-local virtual environment:
+
+```bash
+cd ~/src/secweaver-community
+python3 --version
+make --version
+make quickstart
+.venv/bin/python src/scripts/run_ai_showcase.py --all
+```
+
+This validates the Python client, DataAsset, Skills, offline cases, and SLS Proxy
+client workflow in the WSL Linux user space. It does not collect the Windows host's
+Event Log, Security 4688, Sysmon, or Windows service data. For those sources, install
+and run the Windows Agent on the native Windows host. WSL is not a separate public CI
+target; the Ubuntu checks are the contributor and release baseline.
+
+On native Windows, open PowerShell in the same directory and run:
+
+```powershell
+py -3 --version
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
+```
+
+If the `py` launcher is unavailable, the script tries `python.exe`; use
+`-Python C:\path\to\python.exe` to select an interpreter. If this checkout already
+contains a WSL or Linux `.venv`, pass `-VenvDir .venv-windows` because virtual
+environments cannot be shared across operating systems.
+
 This creates `.venv`, validates DataAsset, runs four offline demos, and generates thin
 adapters for five AI agents. Adapters reference `src/skills/` without copying Skill content.
 Adapter generation does not mean the AI investigation has run.
-Before dependency installation, Make checks the selected `PYTHON` interpreter and the
-existing `.venv`. If either is below Python 3.10, it exits with a remediation message.
+Before dependency installation, both launchers check the selected interpreter and the
+existing virtual environment. If either is below Python 3.10, initialization exits with
+a remediation message.
 When the terminal prints `SecWeaver quickstart completed.`, initialization is complete.
 Open the same project directory in your AI agent and continue with step 2.
 
@@ -100,6 +135,9 @@ Without an AI agent, inspect [sample reports](../examples/reports/README.md), or
 make ai-showcase
 ```
 
+On Windows PowerShell, run
+`.venv\Scripts\python.exe src\scripts\run_ai_showcase.py --all` instead.
+
 This generates JSON, per-case readable Markdown, and a readable batch summary.
 See the [case catalog](../examples/ai-showcase/README.md) for all current cases and explicit selection.
 
@@ -108,9 +146,11 @@ See the [case catalog](../examples/ai-showcase/README.md) for all current cases 
 | Symptom | Next step |
 |---|---|
 | Make cannot find the Makefile or quickstart target | Return to the project root containing `Makefile` |
-| Quickstart exits because Python is below 3.10 | Remove the old `.venv`, install Python 3.10+, then run `PYTHON=python3.10 make quickstart` |
+| PowerShell cannot run `quickstart.ps1` | Use the documented `powershell.exe -ExecutionPolicy Bypass -File .\quickstart.ps1` command; it changes policy only for that process |
+| Quickstart exits because Python is below 3.10 | Remove the old `.venv`, install Python 3.10+, then rerun the platform-specific quickstart command |
+| `.venv` belongs to WSL/Linux or another OS | Remove it or run `.\quickstart.ps1 -VenvDir .venv-windows` |
 | The report displays hosts as IPs | Use the sample mapping: web-01=`10.0.1.5`, db-01=`10.0.2.10`, app-02=`10.0.2.20` |
-| Dependency installation fails | Check Python version and package-download connectivity, then rerun `make quickstart` |
+| Dependency installation fails | Check Python version and package-download connectivity, then rerun the platform-specific quickstart command |
 | Adapter refuses to overwrite | Back up or merge existing AI agent configuration; preserve user-owned rules |
 | AI cannot find the input | Open the repository root and allow local reads and command execution |
 | Script reports missing dependencies | Use Make commands or `.venv/bin/python`; system Python may lack the installed dependencies |

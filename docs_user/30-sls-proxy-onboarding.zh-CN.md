@@ -74,13 +74,19 @@ dry-run 本身不能验证证书或凭证是否可用。
 
 ## 2. 初始化本地查询环境
 
-使用 Linux/macOS POSIX 终端，需要 Python 3.10+、Make、SOPS 和 age。其他环境限制见[快速上手](00-security-operator-quickstart.zh-CN.md)。从仓库根目录执行：
+使用 Linux/macOS POSIX 终端或 WSL2，需要 Python 3.10+、Make、SOPS 和 age。在 WSL2 中，
+请把仓库和虚拟环境放在 WSL 文件系统内，不要与原生 Windows 共用 `.venv`。其他环境限制
+见[快速上手](00-security-operator-quickstart.zh-CN.md)。从仓库根目录执行：
 
 ```bash
 make quickstart
 source .venv/bin/activate
 export DATAASSET_ROOT=dataasset
 ```
+
+WSL2 可以运行 Python 查询客户端和 SLS Proxy 流程，但不会提供 Windows Event Log、
+Security 4688、Sysmon 或 Windows 服务采集。需要这些 Windows 数据时，应在原生 Windows
+主机上安装 Windows Agent。
 
 默认直接编辑 `dataasset/`。如需把本地配置与仓库样例隔离，可在写入配置和凭证前选择以下可选步骤：
 

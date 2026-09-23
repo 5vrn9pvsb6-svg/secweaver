@@ -187,7 +187,7 @@ class PublicOnboardingDocsTests(unittest.TestCase):
             text = (ROOT / ("README" + suffix)).read_text()
             self.assertIn("POSIX", text)
             self.assertIn("Windows PowerShell", text)
-            self.assertIn("WSL", text)
+            self.assertIn("quickstart.ps1", text)
             self.assertIn("`outputs/ai-showcase/`", text)
             self.assertIn("`examples/reports/`", text)
             self.assertIn("DATAASSET_ROOT", text)
@@ -196,9 +196,33 @@ class PublicOnboardingDocsTests(unittest.TestCase):
         for suffix in (".md", ".zh-CN.md"):
             text = (ROOT / "docs_user" / ("00-security-operator-quickstart" + suffix)).read_text()
             self.assertIn("make quickstart", text)
+            self.assertIn("quickstart.ps1", text)
+            self.assertIn(r".venv\Scripts\python.exe", text)
             self.assertIn("outputs/ai-showcase/webshell-to-ssh-lateral.json", text)
             self.assertNotIn("python3 src/", text)
             self.assertNotIn("asset apply", text)
+
+    def test_wsl_client_support_and_agent_boundary_stay_explicit(self):
+        """Keep WSL onboarding usable without presenting it as a Windows sensor."""
+        for suffix in (".md", ".zh-CN.md"):
+            paths = (
+                ROOT / ("README" + suffix),
+                ROOT / "docs_user" / ("00-security-operator-quickstart" + suffix),
+                ROOT / "docs_dev" / ("01-new-contributor-quickstart" + suffix),
+                ROOT / "docs_user" / ("30-sls-proxy-onboarding" + suffix),
+                ROOT / "src/tools/secweaver-agent" / ("README" + suffix),
+            )
+            texts = [path.read_text() for path in paths]
+            for path, text in zip(paths, texts):
+                with self.subTest(language=suffix, path=path.relative_to(ROOT)):
+                    self.assertIn("WSL2", text)
+
+            combined = "\n".join(texts)
+            self.assertIn("make quickstart", combined)
+            self.assertIn(".venv/bin/python", combined)
+            self.assertIn("Security 4688", combined)
+            self.assertIn("Sysmon", combined)
+            self.assertIn("Ubuntu", combined)
 
     def test_guide_case_ids_resolve_to_the_expected_skill(self):
         catalog = json.loads((ROOT / "examples/ai-showcase/cases.json").read_text())

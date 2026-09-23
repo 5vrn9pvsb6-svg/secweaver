@@ -128,8 +128,9 @@ Docs: [complete onboarding](../../docs_user/03-configure-data-sources.md) | [fie
 
 Offline test data: [examples/](../../examples/). Run from repo root:
 
-For the fastest intelligent-agent experience, run `make quickstart`, open the repository in
-Codex or another supported intelligent agent, and ask `Run the SecWeaver offline showcase.` The
+For the fastest intelligent-agent experience, run `make quickstart` on Linux/macOS or
+`.\quickstart.ps1` in native Windows PowerShell, open the repository in Codex or another
+supported intelligent agent, and ask `Run the SecWeaver offline showcase.` The
 case catalog and expected product value are documented in
 [`examples/ai-showcase/`](../../examples/ai-showcase/README.md).
 

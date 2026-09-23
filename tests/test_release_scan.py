@@ -77,7 +77,9 @@ class TestReleaseScan(unittest.TestCase):
             self.assertEqual(len(self.release_scan.check_secret_patterns([path])), 1)
 
     def test_untracked_files_are_candidates_by_default(self) -> None:
-        temp = REPO_ROOT / "release-scan-untracked.test"
+        # Use a suffix that is not intentionally ignored as a compiled Go test
+        # artifact; this assertion is about publishable untracked source files.
+        temp = REPO_ROOT / "release-scan-untracked.txt"
         temp.write_text("temporary", encoding="utf-8")
         try:
             paths = self.release_scan.collect_candidate_paths(include_untracked=True)

@@ -85,10 +85,10 @@ make ai-showcase CASE=false-positive-parameter
 
 ## 批次行为与验证
 
-按项目说明完成 macOS/Linux 安装（`make setup`，依赖位于 `.venv`）后，
-`make ai-showcase` 或 `.venv/bin/python src/scripts/run_ai_showcase.py --all`
-按目录顺序执行全部案例，每例最多 60 秒。Windows 使用 WSL/Linux 路径；这些 Make
-命令不支持原生 PowerShell，WSL 尚未完成项目端到端验收。依赖安装后无需联网。
+按项目说明完成快速上手后，macOS/Linux 使用 `make ai-showcase` 或
+`.venv/bin/python src/scripts/run_ai_showcase.py --all`，原生 Windows PowerShell 使用
+`.venv\Scripts\python.exe src\scripts\run_ai_showcase.py --all`，均按目录顺序执行
+全部案例，每例最多 60 秒。依赖安装后无需联网。
 
 每个通过案例写入 `<case_id>.json` 和 `<case_id>.md`，`suite-summary.json` 与
 `suite-summary.md` 记录所有案例、计数、失败及报告链接。

@@ -91,11 +91,11 @@ No case requires a credential or live network query.
 
 ## Batch behavior and verification
 
-After the documented macOS/Linux setup (`make setup`, Python dependencies in `.venv`),
-`make ai-showcase` or `.venv/bin/python src/scripts/run_ai_showcase.py --all` runs the
-whole catalog sequentially, with a 60-second limit per case. Windows uses WSL/Linux;
-native PowerShell is not supported by these Make commands and WSL has not completed
-project end-to-end acceptance. No network is needed after dependencies are installed.
+After the documented quickstart, `make ai-showcase` or
+`.venv/bin/python src/scripts/run_ai_showcase.py --all` on macOS/Linux, and
+`.venv\Scripts\python.exe src\scripts\run_ai_showcase.py --all` in native Windows
+PowerShell, run the whole catalog sequentially with a 60-second limit per case.
+No network is needed after dependencies are installed.
 
 Each passing case writes `<case_id>.json` and `<case_id>.md`; `suite-summary.json`
 and `suite-summary.md` record every case, counts, failures and report links. Failures and timeouts do not stop later cases; any failure makes

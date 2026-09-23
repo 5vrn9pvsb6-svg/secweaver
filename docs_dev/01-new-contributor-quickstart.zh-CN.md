@@ -6,10 +6,15 @@
 
 ## 环境与命令约定
 
-从包含 `Makefile` 的仓库根目录执行。Python 开发和离线体验使用 Linux/macOS 的 POSIX 终端、Python 3.10+、venv/pip 和 Make；Fork、分支及提交需要 Git，首次安装依赖需要包下载网络。原生 Windows PowerShell 不适用本文的 `.venv/bin/python` 和 Make 命令；Windows Agent 的支持与此开发路径不同，WSL 路径尚未完成端到端验收。
+从包含 `Makefile` 的仓库根目录执行。Python 开发和离线体验需要带 venv/pip 的 Python 3.10+；Linux/macOS 和 WSL2 使用 POSIX 终端和 Make，原生 Windows 快速上手使用 Windows PowerShell 5.1+ 或 PowerShell 7。Fork、分支及提交需要 Git，首次安装依赖需要包下载网络。原生 Windows 路径覆盖环境初始化、DataAsset 校验、离线 demo 和智能体适配器；完整贡献与发布门禁仍需要下文所述的 Ubuntu/POSIX 工具链。
 
-全文使用 `.venv/bin/python` 调用项目 Python，**不要求激活虚拟环境**。创建 `.venv` 后仍运行系统 `python3`，可能找不到装在虚拟环境里的依赖。
-`make setup` 和 `make quickstart` 会在安装依赖前检查指定解释器及已有 `.venv`；两者都必须是 Python 3.10 或更高版本。
+WSL2 应把仓库放在 WSL 的 Linux 文件系统中，例如 `~/src/secweaver-community`，
+并使用 WSL 独立创建的 `.venv`。它可以运行 Python 工具、DataAsset、Skill、离线案例
+和 SLS Proxy 客户端流程，但不能替代原生 Windows Agent，也不会提供 Windows Event
+Log、Security 4688、Sysmon 或 Windows 服务采集。
+
+POSIX 使用 `.venv/bin/python`，Windows 使用 `.venv\Scripts\python.exe` 调用项目 Python，**不要求激活虚拟环境**。创建 `.venv` 后仍运行系统解释器，可能找不到装在虚拟环境里的依赖。
+`make quickstart` 与 `quickstart.ps1` 共用一个 Python 编排器，在安装依赖前检查指定解释器及已有 `.venv`；两者都必须是 Python 3.10 或更高版本。WSL/POSIX 与原生 Windows 不能共用同一个虚拟环境目录。
 
 | 目标 | 额外要求 |
 |---|---|
@@ -37,6 +42,17 @@ python3 -m venv .venv
 make quickstart
 ```
 
+原生 Windows PowerShell 使用同一套初始化流程：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
+.\.venv\Scripts\python.exe src\secweaver.py list
+.\.venv\Scripts\python.exe src\secweaver.py validate
+```
+
+WSL2 使用上面的 POSIX 命令，不要在 WSL shell 中调用 `quickstart.ps1`。WSL 当前没有
+独立的公开 CI 目标，完整贡献和发布门禁仍以 Ubuntu 为基线。
+
 提 PR 前运行：
 
 ```bash
@@ -44,7 +60,8 @@ make ci
 ```
 
 `make ci` 会执行依赖安装、发布扫描、文档与 SBOM 检查、Agent 和 Attack Lab 检查、
-DataAsset 校验、规则同步、测试及离线 demo。手工选择其中几项不等价于完整门禁。
+DataAsset 校验、规则同步、测试及离线 demo。它仍是 POSIX/Ubuntu 门禁；原生 Windows
+贡献者可运行针对性的 Python 检查，并由公开 CI 完成完整门禁。手工选择其中几项不等价于完整门禁。
 
 按改动类型先跑下表的局部检查；提 PR 时记录完整 `make ci` 的结果。工具不足或当前平台无法运行时，在 PR 中逐项列出未运行检查及原因，由维护者核对 CI 结果，不能把局部检查写成完整通过。真实 systemd/Windows SCM 升级是独立 CI 作业，不属于本地 `make ci`。
 

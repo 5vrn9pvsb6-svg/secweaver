@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Native Windows PowerShell now has a supported `quickstart.ps1` entrypoint for
+  Python environment setup, DataAsset validation, offline demos, and intelligent-agent
+  adapters. POSIX Make and Windows use the same cross-platform orchestrator; the
+  Windows CI job also runs the complete offline showcase with the Windows venv.
+
+- Documented WSL2 as a Linux/POSIX client environment for DataAsset, Skills, offline
+  cases, and SLS Proxy onboarding. WSL and native Windows use separate virtual
+  environments, and WSL is explicitly excluded as a replacement for Windows Agent
+  collection or as a separately accepted release gate.
+
+- Fixed POSIX Make targets repeatedly trying to recreate an existing `.venv` after
+  the Python-version preflight became a phony prerequisite. The check still runs on
+  each invocation without marking the virtual-environment interpreter stale.
+
 - Fixed direct shared-Skill imports by deferring the SLS TLS helper's PEP 604
   annotation evaluation, preventing an import-time `TypeError` before Skill
   validation runs. The documented runtime remains Python 3.10+.

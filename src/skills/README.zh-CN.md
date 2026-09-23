@@ -120,8 +120,9 @@ src/skills/
 
 离线测试数据见 [examples/](../../examples/)。以下命令均从项目根目录执行：
 
-最快的 智能体体验方式：运行 `make quickstart`，使用 Codex 或其他支持的智能体打开
-当前仓库，然后输入“运行 SecWeaver 离线案例”。案例目录和产品价值说明见
+最快的智能体体验方式：Linux/macOS 运行 `make quickstart`，原生 Windows PowerShell
+运行 `.\quickstart.ps1`，再使用 Codex 或其他支持的智能体打开当前仓库，然后输入
+“运行 SecWeaver 离线案例”。案例目录和产品价值说明见
 [`examples/ai-showcase/`](../../examples/ai-showcase/README.zh-CN.md)。
 
 ```bash

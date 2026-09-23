@@ -66,7 +66,9 @@ replacement for the delegated Skill's report contract.
 2. Read the delegated `skill_doc` completely and tell the user which analysis
    Skill is being invoked. Its workflow and reporting contract are authoritative.
 3. From the repository root, run `.venv/bin/python src/scripts/run_ai_showcase.py
-   <case_id>` for a single requested case. Omit `<case_id>` (or use `--all`) to
+   <case_id>` on Linux/macOS, or `.venv\Scripts\python.exe
+   src\scripts\run_ai_showcase.py <case_id>` in native Windows PowerShell.
+   Omit `<case_id>` (or use `--all`) to
    run all cases. The runner continues after individual failures and writes
    `outputs/ai-showcase/suite-summary.json` and `suite-summary.md`; each successful
    case writes `<case_id>.json` and `<case_id>.md`. A report write failure also

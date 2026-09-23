@@ -54,7 +54,8 @@ Markdown。自动报告只是基线，不能替代智能体的叙事分析，也
 1. 对每个选中条目读取其 `input` JSON，包括证据与完整性预检。确认 `offline: true`。
    `_meta.expected_*` 和目录中的 `expected` 只用于回归断言，不能作为事件证据。
 2. 完整阅读被委派的 `skill_doc`，并告诉用户正在调用哪个分析 Skill；其流程与报告合同优先。
-3. 从仓库根目录运行 `.venv/bin/python src/scripts/run_ai_showcase.py <case_id>`。
+3. 在 Linux/macOS 仓库根目录运行 `.venv/bin/python src/scripts/run_ai_showcase.py <case_id>`；
+   原生 Windows PowerShell 运行 `.venv\Scripts\python.exe src\scripts\run_ai_showcase.py <case_id>`。
    单例传入案例 ID；全量省略 `<case_id>` 或使用 `--all`。runner 在个别失败后继续，
    写入 `outputs/ai-showcase/suite-summary.json` 和 `suite-summary.md`；成功案例写入
    `<case_id>.json` 与 `<case_id>.md`。报告写入失败也计为失败；非零退出表示至少一例失败，

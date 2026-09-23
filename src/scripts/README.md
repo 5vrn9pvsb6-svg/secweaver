@@ -4,6 +4,7 @@ Repository-level maintenance programs live here instead of the project root.
 
 | Script | Purpose |
 |---|---|
+| `quickstart.py` | Create the platform-specific venv and run the shared POSIX/Windows quickstart workflow |
 | `release_scan.py` | Scan for private content, secrets, placeholders, and Community version drift |
 | `check_docs_links.py` | Validate local Markdown paths and same-file/cross-file anchors without network access |
 | `ai_host_setup.py` | Generate non-destructive local host adapters that route to `src/skills` |
@@ -16,6 +17,7 @@ Use the stable Make targets when possible:
 ```bash
 make release-scan
 make docs-check
+make quickstart
 make ai-setup HOST=all
 make ai-setup HOST=codex
 make ai-showcase
@@ -36,6 +38,7 @@ Direct invocation remains available:
 
 ```bash
 python3 src/scripts/release_scan.py --json
+python3 src/scripts/quickstart.py
 python3 src/scripts/check_docs_links.py
 python3 src/scripts/check_public_doc_commands.py
 python3 src/scripts/ai_host_setup.py --host all

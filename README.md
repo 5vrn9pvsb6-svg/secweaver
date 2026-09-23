@@ -86,19 +86,44 @@ with Python 3.10+ and Make installed, run:
 make quickstart
 ```
 
+WSL2 uses the same POSIX path. Run the commands inside the WSL distribution and keep
+the checkout under the WSL filesystem, such as `~/src/secweaver-community`, rather
+than `/mnt/c/...` when possible:
+
+```bash
+python3 --version
+make --version
+make quickstart
+```
+
+WSL runs the Python tools, DataAsset, Skills, offline cases, and SLS Proxy client
+workflow as Linux. It does not replace a native Windows Agent: Windows Event Log,
+Security 4688, Sysmon, and Windows service collection require the Agent running on
+the Windows host. WSL is not currently a separately tested contributor or release
+gate; Ubuntu remains the public CI baseline.
+
+On native Windows, install Python 3.10+ with `venv` and `pip`, open Windows
+PowerShell 5.1+ or PowerShell 7 in the repository root, and run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
+```
+
 This creates the Python environment, installs dependencies, validates DataAsset,
 runs four offline demos, and generates local adapters for Codex, Cursor, Claude
 Code, OpenClaw, and WorkBuddy. All adapters reference `src/skills/` without copying
 Skill content. Initial dependency installation needs network access; install and
 sign in to your chosen intelligent agent separately.
-The Makefile checks both the selected `PYTHON` interpreter and any existing `.venv`
-before installing dependencies. It exits with a version message when either is
-below Python 3.10; use `PYTHON=python3.10 make quickstart` after removing an old
-`.venv` if necessary.
+Both entrypoints use the same cross-platform Python orchestrator. It checks the
+selected interpreter and any existing `.venv` before installing dependencies, and
+exits with a remediation message when either is below Python 3.10. The Windows
+launcher prefers `py -3`, then `python.exe`; pass `-Python C:\path\to\python.exe`
+to select one explicitly. A virtual environment cannot be shared between POSIX
+and Windows. Use `-VenvDir .venv-windows` when the checkout already has a WSL venv.
 The four demos are initialization-time script samples; the offline assessment cases below
-are investigation tasks for the agent. Native Windows PowerShell cannot use these
-Make commands as written. WSL/Linux is a possible Windows route, but has not completed
-project end-to-end acceptance. Client requirements differ from Agent collection support.
+are investigation tasks for the agent. Native Windows quickstart is continuously
+verified on `windows-latest`; full contributor and release gates remain based on Ubuntu.
+Client requirements differ from Agent collection support.
 
 ### 2. Offline cases
 
@@ -206,6 +231,7 @@ SSH access is limited to registered hosts and constrained templates; never put a
 | Command | Purpose |
 |---|---|
 | `make quickstart` | Set up dependencies, offline demos, and agent adapters |
+| `.\quickstart.ps1` | Run the same quickstart in native Windows PowerShell |
 | `make ai-showcase` | Run all offline assessment cases |
 | `make ui` | Browse public sample configuration; select `DATAASSET_ROOT` per the guide before real onboarding |
 | `make validate` | Validate DataAsset configuration |

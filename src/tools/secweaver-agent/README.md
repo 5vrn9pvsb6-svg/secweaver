@@ -87,6 +87,7 @@ workload container; it is not a substitute for a host security sensor.
 |---|---|---|
 | Linux systemd, amd64/arm64/loong64 | Supported | Default Linux packages, `install.sh`, auditd, syslog, and host-persistence target this environment |
 | Windows, amd64/arm64 | Pilot supported | Installs as the `SecWeaverAgent` service; depends on Windows Event Log, Security audit policy, optional Sysmon, and file-based host-persistence polling |
+| WSL2 Linux environment | Client/development only | Can run Community Python tools as Linux, but is not a Windows host sensor and does not collect the host's Event Log, Security 4688, Sysmon, or Windows services |
 | Non-systemd Linux | Not a default install target | The binary can be run manually, but the release installer rejects service installation by default |
 | Linux containers | Supported workload profile | Non-root Docker deployment collects its own process, socket, identity, and cgroup/container state; it never claims host audit or persistence coverage |
 | macOS | Not a collection target | macOS can be used for development/building, but host collection modules are not supported |

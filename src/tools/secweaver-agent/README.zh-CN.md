@@ -75,6 +75,7 @@ Agent 0.3.22 修复 Linux 仅传企业令牌且启用自动更新时的安装错
 |---|---|---|
 | Linux systemd，amd64/arm64/loong64 | 支持 | 默认 Linux 发布包、`install.sh`、auditd、syslog、host_persistence 均面向该场景 |
 | Windows，amd64/arm64 | 支持试点 | 支持安装为 `SecWeaverAgent` 服务，依赖 Windows Event Log、Security 审计策略、可选 Sysmon，以及文件型 host-persistence 轮询 |
+| WSL2 Linux 环境 | 仅限客户端/开发 | 可按 Linux 运行 Community Python 工具，但不是 Windows 宿主机传感器，不采集宿主机 Event Log、Security 4688、Sysmon 或 Windows 服务 |
 | Linux 非 systemd | 不作为默认安装目标 | 可手工运行二进制，但发布包安装脚本默认拒绝安装 systemd 服务 |
 | 容器内 Linux | 支持工作负载模式 | 非 root Docker 部署采集容器自身的进程、端口、身份和 cgroup/容器上下文；不声称具备宿主机 audit 或持久化监控覆盖 |
 | macOS | 暂不支持采集 | 当前可作为开发/编译环境，不作为主机采集端 |
