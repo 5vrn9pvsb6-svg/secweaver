@@ -27,6 +27,7 @@ Find operational topics in the [Agent topic index](../src/tools/secweaver-agent/
 |---|---|
 | [`secweaver-agent` engineering manual](../src/tools/secweaver-agent/README.md) | Build, configuration, module development, signed updates, key rotation, emergency stop, and rollback behavior |
 | [26-secweaver-agent-device-identity-and-enrollment-design.md](26-secweaver-agent-device-identity-and-enrollment-design.md) | Immutable device identity, enrollment protocol, quotas, and revocation model |
+| [30-agent-behavior-learning-design.md](30-agent-behavior-learning-design.md) | 24-hour behavior learning design, first implementation boundaries, evidence retention, and release acceptance |
 | [Real-service upgrade integration tests](../src/tools/secweaver-agent/integration/service-upgrade/README.md) | Linux systemd and Windows SCM N-1 to N failure and automatic rollback tests |
 
 ## Architecture And Planning

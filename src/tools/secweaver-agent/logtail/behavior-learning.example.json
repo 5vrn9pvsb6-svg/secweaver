@@ -1,0 +1,35 @@
+{
+  "description": "Logtail JSON collection settings to map into the installed Logtail/iLogtail version; this is a field-level example, not a universal API payload.",
+  "logstore": "host-behavior-summary",
+  "log_path": "/opt/secweaver-agent/logs",
+  "file_pattern": "behavior-learning.log*",
+  "exclude_pattern": "*.gz",
+  "parse_mode": "json",
+  "time_field": "time",
+  "machine_group": "YOUR_USER_DEFINED_MACHINE_GROUP",
+  "index": {
+    "text": [
+      "event_type",
+      "source_event_type",
+      "device_id",
+      "host_ip",
+      "host_name",
+      "baseline_id",
+      "behavior_fingerprint",
+      "summary_id",
+      "learning_state",
+      "reason"
+    ],
+    "long": [
+      "observed_count",
+      "suppressed_count",
+      "original_emitted_count",
+      "context_reemitted_count",
+      "baseline_entries",
+      "candidate_entries"
+    ],
+    "double": [
+      "healthy_seconds"
+    ]
+  }
+}

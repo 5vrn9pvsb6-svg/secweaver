@@ -1,4 +1,10 @@
 {
+  "behavior_learning": {
+    "enabled": true,
+    "learning_duration_seconds": 86400,
+    "generation": 0,
+    "shadow": false
+  },
   "whitelist_ports": [],
   "audit": {
     "arches": ["b64"],

@@ -33,6 +33,18 @@ Use **after** [risk-identification](../risk-identification/SKILL.md) when:
 
 **Do not** duplicate P0/P1 triage here — consume upstream anomalies and **add correlation only**.
 
+## Behavior Learning Evidence
+
+When host exec/network/file records contain learning metadata, also query available host_behavior_summary assets
+for the same host/time. Report learning_state, suppressed_count, counter_complete and gaps.
+Deduplicate summary_id; aggregate counts are not individual executions and carry no PID edges.
+context_only events are replayed evidence with their original event_id/time, not additional executions.
+Missing raw exec during suppression is not evidence that no command ran. If summary coverage is absent,
+explicitly mark that evidence gap; do not substitute summaries for raw host_exec completeness.
+Group aggregate counts by source_event_type. Legacy nonempty summaries without this field
+describe exec; network/file summaries cannot satisfy raw connection/file evidence or be added
+to execution counts. Missing originals of any suppressed type do not establish absence of activity.
+
 ## Preconditions (hard gate)
 
 Check `completeness_precheck` before start:

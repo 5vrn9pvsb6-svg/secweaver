@@ -23,7 +23,10 @@ Network、Host 仅在需要登记网段和主机覆盖时添加，不是平台�
 
 ## 准备资产目录
 
-使用 Linux/macOS 的 POSIX 终端，安装 Python 3.10+ 和 Make。保存查询凭证需要 SOPS 和 age，见[凭证指南](../dataasset/credentials/README.zh-CN.md)。从仓库根目录执行：
+使用 Linux/macOS POSIX 终端或 WSL2，安装 Python 3.10+ 和 Make。Windows 用户须先完成
+[WSL2 快速上手](00-security-operator-quickstart.zh-CN.md)；原生 Windows 不是受支持的
+Community 查询客户端环境。保存查询凭证需要 SOPS 和 age，见
+[凭证指南](../dataasset/credentials/README.zh-CN.md)。从仓库根目录执行：
 
 ```bash
 make quickstart
@@ -304,7 +307,7 @@ Asset 表示“这份日志是什么、有哪些字段、如何查询”。下�
 
 ## SSH 与本地日志文件：最小接入
 
-先完成上方的本地目录准备，并保持所选 `DATAASSET_ROOT`。以下步骤适用于 Linux/macOS 查询端上的 `syslog_auth` 文本认证日志；JSON、Windows 事件或其他格式需要选择匹配的解析器。SSH 查询还需要目标主机的日志读取权限、SSH 网络连通性，以及凭证库中 `type: ssh` 的只读账号；字段见[SSH 凭证说明](../dataasset/credentials/README.zh-CN.md)。
+先完成上方的本地目录准备，并保持所选 `DATAASSET_ROOT`。以下步骤适用于 Linux/macOS/WSL2 查询端上的 `syslog_auth` 文本认证日志；JSON、Windows 事件或其他格式需要选择匹配的解析器。SSH 查询还需要目标主机的日志读取权限、SSH 网络连通性，以及凭证库中 `type: ssh` 的只读账号；字段见[SSH 凭证说明](../dataasset/credentials/README.zh-CN.md)。
 
 从[SSH 文件模板](../dataasset/onboarding/ssh_file/)或[本地文件模板](../dataasset/onboarding/local_file/)开始。下方命令只复制到不存在的文件，避免覆盖已有配置；选择所需的一组执行：
 

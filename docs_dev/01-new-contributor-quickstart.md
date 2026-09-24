@@ -6,15 +6,14 @@ This page is the shortest path for developers who want to contribute to SecWeave
 
 ## Environment and Command Conventions
 
-Run from the repository root containing `Makefile`. Python development and offline use require Python 3.10+ with venv/pip; Linux/macOS and WSL2 use a POSIX terminal and Make, while the native Windows quickstart uses Windows PowerShell 5.1+ or PowerShell 7. Forks, branches and commits require Git; initial dependency installation needs package-download access. The native Windows path covers setup, DataAsset validation, offline demos, and agent adapters. Full contribution and release gates still require the Ubuntu/POSIX toolchain described below.
+Run from the repository root containing `Makefile`. Python development and offline use require Python 3.10+ with venv/pip and Make. Linux/macOS use a POSIX terminal; Windows contributors must use WSL2. The Community client does not support native Windows Python or PowerShell. Forks, branches and commits require Git; initial dependency installation needs package-download access. Full contribution and release gates still require the Ubuntu/POSIX toolchain described below.
 
 WSL2 should use a checkout inside the WSL filesystem, such as `~/src/secweaver-community`,
 and its own `.venv`. It can run the Python tools, DataAsset, Skills, offline cases, and
 SLS Proxy client workflow. It is not a substitute for a native Windows Agent and does
 not provide Windows Event Log, Security 4688, Sysmon, or Windows service collection.
 
-Use `.venv/bin/python` on POSIX or `.venv\Scripts\python.exe` on Windows for project Python commands; **activation is unnecessary**. Running a system interpreter after creating `.venv` can miss dependencies installed in the virtual environment.
-`make quickstart` and `quickstart.ps1` share one Python orchestrator and validate both the selected interpreter and the existing `.venv` before installing dependencies; either must be Python 3.10 or newer. WSL/POSIX and native Windows cannot share one venv directory.
+Use `.venv/bin/python` for project Python commands; **activation is unnecessary**. Running a system interpreter after creating `.venv` can miss dependencies installed in the virtual environment. `make quickstart` validates both the selected interpreter and the existing `.venv` before installing dependencies; either must be Python 3.10 or newer. Native Windows invocation stops with WSL2 installation guidance.
 
 | Goal | Additional prerequisites |
 |---|---|
@@ -42,17 +41,21 @@ If you prefer the project Makefile:
 make quickstart
 ```
 
-For the same initialization on native Windows PowerShell:
+Windows contributors without WSL2 must first run the following in an elevated Windows
+Terminal or Command Prompt, restart if prompted, and launch Ubuntu:
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
-.\.venv\Scripts\python.exe src\secweaver.py list
-.\.venv\Scripts\python.exe src\secweaver.py validate
+```text
+wsl --install
 ```
 
-For WSL2, use the POSIX commands above and do not invoke `quickstart.ps1` from the WSL
-shell. WSL is not a separate public CI target; Ubuntu remains the baseline for the full
-contributor and release gate.
+Verify with `wsl --list --verbose`; convert an existing Ubuntu WSL1 distribution with
+`wsl --set-version Ubuntu 2` before running repository commands.
+
+Inside Ubuntu, install `git`, `make`, `python3`, `python3-venv`, and `python3-pip`, keep
+the checkout under a WSL path such as `~/src/secweaver-community`, and use the POSIX
+commands above. See Microsoft's [WSL installation guide](https://learn.microsoft.com/windows/wsl/install)
+if installation fails. There is no separate WSL2 runner; Ubuntu public CI validates
+the shared POSIX workflow and remains the full contributor/release gate.
 
 Before opening a PR, run:
 
@@ -62,9 +65,8 @@ make ci
 
 `make ci` runs dependency setup, release scans, documentation and SBOM checks,
 Agent and Attack Lab checks, DataAsset validation, behavior-policy synchronization,
-tests, and offline demos. It remains a POSIX/Ubuntu gate; native Windows contributors
-can run focused Python checks and rely on public CI for the full gate. Selected manual
-checks are not equivalent to this full gate.
+tests, and offline demos. It remains a POSIX/Ubuntu gate; Windows contributors run it
+inside WSL2. Selected manual checks are not equivalent to this full gate.
 
 Run the focused checks below while iterating, then record the full `make ci` result in the PR. If tools or platform support are unavailable, list each unrun check and reason for maintainers to verify against CI; do not present partial checks as a full pass. Real systemd/Windows SCM upgrade tests are separate CI jobs, not part of local `make ci`.
 

@@ -3,11 +3,49 @@ package windowseventlogriskjson
 import (
 	"bytes"
 	"context"
+	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"secweaver-agent/internal/windowsevidence"
 	"secweaver-agent/pkg/windowseventlog"
 )
+
+type checkpointFailure struct{ bytes.Buffer }
+
+func (*checkpointFailure) Sync() error { return errors.New("evidence sync failed") }
+
+// A source record may be in memory, but its EventRecordID must remain replayable
+// if learning's output checkpoint fails. Test the real unified reader lifecycle.
+func TestLearningFailureDoesNotAdvancePersistentCursor(t *testing.T) {
+	t.Setenv("SECWEAVER_DEVICE_ID", "windows-device-test")
+	t.Setenv("SECWEAVER_ENTERPRISE_ID", "TESTENTERPRISE01")
+	original := queryWindowsEventsAscending
+	defer func() { queryWindowsEventsAscending = original }()
+	queryWindowsEventsAscending = func(context.Context, string, uint64, time.Duration, int) ([]windowseventlog.Event, error) {
+		return []windowseventlog.Event{{System: windowseventlog.SystemData{
+			Provider: "Microsoft-Windows-Security-Auditing", Channel: "Security", EventID: "4688", EventRecordID: "301", Computer: "win-test",
+		}, EventData: []windowseventlog.DataField{{Name: "NewProcessName", Value: `C:\Windows\System32\cmd.exe`}}}}, nil
+	}
+	dir := t.TempDir()
+	cursor := filepath.Join(dir, "cursor.json")
+	var risk bytes.Buffer
+	evidence := &checkpointFailure{}
+	err := run(context.Background(), runConfig{Channels: []string{"Security"}, StateFile: cursor,
+		Once: true, MaxEvents: 10, MinLevel: "medium", EvidencePath: filepath.Join(dir, "exec.log"),
+		Learning: windowsevidence.LearningOptions{Enabled: true, StateDir: filepath.Join(dir, "learning"), Output: filepath.Join(dir, "summary.log")}}, &risk, evidence, &stats{})
+	if err == nil {
+		t.Fatal("reader swallowed failed checkpoint")
+	}
+	if _, err := os.Stat(cursor); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cursor advanced on failed checkpoint: %v", err)
+	}
+	if !bytes.Contains(evidence.Bytes(), []byte(`"learning_decision":"emit"`)) {
+		t.Fatal("test did not exercise the learning adapter")
+	}
+}
 
 func TestClassifyFailedWindowsLogon(t *testing.T) {
 	event := mustParseOne(t, `<Event>

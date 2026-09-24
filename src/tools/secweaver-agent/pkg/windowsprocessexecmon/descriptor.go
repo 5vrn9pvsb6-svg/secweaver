@@ -2,6 +2,7 @@ package windowsprocessexecmon
 
 import (
 	"secweaver-agent/internal/modulecontract"
+	"secweaver-agent/internal/windowsevidence"
 	"secweaver-agent/pkg/layout"
 )
 
@@ -13,10 +14,13 @@ func Descriptor() modulecontract.Descriptor {
 		Description: "Windows process/network/file evidence collector from Security and Sysmon events",
 		Platforms:   []string{"windows"},
 		Flags: modulecontract.Flags(
-			[]string{"channels", "output", "state-file", "lookback", "poll-interval", "max-events"},
-			[]string{"once", "raw", "fail-on-query-error", "stats", "version"},
+			[]string{"channels", "output", "state-file", "lookback", "poll-interval", "max-events", "learning-duration", "learning-generation", "learning-state-dir", "learning-output", "learning-event-types", "learning-file-roots"},
+			[]string{"once", "raw", "fail-on-query-error", "stats", "version", "behavior-learning", "learning-shadow"},
 		),
-		OutputPaths: modulecontract.FlagOutputPaths(layout.WindowsLogs+`\windows-process-execmon.log`, "output"),
-		Run:         Main,
+		OutputPaths: func(args []string) []string {
+			paths := modulecontract.FlagOutputPaths(layout.WindowsLogs+`\windows-process-execmon.log`, "output")(args)
+			return windowsevidence.WithLearningOutput(args, paths[0], paths)
+		},
+		Run: Main,
 	}
 }

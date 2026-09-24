@@ -6,6 +6,7 @@ Start with the [Agent engineering manual](../README.md) for installation and bui
 
 | Task | Guide |
 |---|---|
+| Behavior learning, baselines, and log reduction | [behavior-learning](behavior-learning.md) |
 | Self-managed ES from a release package | [self-managed-es](self-managed-es.md) |
 | Metrics, health endpoints, and configuration restarts | [metrics-and-hot-reload](metrics-and-hot-reload.md) |
 | Operations-health logs and shipping boundaries | [operations-health-report](operations-health-report.md) |

@@ -186,8 +186,11 @@ class PublicOnboardingDocsTests(unittest.TestCase):
         for suffix in (".md", ".zh-CN.md"):
             text = (ROOT / ("README" + suffix)).read_text()
             self.assertIn("POSIX", text)
-            self.assertIn("Windows PowerShell", text)
-            self.assertIn("quickstart.ps1", text)
+            self.assertIn("WSL2", text)
+            self.assertIn("wsl --install", text)
+            self.assertIn("wsl --set-version Ubuntu 2", text)
+            self.assertNotIn("quickstart.ps1", text)
+            self.assertNotIn(r".venv\Scripts\python.exe", text)
             self.assertIn("`outputs/ai-showcase/`", text)
             self.assertIn("`examples/reports/`", text)
             self.assertIn("DATAASSET_ROOT", text)
@@ -196,8 +199,10 @@ class PublicOnboardingDocsTests(unittest.TestCase):
         for suffix in (".md", ".zh-CN.md"):
             text = (ROOT / "docs_user" / ("00-security-operator-quickstart" + suffix)).read_text()
             self.assertIn("make quickstart", text)
-            self.assertIn("quickstart.ps1", text)
-            self.assertIn(r".venv\Scripts\python.exe", text)
+            self.assertIn("wsl --install", text)
+            self.assertIn("wsl --set-version Ubuntu 2", text)
+            self.assertNotIn("quickstart.ps1", text)
+            self.assertNotIn(r".venv\Scripts\python.exe", text)
             self.assertIn("outputs/ai-showcase/webshell-to-ssh-lateral.json", text)
             self.assertNotIn("python3 src/", text)
             self.assertNotIn("asset apply", text)
@@ -220,9 +225,15 @@ class PublicOnboardingDocsTests(unittest.TestCase):
             combined = "\n".join(texts)
             self.assertIn("make quickstart", combined)
             self.assertIn(".venv/bin/python", combined)
+            self.assertIn("wsl --install", combined)
+            self.assertIn("wsl --set-version Ubuntu 2", combined)
             self.assertIn("Security 4688", combined)
             self.assertIn("Sysmon", combined)
             self.assertIn("Ubuntu", combined)
+
+            client_text = "\n".join(texts[:-1])
+            self.assertNotIn("quickstart.ps1", client_text)
+            self.assertNotIn(r".venv\Scripts\python.exe", client_text)
 
     def test_guide_case_ids_resolve_to_the_expected_skill(self):
         catalog = json.loads((ROOT / "examples/ai-showcase/cases.json").read_text())

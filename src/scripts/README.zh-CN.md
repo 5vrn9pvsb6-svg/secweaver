@@ -4,7 +4,7 @@
 
 | 脚本 | 用途 |
 |---|---|
-| `quickstart.py` | 创建当前平台虚拟环境并运行 POSIX/Windows 共用的快速上手流程 |
+| `quickstart.py` | 创建 POSIX 虚拟环境并运行 Linux/macOS/WSL2 快速上手；原生 Windows 会退出并提示安装 WSL2 |
 | `release_scan.py` | 扫描私有内容、密钥、占位符和 Community 版本漂移 |
 | `check_docs_links.py` | 离线检查 Markdown 本地路径及同页/跨文件章节锚点 |
 | `ai_host_setup.py` | 生成不覆盖用户配置、仅路由到 `src/skills` 的本地智能体适配器 |

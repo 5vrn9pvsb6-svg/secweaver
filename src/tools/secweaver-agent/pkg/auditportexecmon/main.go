@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -35,6 +36,7 @@ func Main(args []string) int {
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
 	var showVersion bool
+	var learningStatus bool
 	var configPath string
 	var port int
 	var auditLog string
@@ -47,6 +49,7 @@ func Main(args []string) int {
 	var outputLog string
 
 	flag.BoolVar(&showVersion, "version", false, "输出版本号并退出")
+	flag.BoolVar(&learningStatus, "learning-status", false, "读取行为学习状态及名单，不修改运行状态")
 	flag.StringVar(&configPath, "config", "", "可选：JSON 配置文件路径，支持端口白名单、connect、文件创建删除监控")
 	flag.IntVar(&port, "port", 0, "可选：只监控指定对外监听端口；不指定则监控所有对外监听端口")
 	flag.StringVar(&auditLog, "audit-log", "/var/log/audit/audit.log", "auditd 日志路径")
@@ -61,6 +64,9 @@ func Main(args []string) int {
 	if showVersion {
 		fmt.Println(version)
 		return 0
+	}
+	if learningStatus {
+		return printLearningStatus(configPath, outputLog)
 	}
 	if runtime.GOOS != "linux" {
 		fatalf("audit-port-execmon only runs on Linux; current platform is %s", runtime.GOOS)
@@ -315,6 +321,39 @@ func Main(args []string) int {
 	stopPressureMonitor := startAuditPressureMonitor(ctx, monitor, auditPressure)
 	defer stopPressureMonitor()
 
+	// Learning health is sampled off the reader, independently of optional
+	// audit pressure adaptation. Missing samples never advance learning.
+	lastLearningLost := -1
+	lastTrackerLost := uint64(0)
+	learningHealth := func() (bool, bool) {
+		if processTracker != nil {
+			lost := processTracker.LostSamples()
+			changed := lost != lastTrackerLost
+			lastTrackerLost = lost
+			return true, changed
+		}
+		status, err := collectAuditStatus()
+		if err != nil {
+			return false, false
+		}
+		lost, err := strconv.Atoi(status["lost"])
+		if err != nil || lost < 0 || (status["enabled"] != "1" && status["enabled"] != "2") {
+			return false, false
+		}
+		changed := lastLearningLost >= 0 && lost != lastLearningLost
+		lastLearningLost = lost
+		return true, changed
+	}
+	if !fromStart {
+		learning, learningErr := newLearningOutput(cfg, eventLogPath, processBackend, eventOut, learningHealth)
+		if learningErr != nil {
+			fmt.Fprintf(os.Stderr, "behavior learning disabled; keeping original output: %v\n", learningErr)
+		} else if learning != nil {
+			eventOut = learning
+			defer learning.Close()
+		}
+	}
+
 	trackerResult := make(chan error, 1)
 	if processTracker != nil {
 		go func() {
@@ -332,15 +371,16 @@ func Main(args []string) int {
 		err = followAuditLog(ctx, auditLog, execKey, connectKey, fileKey, monitor, host, fromStart, startOffset, printRaw, eventOut, listenerRescanInterval)
 	}
 	if processTracker != nil {
-		select {
-		case trackerErr := <-trackerResult:
-			if trackerErr != nil && !errors.Is(trackerErr, context.Canceled) {
-				return failf("读取 eBPF 进程事件失败：%v", trackerErr)
-			}
-		default:
+		// Join producers before draining learning and closing its output sinks.
+		cancelRun()
+		trackerErr := <-trackerResult
+		if trackerErr != nil && !errors.Is(trackerErr, context.Canceled) {
+			learningFault(eventOut, "ebpf_reader_failed")
+			return failf("读取 eBPF 进程事件失败：%v", trackerErr)
 		}
 	}
 	if err != nil && !errors.Is(err, context.Canceled) {
+		learningFault(eventOut, "audit_reader_failed")
 		return failf("读取 audit 日志失败：%v", err)
 	}
 	return 0

@@ -13,18 +13,26 @@ import (
 )
 
 type processLifecycleProcessEvent struct {
-	Type        uint32
-	RootPid     uint32
-	Pid         uint32
-	Ppid        uint32
-	Uid         uint32
-	Gid         uint32
-	Argc        uint32
-	Flags       uint32
-	TimestampNs uint64
-	Comm        [16]int8
-	Filename    [256]int8
-	Args        [16][96]int8
+	Type            uint32
+	RootPid         uint32
+	Pid             uint32
+	Ppid            uint32
+	Uid             uint32
+	Gid             uint32
+	Argc            uint32
+	Flags           uint32
+	TimestampNs     uint64
+	StartBoottimeNs uint64
+	ExecutableInode uint64
+	ExecutableDev   uint32
+	Euid            uint32
+	Egid            uint32
+	IdentityValid   uint32
+	Auid            uint32
+	IdentityPadding uint32
+	Comm            [16]int8
+	Filename        [256]int8
+	Args            [16][96]int8
 }
 
 type processLifecycleProcessOwner struct {

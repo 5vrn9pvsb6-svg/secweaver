@@ -1,5 +1,21 @@
 # secweaver-agent
 
+Source 0.3.40 fixes Linux supervisor shutdown ordering: audit pipes remain open until
+child modules exit, preventing normal restarts from invalidating behavior learning.
+Already degraded generations still require explicit relearning; see the recovery guide.
+
+Source 0.3.39 extends Windows learning to eligible outbound network connections and ordinary
+`.log` creations. Each type has exact matching and separate summary counts; authentication,
+persistence, sensitive/destructive activity and unverified records remain full-output.
+
+Source 0.3.38 adds Windows Sysmon exec learning to both evidence reader modes. Fresh
+Windows installs enable 24-hour learning; 4688 and incomplete/sensitive evidence stay
+full-output. See the [Windows prerequisites and verification](docs/behavior-learning.md#windows-0339).
+
+Source 0.3.37 adds Linux behavior learning and bounded log reduction, enabled for new
+installations with a 24-hour learning period. See [behavior learning](docs/behavior-learning.md)
+for eligibility, failure behavior, summary shipping, and remaining real-platform release gates.
+
 Source 0.3.36 makes update-manifest signatures optional. When no update public key is
 configured, the Agent accepts an HTTPS manifest and still requires each downloaded
 artifact's SHA-256 and size to match. Configuring `public_key` or `trusted_public_keys`

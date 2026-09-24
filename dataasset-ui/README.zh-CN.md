@@ -116,7 +116,7 @@ SECWEAVER_LOGTAIL_ALIUID=1234567890123456 \
 
 ## SLS Proxy Project 配置
 
-在 Linux/macOS、Python 3.10+ 环境中，接入表单选择 `sls_proxy` 后填写已授权的 `project` 与 `logstore` 组合。Project 可选，省略或留空时使用服务端默认值。应用前预览生成的 Connector，确认 `config.project` 和 `config.logstore`，再按 [SLS Proxy 接入指南](../docs_user/30-sls-proxy-onboarding.zh-CN.md)验收一条真实事件。
+在 Linux/macOS 或 WSL2、Python 3.10+ 环境中，接入表单选择 `sls_proxy` 后填写已授权的 `project` 与 `logstore` 组合。Windows 用户必须在 WSL2 中运行 Studio；原生 Windows 不是受支持的 Community 客户端环境。Project 可选，省略或留空时使用服务端默认值。应用前预览生成的 Connector，确认 `config.project` 和 `config.logstore`，再按 [SLS Proxy 接入指南](../docs_user/30-sls-proxy-onboarding.zh-CN.md)验收一条真实事件。
 
 显式指定 Project 需要更新后的客户端 SDK 适配器、Go Proxy 0.6.0-rc.14/schema 10 或更新版本，以及管理员配置的 Project 路由和企业资源授权。客户端选择不能创建资源或获得额外权限。Proxy 入口保持不变，不拼接 Project 域名前缀、不填写 `region` 或 `enterprise_id`，也不要为绕过权限或兼容性错误删除 Project。直连 SLS 的 Project 行为不变。
 

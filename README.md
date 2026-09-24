@@ -79,16 +79,30 @@ cited judgments and hypotheses to verify; people review the conclusions.
 ### 1. Quick Start
 
 Try a complete investigation using bundled synthetic logs, with no ES, SLS, or
-production credentials. From the repository root in a Linux/macOS POSIX terminal
-with Python 3.10+ and Make installed, run:
+production credentials. The Community client runs in a Linux/macOS POSIX environment;
+Windows users use WSL2. Native Windows Python and PowerShell are not supported client
+environments.
 
-```bash
-make quickstart
+If WSL2 is not installed, open an elevated Windows Terminal or Command Prompt and run:
+
+```text
+wsl --install
 ```
 
-WSL2 uses the same POSIX path. Run the commands inside the WSL distribution and keep
-the checkout under the WSL filesystem, such as `~/src/secweaver-community`, rather
-than `/mnt/c/...` when possible:
+Restart if prompted, launch the installed Ubuntu distribution, and complete its
+first-run account setup. See Microsoft's [WSL installation guide](https://learn.microsoft.com/windows/wsl/install)
+when Windows cannot complete the command. Existing WSL users can run `wsl --list --verbose`
+from Windows; if Ubuntu shows version 1, convert it with `wsl --set-version Ubuntu 2`.
+Inside Ubuntu, install the prerequisites:
+
+```bash
+sudo apt update
+sudo apt install -y git make python3 python3-venv python3-pip
+```
+
+Keep the checkout under the WSL filesystem, such as `~/src/secweaver-community`,
+rather than `/mnt/c/...` when possible. From the repository root in WSL2, Linux, or
+macOS, run:
 
 ```bash
 python3 --version
@@ -99,30 +113,19 @@ make quickstart
 WSL runs the Python tools, DataAsset, Skills, offline cases, and SLS Proxy client
 workflow as Linux. It does not replace a native Windows Agent: Windows Event Log,
 Security 4688, Sysmon, and Windows service collection require the Agent running on
-the Windows host. WSL is not currently a separately tested contributor or release
-gate; Ubuntu remains the public CI baseline.
-
-On native Windows, install Python 3.10+ with `venv` and `pip`, open Windows
-PowerShell 5.1+ or PowerShell 7 in the repository root, and run:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
-```
+the Windows host. WSL2 uses the same Linux/POSIX workflow continuously validated by
+public Ubuntu CI; there is no separate WSL2 runner, and Ubuntu remains the release gate.
 
 This creates the Python environment, installs dependencies, validates DataAsset,
 runs four offline demos, and generates local adapters for Codex, Cursor, Claude
 Code, OpenClaw, and WorkBuddy. All adapters reference `src/skills/` without copying
 Skill content. Initial dependency installation needs network access; install and
 sign in to your chosen intelligent agent separately.
-Both entrypoints use the same cross-platform Python orchestrator. It checks the
-selected interpreter and any existing `.venv` before installing dependencies, and
-exits with a remediation message when either is below Python 3.10. The Windows
-launcher prefers `py -3`, then `python.exe`; pass `-Python C:\path\to\python.exe`
-to select one explicitly. A virtual environment cannot be shared between POSIX
-and Windows. Use `-VenvDir .venv-windows` when the checkout already has a WSL venv.
+The quickstart checks the selected interpreter and any existing `.venv` before
+installing dependencies, and exits with a remediation message when either is below
+Python 3.10. Direct invocation on native Windows exits with WSL2 installation guidance.
 The four demos are initialization-time script samples; the offline assessment cases below
-are investigation tasks for the agent. Native Windows quickstart is continuously
-verified on `windows-latest`; full contributor and release gates remain based on Ubuntu.
+are investigation tasks for the agent. Full contributor and release gates remain based on Ubuntu.
 Client requirements differ from Agent collection support.
 
 ### 2. Offline cases
@@ -231,7 +234,6 @@ SSH access is limited to registered hosts and constrained templates; never put a
 | Command | Purpose |
 |---|---|
 | `make quickstart` | Set up dependencies, offline demos, and agent adapters |
-| `.\quickstart.ps1` | Run the same quickstart in native Windows PowerShell |
 | `make ai-showcase` | Run all offline assessment cases |
 | `make ui` | Browse public sample configuration; select `DATAASSET_ROOT` per the guide before real onboarding |
 | `make validate` | Validate DataAsset configuration |

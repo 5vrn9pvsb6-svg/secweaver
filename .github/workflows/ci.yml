@@ -70,35 +70,6 @@ jobs:
       - name: Build and verify public source archive
         run: make open-source-export OUTPUT="$RUNNER_TEMP/secweaver-community.tar.gz" PYTHON=python3
 
-  quickstart-windows:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: requirements-data-access.txt
-
-      - name: Run the native PowerShell quickstart
-        shell: powershell
-        run: >-
-          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
-          -Python python.exe
-          -VenvDir "$env:RUNNER_TEMP\secweaver-venv"
-          -ReportDir "$env:RUNNER_TEMP\secweaver-demo-reports"
-
-      - name: Run the offline showcase with the Windows venv
-        shell: powershell
-        run: |
-          & "$env:RUNNER_TEMP\secweaver-venv\Scripts\python.exe" `
-            "src\scripts\run_ai_showcase.py" `
-            --all `
-            --output-dir "$env:RUNNER_TEMP\secweaver-ai-showcase"
-
   agent-service-upgrade-linux:
     runs-on: ubuntu-latest
     steps:

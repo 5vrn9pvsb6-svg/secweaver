@@ -2,7 +2,6 @@ package auditportexecmon
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -144,12 +143,22 @@ func emitEBPFExecEventWithContext(source processtracker.Event, listener listener
 		ListenerAddress:  listener.Address,
 		ListenerPort:     listener.Port,
 	}
-	encoded, err := json.Marshal(event)
-	if err != nil {
-		return fmt.Errorf("encode eBPF exec event: %w", err)
+	// Enrichment remains best effort; only the separate kernel validity bit can
+	// grant learning eligibility. A missing field never becomes a zero identity.
+	if source.IdentityValid {
+		event.AUID = strconv.FormatUint(uint64(source.AUID), 10)
+		event.AUIDName = resolveAccountName(event.AUID)
+		event.Fields = map[string]string{
+			"euid":                   strconv.FormatUint(uint64(source.EUID), 10),
+			"gid":                    strconv.FormatUint(uint64(source.GID), 10),
+			"egid":                   strconv.FormatUint(uint64(source.EGID), 10),
+			"learning_inode":         strconv.FormatUint(source.ExecutableInode, 10),
+			"learning_dev":           fmt.Sprintf("%x:%x", source.ExecutableDev>>20, source.ExecutableDev&((1<<20)-1)),
+			"learning_start_boot_ns": strconv.FormatUint(source.StartBootNS, 10),
+		}
+		if !source.ArgsTruncated && len(source.Args) > 0 {
+			event.Fields["learning_argv_complete"] = "yes"
+		}
 	}
-	if _, err := fmt.Fprintln(out, string(encoded)); err != nil {
-		return fmt.Errorf("write eBPF exec event: %w", err)
-	}
-	return nil
+	return emitNormalizedEvent(out, event)
 }

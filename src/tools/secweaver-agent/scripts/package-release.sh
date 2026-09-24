@@ -123,7 +123,10 @@ validate_es_integration_inputs() {
     "${ES_INTEGRATION_SOURCE}/index-template.json" \
     "${ES_INTEGRATION_SOURCE}/filebeat.yml" \
     "${ROOT_DIR}/docs/self-managed-es.md" \
-    "${ROOT_DIR}/docs/self-managed-es.zh-CN.md"; do
+    "${ROOT_DIR}/docs/self-managed-es.zh-CN.md" \
+    "${ROOT_DIR}/docs/behavior-learning.md" \
+    "${ROOT_DIR}/docs/behavior-learning.zh-CN.md" \
+    "${ROOT_DIR}/logtail/behavior-learning.example.json"; do
     [[ -f "${file}" ]] || {
       echo "missing Agent package ES integration file: ${file}" >&2
       exit 1
@@ -136,7 +139,11 @@ install_es_integration() {
   # Keep ES setup beside the binary so extracted archives work without a source
   # checkout; the initializer only creates its dedicated template and never
   # depends on the private ES Operator or server modules.
-  install -d -m 0755 "${package_root}/elasticsearch"
+  # Keep the learning operation guide and uploader reference self-contained.
+  install -d -m 0755 "${package_root}/elasticsearch" "${package_root}/docs" "${package_root}/logtail"
+  install -m 0644 "${ROOT_DIR}/docs/behavior-learning.md" "${package_root}/docs/behavior-learning.md"
+  install -m 0644 "${ROOT_DIR}/docs/behavior-learning.zh-CN.md" "${package_root}/docs/behavior-learning.zh-CN.md"
+  install -m 0644 "${ROOT_DIR}/logtail/behavior-learning.example.json" "${package_root}/logtail/behavior-learning.example.json"
   install -m 0755 "${ES_INTEGRATION_SOURCE}/init_es.py" "${package_root}/elasticsearch/init_es.py"
   install -m 0644 "${ES_INTEGRATION_SOURCE}/index-template.json" "${package_root}/elasticsearch/index-template.json"
   install -m 0644 "${ES_INTEGRATION_SOURCE}/filebeat.yml" "${package_root}/elasticsearch/filebeat.yml"

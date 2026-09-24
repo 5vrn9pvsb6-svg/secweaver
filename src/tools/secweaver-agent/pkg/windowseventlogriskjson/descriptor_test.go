@@ -16,3 +16,14 @@ func TestDescriptorReportsUnifiedReaderOutputs(t *testing.T) {
 		t.Fatalf("explicit standalone ownership should suppress evidence output: %v", paths)
 	}
 }
+
+func TestDescriptorReportsLearningSummaryOnlyForEvidenceOwner(t *testing.T) {
+	paths := Descriptor().OutputPaths([]string{"-behavior-learning", "-learning-output", "D:/logs/summary.log"})
+	if len(paths) != 3 || paths[2] != "D:/logs/summary.log" {
+		t.Fatalf("learning summary not budgeted: %v", paths)
+	}
+	paths = Descriptor().OutputPaths([]string{"-behavior-learning", "-evidence-output="})
+	if len(paths) != 1 {
+		t.Fatalf("disabled owner claims summary: %v", paths)
+	}
+}

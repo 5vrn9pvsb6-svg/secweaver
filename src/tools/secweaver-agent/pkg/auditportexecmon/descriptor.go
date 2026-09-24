@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"secweaver-agent/internal/modulecontract"
+	"secweaver-agent/pkg/behaviorlearning"
 )
 
 // Descriptor is the sole supervisor-facing contract for audit-port-execmon.
@@ -20,7 +21,7 @@ func Descriptor() modulecontract.Descriptor {
 		Platforms:   []string{"linux"},
 		Flags: modulecontract.Flags(
 			[]string{"config", "port", "audit-log", "output-log", "key"},
-			[]string{"version", "include-ppid", "keep-rule", "from-start", "raw", "dry-run"},
+			[]string{"version", "learning-status", "include-ppid", "keep-rule", "from-start", "raw", "dry-run"},
 		),
 		OutputPaths:       descriptorOutputPaths,
 		AuditSubscription: descriptorAuditSubscription,
@@ -30,16 +31,25 @@ func Descriptor() modulecontract.Descriptor {
 
 func descriptorOutputPaths(args []string) []string {
 	path := defaultOutputLog
+	var learning behaviorlearning.Config
 	if configPath, ok := modulecontract.StringFlag(args, "config"); ok {
 		var cfg struct {
-			OutputLog string `json:"output_log"`
+			OutputLog        string          `json:"output_log"`
+			BehaviorLearning json.RawMessage `json:"behavior_learning"`
 		}
-		if body, err := os.ReadFile(strings.TrimSpace(configPath)); err == nil && json.Unmarshal(body, &cfg) == nil && strings.TrimSpace(cfg.OutputLog) != "" {
-			path = strings.TrimSpace(cfg.OutputLog)
+		if body, err := os.ReadFile(strings.TrimSpace(configPath)); err == nil && json.Unmarshal(body, &cfg) == nil {
+			if strings.TrimSpace(cfg.OutputLog) != "" {
+				path = strings.TrimSpace(cfg.OutputLog)
+			}
+			learning, _ = behaviorlearning.Decode(cfg.BehaviorLearning)
 		}
 	}
 	if value, ok := modulecontract.StringFlag(args, "output-log"); ok {
 		path = value
+	}
+	// Include summaries in supervisor rotation, disk budgets and diagnostics.
+	if learning.Enabled {
+		return []string{path, learningPaths(learning, path).OutputLog}
 	}
 	return []string{path}
 }

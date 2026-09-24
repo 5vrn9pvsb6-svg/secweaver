@@ -30,6 +30,12 @@ type Event struct {
 	Filename      string
 	Args          []string
 	ArgsTruncated bool
+	// IdentityValid gates learning; zero-valued fields without it are unknown.
+	IdentityValid                bool
+	EUID, EGID                   uint32
+	AUID                         uint32
+	StartBootNS, ExecutableInode uint64
+	ExecutableDev                uint32
 }
 
 // Tracker owns one kernel process-lifecycle data source. Track seeds an

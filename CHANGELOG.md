@@ -1,16 +1,65 @@
 # Changelog
 
+## Agent [0.3.40] - 2026-09-24
+
+- Fixed Linux shared audit reader shutdown ordering: normal service stops no longer race
+  child termination against pipe EOF and incorrectly persist `audit_reader_failed` in
+  behavior-learning state. Unexpected disconnects retain fault/restart behavior.
+- Added lifecycle regression coverage and bilingual recovery instructions. Previously
+  degraded generations require an explicit generation increment; upgrades never silently
+  restore trust in incomplete evidence.
+
+## Agent [0.3.39] - 2026-09-24
+
+- Extended Windows Sysmon learning to eligible outbound private-network connections and
+  exact ordinary `.log` creations under configured directories. Fresh Windows configs
+  enable exec/network/file scopes; existing configurations retain their previous scope.
+- Added bounded GUID-bound process context, invalidation on observed termination/faults,
+  event-type-separated fingerprints/rate guards and `source_event_type` summary metadata.
+  Preserved public/admin-port traffic, authentication, persistence, destructive file events,
+  snapshots and all Linux non-exec evidence. Scope expansion requires explicit relearning.
+- Updated bilingual guides, ES/SLS field examples and summary assets; added sensitive-target,
+  exact-target, PID-reuse, bounded-cache and multi-type promotion regression tests.
+
+## Agent [0.3.38] - 2026-09-24
+
+- Added conservative Windows Sysmon exec learning to the unified and standalone Windows
+  readers. Fresh configs enable 24 healthy hours; existing configs remain opt-in. Exact
+  command/image hash, parent context and service-token checks gate whitelist admission;
+  Security 4688, sensitive tools, interactive and incomplete evidence stay full-output.
+- Added Windows state ACLs, exclusive handle locking and write-through checkpoints, source
+  health/fault handling and summary/original durability before EventRecordID advancement.
+  Linux fingerprints remain unchanged. Documented Windows summary shipping and limitations.
+- Added qualification, PID-reuse, baseline promotion, changed-context and failure tests.
+  Native Windows/Sysmon and 24-hour soak verification remain release acceptance gates.
+
+## Agent [0.3.37] - 2026-09-23
+
+- Added independent Linux behavior learning: new installations learn automatically for
+  24 healthy hours, then suppress only qualified exact exec matches while preserving
+  unknown/sensitive events and process-tree tracking. Existing configs remain opt-in.
+- Added bounded state, exclusive locking, authenticated atomic checkpoints, conservative
+  crash recovery, explicit generation-based relearning, shadow mode, rolling rate guards,
+  real ancestor replay where available, and a read-only `-learning-status` command.
+- Extended eBPF successful-exec evidence with kernel credentials, executable identity and
+  process start time; missing evidence prevents suppression. Retained empty argv elements.
+- Added rotated behavior summaries/status, public Filebeat/ES mappings, Logtail reference,
+  ES/SLS/SLS Proxy draft assets, host/time templates and Skill evidence guidance.
+- Initial eligibility is limited to verified direct listener children. Windows learning,
+  per-entry administration and baseline rollback remain outside this first implementation;
+  real-kernel, 24-hour/7-day and live ingestion acceptance are still release gates.
+- Published five-platform installation archives to the 91 Agent Gateway on 2026-09-23;
+  the download/install pointer now selects 0.3.37. Existing Agents and automatic-update
+  manifests were not changed. Real-kernel/soak and live summary-ingestion checks remain pending.
+
 ## Unreleased
 
-- Native Windows PowerShell now has a supported `quickstart.ps1` entrypoint for
-  Python environment setup, DataAsset validation, offline demos, and intelligent-agent
-  adapters. POSIX Make and Windows use the same cross-platform orchestrator; the
-  Windows CI job also runs the complete offline showcase with the Windows venv.
-
-- Documented WSL2 as a Linux/POSIX client environment for DataAsset, Skills, offline
-  cases, and SLS Proxy onboarding. WSL and native Windows use separate virtual
-  environments, and WSL is explicitly excluded as a replacement for Windows Agent
-  collection or as a separately accepted release gate.
+- Windows Community clients now use WSL2 exclusively for Python environment setup,
+  DataAsset, Skills, offline cases, intelligent-agent adapters, and SLS Proxy onboarding.
+  The native PowerShell quickstart and Windows client CI job were removed; native
+  Windows invocation exits with `wsl --install` guidance, and WSL1 is rejected with
+  conversion guidance. WSL remains distinct from native Windows Agent collection;
+  its shared POSIX workflow is validated by the Ubuntu release gate.
 
 - Fixed POSIX Make targets repeatedly trying to recreate an existing `.venv` after
   the Python-version preflight became a phony prerequisite. The check still runs on

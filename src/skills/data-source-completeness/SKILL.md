@@ -109,6 +109,17 @@ Execute in order; do not skip steps:
 | D6 | Asset config (CMDB, vulns) |
 | D7 | Application business logs |
 
+## Behavior Learning Coverage
+
+host_behavior_summary is supplemental coverage evidence, never a substitute for host_exec.
+For hosts using learning-based suppression, request summary/status over the same window and report
+learning_state, suppressed_count, counter_complete and missing intervals. Absence of raw executions
+cannot establish no execution during suppression. Do not create process/PID joins from aggregates;
+context_only replay preserves original event IDs and must not inflate event counts.
+Separate counts by source_event_type (legacy nonempty summaries default to exec). Network/file
+suppression gaps must be reported for their own evidence types, not treated as host_exec coverage.
+Summary counts cannot replace raw host_connect/host_file_op records or prove no such activity.
+
 ## Overall verdict
 
 | overall_verdict | Meaning | next_skill |

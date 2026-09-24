@@ -4,7 +4,7 @@ Repository-level maintenance programs live here instead of the project root.
 
 | Script | Purpose |
 |---|---|
-| `quickstart.py` | Create the platform-specific venv and run the shared POSIX/Windows quickstart workflow |
+| `quickstart.py` | Create a POSIX venv and run the Linux/macOS/WSL2 quickstart; native Windows exits with WSL2 installation guidance |
 | `release_scan.py` | Scan for private content, secrets, placeholders, and Community version drift |
 | `check_docs_links.py` | Validate local Markdown paths and same-file/cross-file anchors without network access |
 | `ai_host_setup.py` | Generate non-destructive local host adapters that route to `src/skills` |

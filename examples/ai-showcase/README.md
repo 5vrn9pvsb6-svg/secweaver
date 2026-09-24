@@ -92,9 +92,9 @@ No case requires a credential or live network query.
 ## Batch behavior and verification
 
 After the documented quickstart, `make ai-showcase` or
-`.venv/bin/python src/scripts/run_ai_showcase.py --all` on macOS/Linux, and
-`.venv\Scripts\python.exe src\scripts\run_ai_showcase.py --all` in native Windows
-PowerShell, run the whole catalog sequentially with a 60-second limit per case.
+`.venv/bin/python src/scripts/run_ai_showcase.py --all` on macOS, Linux, or WSL2
+runs the whole catalog sequentially with a 60-second limit per case. Windows users
+run these POSIX commands inside WSL2; native Windows is not a supported client runtime.
 No network is needed after dependencies are installed.
 
 Each passing case writes `<case_id>.json` and `<case_id>.md`; `suite-summary.json`

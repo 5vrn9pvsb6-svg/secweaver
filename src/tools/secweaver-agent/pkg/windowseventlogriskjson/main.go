@@ -93,6 +93,8 @@ func Main(args []string) int {
 	var failOnQueryError bool
 	var showStats bool
 	var showVersion bool
+	var learning windowsevidence.LearningOptions
+	learning.RegisterFlags(flag.CommandLine)
 
 	flag.StringVar(&channelsCSV, "channels", "Security,System,Microsoft-Windows-PowerShell/Operational,Microsoft-Windows-Sysmon/Operational", "comma-separated Windows Event Log channels")
 	flag.StringVar(&outputPath, "output", layout.WindowsLogs+`\windows-eventlog-risk-json.log`, "JSON Lines output path; - for stdout")
@@ -141,8 +143,13 @@ func Main(args []string) int {
 		}
 	}
 	defer closeEvidence()
+	// Summary and risk records must never share a sink, even in standalone mode.
+	if learning.Enabled && evidenceOut != nil && strings.EqualFold(windowsevidence.LearningOutputPath(evidenceOutputPath, learning.Output), outputPath) {
+		fatalf("learning output must differ from risk output")
+	}
 
 	cfg := runConfig{
+		Learning: learning, EvidencePath: evidenceOutputPath,
 		Channels:         channels,
 		StateFile:        stateFile,
 		Lookback:         lookback,
@@ -167,6 +174,8 @@ func Main(args []string) int {
 }
 
 type runConfig struct {
+	Learning         windowsevidence.LearningOptions
+	EvidencePath     string
 	Channels         []string
 	StateFile        string
 	Lookback         time.Duration
@@ -178,7 +187,9 @@ type runConfig struct {
 	FailOnQueryError bool
 }
 
-func run(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *stats) error {
+// run owns the learning adapter until source polling stops. Learning must close
+// before Main closes output files, including when the reader returns an error.
+func run(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *stats) (runErr error) {
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 30 * time.Second
 	}
@@ -186,12 +197,24 @@ func run(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *sta
 	if err != nil {
 		return fmt.Errorf("load cursor state: %w", err)
 	}
+	var closeLearning func() error
+	evidenceOut, closeLearning = windowsevidence.WrapLearning(evidenceOut, cfg.Learning, cfg.StateFile, cfg.EvidencePath, cfg.PollInterval)
+	defer func() {
+		if runErr != nil {
+			windowsevidence.SourceFault(evidenceOut, "windows_reader_failed")
+		}
+		if err := closeLearning(); runErr == nil {
+			runErr = err
+		}
+	}()
 	seenWithoutRecordID := map[string]bool{}
 	for {
 		beforeCursors := windowseventlog.CloneCursors(cursors)
+		beforeErrors := st.QueryErrors
 		if err := collectOnce(ctx, cfg, out, evidenceOut, st, cursors, seenWithoutRecordID); err != nil {
 			return err
 		}
+		windowsevidence.SourcePoll(evidenceOut, st.QueryErrors == beforeErrors)
 		if !windowseventlog.CursorsEqual(beforeCursors, cursors) {
 			if err := agentoutput.Checkpoint(out); err != nil {
 				return fmt.Errorf("checkpoint Windows risk output: %w", err)
@@ -220,10 +243,6 @@ func run(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *sta
 
 func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *stats, cursors map[string]uint64, seenWithoutRecordID map[string]bool) error {
 	enc := json.NewEncoder(out)
-	var evidenceEnc *json.Encoder
-	if evidenceOut != nil {
-		evidenceEnc = json.NewEncoder(evidenceOut)
-	}
 	pageSize := cfg.MaxEvents
 	if pageSize <= 0 {
 		pageSize = 200
@@ -238,7 +257,14 @@ func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer,
 			st.Queries++
 			events, err := queryWindowsEventsAscending(ctx, channel, cursors[channel], lookback, cfg.MaxEvents)
 			if err != nil {
+				// Normal service stop cancels wevtutil; it is not a collection gap.
+				if ctx.Err() != nil {
+					return nil
+				}
 				st.QueryErrors++
+				if ctx.Err() == nil {
+					windowsevidence.SourceFault(evidenceOut, "windows_source_query_failed")
+				}
 				if cfg.FailOnQueryError {
 					return err
 				}
@@ -270,8 +296,8 @@ func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer,
 					}
 					continue
 				}
-				if evidenceEnc != nil {
-					written, err := windowsevidence.Write(evidenceEnc, event, cfg.IncludeRaw)
+				if evidenceOut != nil {
+					written, err := windowsevidence.WriteSource(evidenceOut, event, cfg.IncludeRaw)
 					if err != nil {
 						return err
 					}

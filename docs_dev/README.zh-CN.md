@@ -27,6 +27,7 @@
 |---|---|
 | [`secweaver-agent` 工程手册](../src/tools/secweaver-agent/README.zh-CN.md) | 构建、配置、模块开发、签名升级、公钥轮换、紧急停止和回滚行为 |
 | [26-secweaver-agent-device-identity-and-enrollment-design.zh-CN.md](26-secweaver-agent-device-identity-and-enrollment-design.zh-CN.md) | 不可变设备身份、注册协议、设备额度和撤销模型 |
+| [30-agent-behavior-learning-design.zh-CN.md](30-agent-behavior-learning-design.zh-CN.md) | 24 小时行为学习、首期实现边界、日志减量、证据保留与上线验收设计 |
 | [真实服务升级集成测试](../src/tools/secweaver-agent/integration/service-upgrade/README.md) | Linux systemd 与 Windows SCM 的 N-1 到 N 失败和自动回滚测试 |
 
 ## 架构与规划

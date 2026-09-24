@@ -30,8 +30,10 @@ examples/sls/security-readonly.yaml      ← 仓库内占位模板，可提交
 
 ### 1. 准备本地环境
 
-使用 Linux/macOS POSIX 终端、Python 3.10+ 和 Make。CLI 初始化需要 Bash 4+，
-以及 `sops`、`age`、`age-keygen`。macOS 已有 Homebrew 时可执行：
+使用 Linux/macOS POSIX 终端或 WSL2、Python 3.10+ 和 Make。Windows 用户须先完成
+[WSL2 快速上手](../../docs_user/00-security-operator-quickstart.zh-CN.md)；原生 Windows
+不是受支持的 Community 凭证客户端环境。CLI 初始化需要 Bash 4+，以及 `sops`、`age`、
+`age-keygen`。macOS 已有 Homebrew 时可执行：
 
 ```bash
 brew install bash sops age

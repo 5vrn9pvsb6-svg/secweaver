@@ -49,6 +49,24 @@ type auditDemuxBinding struct {
 	keys  map[string]bool
 }
 
+// startForSupervisor keeps shared pipes alive while child processes handle their
+// cooperative stop request. Using the module context here would race SIGTERM
+// against pipe EOF and persist a false learning fault during a normal shutdown.
+// The caller must stop these readers only after all module workers have joined;
+// unexpected pipe failures and queue overflow retain their existing EOF behavior.
+func (r *auditDemuxRegistry) startForSupervisor(ctx context.Context) func() {
+	readerCtx, stop := context.WithCancel(context.WithoutCancel(ctx))
+	if r != nil {
+		for _, binding := range r.byModule {
+			if binding.demux != nil {
+				// start's sync.Once deduplicates readers shared by multiple modules.
+				binding.demux.start(readerCtx)
+			}
+		}
+	}
+	return stop
+}
+
 // auditDemux is the single-reader fan-out for one audit log.
 //
 // mu protects subscribers, moduleKeys, backlogs, routes, and subscriber drop

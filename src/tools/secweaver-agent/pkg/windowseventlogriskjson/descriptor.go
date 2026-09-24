@@ -2,6 +2,7 @@ package windowseventlogriskjson
 
 import (
 	"secweaver-agent/internal/modulecontract"
+	"secweaver-agent/internal/windowsevidence"
 	"secweaver-agent/pkg/layout"
 )
 
@@ -12,8 +13,8 @@ func Descriptor() modulecontract.Descriptor {
 		Description: "Windows Event Log risk parser that emits JSON Lines",
 		Platforms:   []string{"windows"},
 		Flags: modulecontract.Flags(
-			[]string{"channels", "output", "evidence-output", "state-file", "lookback", "poll-interval", "max-events", "min-level"},
-			[]string{"once", "raw", "fail-on-query-error", "stats", "version"},
+			[]string{"channels", "output", "evidence-output", "state-file", "lookback", "poll-interval", "max-events", "min-level", "learning-duration", "learning-generation", "learning-state-dir", "learning-output", "learning-event-types", "learning-file-roots"},
+			[]string{"once", "raw", "fail-on-query-error", "stats", "version", "behavior-learning", "learning-shadow"},
 		),
 		OutputPaths: descriptorOutputPaths,
 		Run:         Main,
@@ -36,5 +37,5 @@ func descriptorOutputPaths(args []string) []string {
 	if evidencePath != "" {
 		paths = append(paths, evidencePath)
 	}
-	return paths
+	return windowsevidence.WithLearningOutput(args, evidencePath, paths)
 }

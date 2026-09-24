@@ -35,8 +35,10 @@ Use `dataasset/` directly by default, or optionally copy to `dataasset_my/` for 
 
 ### 1. Prepare the local environment
 
-Use a Linux/macOS POSIX terminal with Python 3.10+ and Make. CLI initialization
-requires Bash 4+, `sops`, `age`, and `age-keygen`. On macOS with Homebrew installed:
+Use a Linux/macOS POSIX terminal or WSL2 with Python 3.10+ and Make. Windows users
+must first complete the [WSL2 quickstart](../../docs_user/00-security-operator-quickstart.md);
+native Windows is not a supported Community credential-client environment. CLI
+initialization requires Bash 4+, `sops`, `age`, and `age-keygen`. On macOS with Homebrew installed:
 
 ```bash
 brew install bash sops age

@@ -1,0 +1,66 @@
+{
+  "asset_id": "asset-sls-host-behavior-summary",
+  "name": "Host behavior learning summaries (sls)",
+  "asset_type": "host_behavior_summary",
+  "domain": "D2",
+  "status": "draft",
+  "connector_id": "conn-sls-host-behavior-summary",
+  "description": "Supplementary coverage and count evidence only; never a substitute for raw host_exec ancestry.",
+  "coverage": {
+    "hosts": []
+  },
+  "schema": {
+    "fields": [
+      "enterprise_id",
+      "time",
+      "host_ip",
+      "host_name",
+      "device_id",
+      "event_type",
+      "source_event_type",
+      "baseline_id",
+      "behavior_fingerprint",
+      "summary_id",
+      "window_start",
+      "window_end",
+      "observed_count",
+      "suppressed_count",
+      "original_emitted_count",
+      "context_reemitted_count",
+      "counter_complete",
+      "source_healthy",
+      "filtering_active",
+      "shadow",
+      "learning_state",
+      "reason",
+      "healthy_seconds",
+      "baseline_entries",
+      "candidate_entries"
+    ],
+    "time_field": "time",
+    "retention_days": 30
+  },
+  "query_template_ids": [
+    "host_behavior_summary_by_host_time"
+  ],
+  "quality": {
+    "required_fields": [
+      "event_type",
+      "device_id",
+      "baseline_id",
+      "summary_id"
+    ],
+    "notes": [
+      "Group counts by source_event_type; legacy summaries without it describe exec. Network/file aggregates are not process-tree edges.",
+      "observed_count = suppressed_count + original_emitted_count only when counter_complete is true.",
+      "context_reemitted_count is separate; do not build PID edges from summaries.",
+      "learning_state and reason describe evidence gaps; missing originals do not imply no execution."
+    ]
+  },
+  "sensitivity": "confidential",
+  "tags": [
+    "secweaver",
+    "behavior-learning",
+    "example"
+  ]
+}

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Set up and verify the credential-free SecWeaver quickstart on any host OS."""
+"""Set up and verify the credential-free SecWeaver quickstart on POSIX or WSL2."""
 
 from __future__ import annotations
 
 import argparse
 import os
+import platform
 import shlex
 import subprocess
 import sys
@@ -26,23 +27,27 @@ class QuickstartError(RuntimeError):
 
 
 def current_platform() -> str:
-    """Return the virtual-environment layout used by the current interpreter."""
+    """Classify native Windows separately because Community clients require WSL2."""
     return "windows" if os.name == "nt" else "posix"
 
 
-def venv_python_path(venv_dir: Path, platform_name: str) -> Path:
-    """Resolve the venv interpreter without relying on shell activation."""
-    if platform_name == "windows":
-        return venv_dir / "Scripts" / "python.exe"
-    if platform_name == "posix":
-        return venv_dir / "bin" / "python"
-    raise ValueError(f"unsupported platform layout: {platform_name}")
+def detect_wsl_version(kernel_release: str | None = None) -> int | None:
+    """Identify WSL1/WSL2 from the Linux kernel release without invoking Windows tools."""
+    release = (kernel_release or platform.release()).lower()
+    if "wsl2" in release or "microsoft-standard" in release:
+        return 2
+    if "microsoft" in release:
+        return 1
+    return None
+
+
+def venv_python_path(venv_dir: Path) -> Path:
+    """Resolve the supported POSIX venv interpreter without shell activation."""
+    return venv_dir / "bin" / "python"
 
 
 def display_command(command: Sequence[str]) -> str:
-    """Render diagnostic output with quoting appropriate for the current OS."""
-    if os.name == "nt":
-        return subprocess.list2cmdline(list(command))
+    """Render diagnostic output for the POSIX shell used by Linux, macOS, and WSL2."""
     return shlex.join(command)
 
 
@@ -57,7 +62,7 @@ def quickstart_commands(
     requirements: Path,
     report_dir: Path,
 ) -> list[list[str]]:
-    """Build the shared POSIX/Windows workflow from platform-neutral Python entrypoints."""
+    """Build the POSIX/WSL2 workflow from shell-independent Python entrypoints."""
     python = str(venv_python)
     return [
         [python, "-m", "pip", "install", "-r", str(requirements)],
@@ -78,28 +83,43 @@ def run_quickstart(
     venv_dir: Path = Path(".venv"),
     report_dir: Path = Path("examples/reports"),
     platform_name: str | None = None,
+    kernel_release: str | None = None,
     runtime_python: Path | None = None,
     runner: CommandRunner = run_command,
 ) -> Path:
-    """Create the venv and run setup steps in the same order on every supported OS.
+    """Create the venv and run setup steps on Linux, macOS, or WSL2.
 
-    An existing directory without this platform's interpreter is rejected instead
-    of mixing POSIX and Windows virtual-environment layouts in one checkout.
+    Native Windows stops before touching the checkout and points users to WSL2. An
+    existing directory without a POSIX interpreter is rejected so a Windows venv
+    cannot be reused accidentally from WSL2.
     """
     if sys.version_info[:2] < MINIMUM_PYTHON:
         actual = ".".join(str(part) for part in sys.version_info[:2])
         raise QuickstartError(f"SecWeaver requires Python 3.10+; found Python {actual}")
 
-    root = repo_root.resolve()
     selected_platform = platform_name or current_platform()
+    if selected_platform != "posix":
+        raise QuickstartError(
+            "SecWeaver Community does not run directly on native Windows. "
+            "Install WSL2 from an elevated Windows terminal with 'wsl --install', "
+            "restart if prompted, then run 'make quickstart' inside the Ubuntu WSL shell."
+        )
+    if detect_wsl_version(kernel_release) == 1:
+        raise QuickstartError(
+            "SecWeaver Community requires WSL2; WSL1 is not supported. "
+            "From an elevated Windows terminal run 'wsl --set-version Ubuntu 2', "
+            "then retry inside Ubuntu."
+        )
+
+    root = repo_root.resolve()
     selected_runtime = (runtime_python or Path(sys.executable)).resolve()
     selected_venv = resolve_repo_path(root, venv_dir)
     selected_reports = resolve_repo_path(root, report_dir)
-    venv_python = venv_python_path(selected_venv, selected_platform)
+    venv_python = venv_python_path(selected_venv)
 
     if selected_venv.exists() and not venv_python.is_file():
         raise QuickstartError(
-            f"{selected_venv} exists but has no {selected_platform} Python interpreter; "
+            f"{selected_venv} exists but has no POSIX Python interpreter; "
             "remove it or choose a different --venv-dir"
         )
     if not venv_python.is_file():
@@ -124,7 +144,7 @@ def run_quickstart(
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Parse the stable quickstart options shared by Make and PowerShell."""
+    """Parse the stable quickstart options used by POSIX and WSL2 environments."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--venv-dir", type=Path, default=Path(".venv"))
     parser.add_argument("--report-dir", type=Path, default=Path("examples/reports"))

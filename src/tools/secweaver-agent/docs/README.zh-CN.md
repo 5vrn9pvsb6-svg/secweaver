@@ -6,6 +6,7 @@
 
 | 任务 | 文档 |
 |---|---|
+| 行为学习、名单与日志减量 | [behavior-learning](behavior-learning.zh-CN.md) |
 | 发布包接入自建 ES | [self-managed-es](self-managed-es.zh-CN.md) |
 | 指标、健康端点与配置重启 | [metrics-and-hot-reload](metrics-and-hot-reload.zh-CN.md) |
 | 运维健康日志与上传边界 | [operations-health-report](operations-health-report.zh-CN.md) |

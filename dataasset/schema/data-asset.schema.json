@@ -22,6 +22,7 @@
         "waf_alert",
         "web_access_log",
         "host_exec",
+        "host_behavior_summary",
         "host_connect",
         "host_file_op",
         "host_persistence",

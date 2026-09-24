@@ -74,9 +74,10 @@ dry-run 本身不能验证证书或凭证是否可用。
 
 ## 2. 初始化本地查询环境
 
-使用 Linux/macOS POSIX 终端或 WSL2，需要 Python 3.10+、Make、SOPS 和 age。在 WSL2 中，
-请把仓库和虚拟环境放在 WSL 文件系统内，不要与原生 Windows 共用 `.venv`。其他环境限制
-见[快速上手](00-security-operator-quickstart.zh-CN.md)。从仓库根目录执行：
+使用 Linux/macOS POSIX 终端或 WSL2，需要 Python 3.10+、Make、SOPS 和 age。Windows
+用户必须先安装 WSL2；原生 Windows 不是受支持的 Community 查询客户端环境。在 WSL2 中，
+请把仓库和虚拟环境放在 WSL 文件系统内。安装与其他环境限制见
+[快速上手](00-security-operator-quickstart.zh-CN.md)。从仓库根目录执行：
 
 ```bash
 make quickstart

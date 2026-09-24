@@ -70,6 +70,8 @@ type auditPressureSettings struct {
 }
 
 type config struct {
+	// Raw decoding isolates invalid learning policy from the core collector.
+	BehaviorLearning      json.RawMessage            `json:"behavior_learning,omitempty"`
 	WhitelistPorts        []int                      `json:"whitelist_ports"`
 	Audit                 auditSettings              `json:"audit"`
 	Exec                  execSettings               `json:"exec"`

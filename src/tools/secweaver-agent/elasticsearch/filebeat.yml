@@ -95,6 +95,22 @@
       "fields": {
         "secweaver_dataset": "secweaver-agent-health"
       }
+    },
+    {
+      "type": "filestream",
+      "id": "secweaver-public-behavior-learning",
+      "enabled": true,
+      "paths": [
+        "/opt/secweaver-agent/logs/behavior-learning.log",
+        "/opt/secweaver-agent/logs/behavior-learning.log.*"
+      ],
+      "prospector.scanner.exclude_files": [
+        "\\.gz$"
+      ],
+      "fields_under_root": true,
+      "fields": {
+        "secweaver_dataset": "behavior-learning"
+      }
     }
   ],
   "processors": [

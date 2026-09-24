@@ -34,7 +34,8 @@ profile data remains shared; it does not import the concrete Skill implementatio
 ## Commands and defaults
 
 Use the existing wrappers from the repository root with Python 3.10+ on Linux,
-macOS or Windows (select your virtual-environment executable where applicable):
+macOS, or WSL2. Windows users run the wrappers inside WSL2; native Windows is not
+a supported Community Skill runtime:
 
 ```bash
 # Registry metadata only; no assessment, Vault decrypt or evidence fetching.

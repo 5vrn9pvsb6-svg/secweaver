@@ -56,6 +56,8 @@ func Main(args []string) int {
 	var failOnQueryError bool
 	var showStats bool
 	var showVersion bool
+	var learning windowsevidence.LearningOptions
+	learning.RegisterFlags(flag.CommandLine)
 
 	flag.StringVar(&channelsCSV, "channels", "Security,Microsoft-Windows-Sysmon/Operational", "comma-separated Windows Event Log channels")
 	flag.StringVar(&outputPath, "output", layout.WindowsLogs+`\windows-process-execmon.log`, "JSON Lines output path; - for stdout")
@@ -88,6 +90,7 @@ func Main(args []string) int {
 	defer closeOut()
 
 	cfg := runConfig{
+		Learning: learning, OutputPath: outputPath,
 		Channels:         channels,
 		StateFile:        stateFile,
 		Lookback:         lookback,
@@ -111,6 +114,8 @@ func Main(args []string) int {
 }
 
 type runConfig struct {
+	Learning         windowsevidence.LearningOptions
+	OutputPath       string
 	Channels         []string
 	StateFile        string
 	Lookback         time.Duration
@@ -121,7 +126,8 @@ type runConfig struct {
 	FailOnQueryError bool
 }
 
-func run(ctx context.Context, cfg runConfig, out io.Writer, st *stats) error {
+// run owns the adapter and closes it on all exits before Main closes the sink.
+func run(ctx context.Context, cfg runConfig, out io.Writer, st *stats) (runErr error) {
 	if cfg.PollInterval <= 0 {
 		cfg.PollInterval = 10 * time.Second
 	}
@@ -129,12 +135,24 @@ func run(ctx context.Context, cfg runConfig, out io.Writer, st *stats) error {
 	if err != nil {
 		return fmt.Errorf("load cursor state: %w", err)
 	}
+	var closeLearning func() error
+	out, closeLearning = windowsevidence.WrapLearning(out, cfg.Learning, cfg.StateFile, cfg.OutputPath, cfg.PollInterval)
+	defer func() {
+		if runErr != nil {
+			windowsevidence.SourceFault(out, "windows_reader_failed")
+		}
+		if err := closeLearning(); runErr == nil {
+			runErr = err
+		}
+	}()
 	seenWithoutRecordID := map[string]bool{}
 	for {
 		beforeCursors := windowseventlog.CloneCursors(cursors)
+		beforeErrors := st.QueryErrors
 		if err := collectOnce(ctx, cfg, out, st, cursors, seenWithoutRecordID); err != nil {
 			return err
 		}
+		windowsevidence.SourcePoll(out, st.QueryErrors == beforeErrors)
 		if !windowseventlog.CursorsEqual(beforeCursors, cursors) {
 			if err := agentoutput.Checkpoint(out); err != nil {
 				return fmt.Errorf("checkpoint Windows evidence output: %w", err)
@@ -157,7 +175,6 @@ func run(ctx context.Context, cfg runConfig, out io.Writer, st *stats) error {
 }
 
 func collectOnce(ctx context.Context, cfg runConfig, out io.Writer, st *stats, cursors map[string]uint64, seenWithoutRecordID map[string]bool) error {
-	enc := json.NewEncoder(out)
 	pageSize := cfg.MaxEvents
 	if pageSize <= 0 {
 		pageSize = 200
@@ -172,7 +189,14 @@ func collectOnce(ctx context.Context, cfg runConfig, out io.Writer, st *stats, c
 			st.Queries++
 			events, err := queryWindowsEventsAscending(ctx, channel, cursors[channel], lookback, cfg.MaxEvents)
 			if err != nil {
+				// Normal service stop cancels wevtutil; retain a clean learning state.
+				if ctx.Err() != nil {
+					return nil
+				}
 				st.QueryErrors++
+				if ctx.Err() == nil {
+					windowsevidence.SourceFault(out, "windows_source_query_failed")
+				}
 				if cfg.FailOnQueryError {
 					return err
 				}
@@ -204,12 +228,11 @@ func collectOnce(ctx context.Context, cfg runConfig, out io.Writer, st *stats, c
 					}
 					continue
 				}
-				for _, item := range windowsevidence.Classify(event, cfg.IncludeRaw) {
-					if err := enc.Encode(item); err != nil {
-						return err
-					}
-					st.EventsWritten++
+				written, err := windowsevidence.WriteSource(out, event, cfg.IncludeRaw)
+				if err != nil {
+					return err
 				}
+				st.EventsWritten += written
 				if recordID > cursors[channel] {
 					cursors[channel] = recordID
 				}

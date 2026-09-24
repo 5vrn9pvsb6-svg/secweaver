@@ -33,6 +33,17 @@ SecWeaver Skill：在数据源满足最低要求后，**跨多源日志还原攻
 
 **不要**在本 Skill 重复 P0/P1 判险 — 消费上游异常点，**只做关联与叙事**。
 
+## 行为学习证据
+
+主机 exec/网络/文件事件含学习标记时，同时查询可用的 host_behavior_summary 资产，限定同一主机和时间窗。
+报告 learning_state、suppressed_count、counter_complete 与缺口；按 summary_id 去重。
+摘要是次数与覆盖证据，不是单次执行，不能用它构建 PID 进程边。
+context_only 是保留原 event_id/时间的补发证据，不增加执行次数。
+过滤期间缺少原始 exec 不代表没有命令执行；摘要覆盖缺失必须明确说明，
+不能以摘要代替 host_exec 的原始证据完整性要求。
+汇总按 source_event_type 分组，旧非空摘要缺少该字段时按 exec 解释；网络/文件摘要不能替代
+原始连接/文件证据，也不能累加到执行次数。任何参与免报的类型缺少原文都不能说明没有活动。
+
 ## 前置条件（硬门禁）
 
 启动前必须检查 `completeness_precheck`：

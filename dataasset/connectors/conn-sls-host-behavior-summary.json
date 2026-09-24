@@ -1,0 +1,19 @@
+{
+  "connector_id": "conn-sls-host-behavior-summary",
+  "name": "Host behavior summary (sls)",
+  "connector_type": "sls",
+  "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "config": {
+    "endpoint": "cn-hangzhou.log.aliyuncs.com",
+    "region": "cn-hangzhou",
+    "project": "YOUR_SLS_PROJECT",
+    "logstore": "host-behavior-summary",
+    "source_log_path": "/opt/secweaver-agent/logs/behavior-learning.log"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72
+  },
+  "description": "Behavior learning aggregate/status stream. Configure and verify ingestion before marking active."
+}

@@ -55,8 +55,8 @@ check-venv-python: $(VENV_PY)
 setup: check-venv-python
 	$(VENV_PY) -m pip install -r requirements-data-access.txt
 
-# The Python orchestrator is shared with native Windows PowerShell so both
-# quickstarts execute the same validation, demos, and adapter setup sequence.
+# The Python orchestrator gives Linux, macOS, and WSL2 the same validation,
+# demos, and adapter setup sequence; native Windows is redirected to WSL2.
 quickstart:
 	$(PYTHON) src/scripts/quickstart.py --venv-dir "$(VENV_DIR)" --report-dir "$(REPORT_DIR)"
 

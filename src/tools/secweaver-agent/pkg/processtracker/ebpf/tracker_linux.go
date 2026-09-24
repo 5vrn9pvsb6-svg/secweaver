@@ -231,13 +231,15 @@ func decodeEvent(raw processLifecycleProcessEvent) processtracker.Event {
 	}
 	args := make([]string, 0, argc)
 	for index := 0; index < argc; index++ {
-		if value := int8String(raw.Args[index][:]); value != "" {
-			args = append(args, value)
-		}
+		// Empty arguments are part of the exact argv contract, not missing data.
+		args = append(args, int8String(raw.Args[index][:]))
 	}
 	return processtracker.Event{
 		Type:          raw.Type,
 		TimestampNS:   raw.TimestampNs,
+		IdentityValid: raw.IdentityValid == 1,
+		EUID:          raw.Euid, EGID: raw.Egid, AUID: raw.Auid,
+		StartBootNS: raw.StartBoottimeNs, ExecutableInode: raw.ExecutableInode, ExecutableDev: raw.ExecutableDev,
 		RootPID:       raw.RootPid,
 		PID:           raw.Pid,
 		PPID:          raw.Ppid,

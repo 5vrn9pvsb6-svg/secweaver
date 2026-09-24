@@ -29,8 +29,8 @@ trace profile 数据继续共享，但不导入具体 Skill 的 Python 实现。
 
 ## 命令与默认值
 
-Linux、macOS、Windows 源码环境使用 Python 3.10+，从仓库根目录运行原兼容入口
-（按平台选择虚拟环境解释器）：
+Linux、macOS 或 WSL2 使用 Python 3.10+，从仓库根目录运行原兼容入口。Windows 用户
+在 WSL2 内运行；原生 Windows 不是受支持的 Community Skill 运行环境：
 
 ```bash
 # 仅资产元数据；不研判、不解密 Vault、不取证据。

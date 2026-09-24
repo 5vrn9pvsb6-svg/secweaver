@@ -37,6 +37,10 @@ func runSupervisor(ctx context.Context, modules []runtimeModule, updater *schedu
 	if err != nil {
 		return err
 	}
+	// All return paths below join module workers before this deferred stop. The
+	// demux must not close their audit pipes before cooperative shutdown completes.
+	stopAuditReaders := auditDemuxes.startForSupervisor(ctx)
+	defer stopAuditReaders()
 	ownedTracker := false
 	if tracker == nil {
 		tracker = newStatusTracker("", enterpriseID, licenseCfg, modules)
@@ -352,6 +356,10 @@ func runModuleProcess(ctx context.Context, module runtimeModule, auditDemuxes *a
 	cmd.Stderr = os.Stderr
 	cmd.Env = withEnvValue(os.Environ(), agentoutput.EnterpriseIDEnv, module.EnterpriseID)
 	cmd.Env = withEnvValue(cmd.Env, agentoutput.DiskPriorityEnv, moduleDiskPriority(module.Spec.Name))
+	// Bind local learning baselines to the enrolled device rather than its IP.
+	if tracker != nil {
+		cmd.Env = withEnvValue(cmd.Env, "SECWEAVER_DEVICE_ID", tracker.operationsSnapshot().DeviceID)
+	}
 	processControl, err := prepareModuleProcessControl(cmd)
 	if err != nil {
 		return err

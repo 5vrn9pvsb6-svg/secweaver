@@ -228,6 +228,7 @@ the mixed global pattern as one asset type.
 | Index pattern | Suggested asset type |
 |---|---|
 | `secweaver-public-agent-exec-*` | `host_exec` |
+| `secweaver-public-agent-behavior-learning-*` | `host_behavior_summary` (aggregate/status only; see [learning guide](../docs/behavior-learning.md)) |
 | `secweaver-public-agent-connect-*` | `host_connect` |
 | `secweaver-public-agent-file-op-*` | `host_file_op` |
 | `secweaver-public-agent-host-persistence-*` | `host_persistence` |

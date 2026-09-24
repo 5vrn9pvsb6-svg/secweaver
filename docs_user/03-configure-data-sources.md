@@ -25,7 +25,10 @@ prerequisites for platform-level WAF logs.
 
 ## Prepare the Asset Directory
 
-Use a Linux/macOS POSIX terminal with Python 3.10+ and Make. Saving query credentials requires SOPS and age; see the [credential guide](../dataasset/credentials/README.md). Run from the repository root:
+Use a Linux/macOS POSIX terminal or WSL2 with Python 3.10+ and Make. Windows users must
+first complete the [WSL2 quickstart](00-security-operator-quickstart.md); native Windows
+is not a supported Community query-client environment. Saving query credentials requires
+SOPS and age; see the [credential guide](../dataasset/credentials/README.md). Run from the repository root:
 
 ```bash
 make quickstart
@@ -323,7 +326,7 @@ See [DataAsset Schemas](../dataasset/schema/) for Host, Network, and field const
 
 ## SSH and local log files: minimal onboarding
 
-Complete the local directory preparation above and keep your selected `DATAASSET_ROOT`. These steps cover `syslog_auth` text authentication logs from a Linux/macOS query client. JSON, Windows events, and other formats need a matching parser. SSH also requires network access, permission to read the target logs, and a read-only account stored as `type: ssh` in the Vault; see the [credential guide](../dataasset/credentials/README.md).
+Complete the local directory preparation above and keep your selected `DATAASSET_ROOT`. These steps cover `syslog_auth` text authentication logs from a Linux/macOS/WSL2 query client. JSON, Windows events, and other formats need a matching parser. SSH also requires network access, permission to read the target logs, and a read-only account stored as `type: ssh` in the Vault; see the [credential guide](../dataasset/credentials/README.md).
 
 Start with the [SSH file templates](../dataasset/onboarding/ssh_file/) or [local file templates](../dataasset/onboarding/local_file/). The commands below copy only to new files, preserving existing configuration. Run the group you need:
 

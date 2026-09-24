@@ -200,6 +200,7 @@ cp -n src/tools/secweaver-agent/elasticsearch/dataasset-source.example.json "${D
 | 索引模式 | 建议资产类型 |
 |---|---|
 | `secweaver-public-agent-exec-*` | `host_exec` |
+| `secweaver-public-agent-behavior-learning-*` | `host_behavior_summary`，仅摘要/状态，见[学习指南](../docs/behavior-learning.zh-CN.md) |
 | `secweaver-public-agent-connect-*` | `host_connect` |
 | `secweaver-public-agent-file-op-*` | `host_file_op` |
 | `secweaver-public-agent-host-persistence-*` | `host_persistence` |

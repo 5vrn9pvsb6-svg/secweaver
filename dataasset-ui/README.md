@@ -115,7 +115,7 @@ The platform supplies enterprise and machine-group identifiers. Proxy AK/SK are 
 
 ## SLS Proxy Project Selection
 
-On Linux/macOS with Python 3.10+, select `sls_proxy` in the onboarding form and fill the authorized `project` and `logstore` pair. Project is optional: empty or omitted uses the server default. Preview the generated Connector before applying; verify `config.project` and `config.logstore`, then test a known event as described in the [SLS Proxy guide](../docs_user/30-sls-proxy-onboarding.md).
+On Linux/macOS or WSL2 with Python 3.10+, select `sls_proxy` in the onboarding form and fill the authorized `project` and `logstore` pair. Windows users must run Studio inside WSL2; native Windows is not a supported Community client environment. Project is optional: empty or omitted uses the server default. Preview the generated Connector before applying; verify `config.project` and `config.logstore`, then test a known event as described in the [SLS Proxy guide](../docs_user/30-sls-proxy-onboarding.md).
 
 Explicit Project selection requires the updated client SDK adapter and Go Proxy 0.6.0-rc.14/schema 10 or later, an operator-configured Project route, and an enterprise resource grant. Client selection cannot create resources or grant access. Keep the Proxy endpoint unchanged; do not add a Project hostname prefix, `region`, or `enterprise_id`. Do not remove Project to bypass an authorization or compatibility error. Direct SLS retains its existing Project behavior.
 

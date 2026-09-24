@@ -1,8 +1,6 @@
 package auditportexecmon
 
 import (
-	"encoding/json"
-
 	"fmt"
 	"io"
 	"net"
@@ -68,6 +66,14 @@ func consumeAuditLineParsed(accs map[string]*auditAccumulator, line string, line
 		}
 	}
 	if recordType == "SYSCALL" {
+		// Preserve the kernel event time for learning instance validation; the
+		// public audit_id remains its compatible serial-only value.
+		if start := strings.Index(line, "msg=audit("); start >= 0 {
+			value := line[start+10:]
+			if end := strings.IndexByte(value, ':'); end > 0 {
+				acc.fields["learning_source_time"] = value[:end]
+			}
+		}
 		acc.seenSyscall = true
 	}
 	if recordType == "CWD" {
@@ -77,6 +83,10 @@ func consumeAuditLineParsed(accs map[string]*auditAccumulator, line string, line
 	}
 	if recordType == "PATH" {
 		if name := lineFields["name"]; name != "" {
+			if name == acc.fields["exe"] {
+				acc.fields["learning_inode"] = lineFields["inode"]
+				acc.fields["learning_dev"] = lineFields["dev"]
+			}
 			item, _ := strconv.Atoi(lineFields["item"])
 			acc.paths[item] = name
 		}
@@ -243,8 +253,25 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	if printRaw {
 		event.RawRecords = acc.records
 	}
-	b, _ := json.Marshal(event)
-	fmt.Fprintln(out, string(b))
+	// Only complete EXECVE argv can qualify for learning. PROCTITLE fallback
+	// remains useful evidence but cannot prove exact argument boundaries.
+	argc, argcErr := strconv.Atoi(acc.fields["argc"])
+	if acc.seenExecve && argcErr == nil && argc > 0 && argc == len(acc.argv) && argc == len(command) {
+		complete := true
+		for index := 0; index < argc; index++ {
+			if _, ok := acc.argv[index]; !ok {
+				complete = false
+				break
+			}
+		}
+		if complete {
+			event.Fields["learning_argv_complete"] = "yes"
+		}
+	}
+	// Tracking above remains unconditional; learning can only reduce output.
+	if err := emitNormalizedEvent(out, event); err != nil {
+		learningFault(out, "original_output_failed")
+	}
 	delete(accs, id)
 	putAccumulator(acc) // P1 Optimization: Return to pool
 	recordAccumulatorCompleted()

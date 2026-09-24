@@ -3,6 +3,7 @@
   "description": "参数化查询模板；AI 仅传 template_id + params，不拼裸 SQL/SLS",
   "default_templates": {
     "sls": {
+      "host_behavior_summary": "host_behavior_summary_by_host_time",
       "waf_alert": "waf_gateway_plugin_by_ip_time",
       "web_access_log": "web_access_by_src_ip_time",
       "host_exec": "host_exec_by_host_time",
@@ -41,6 +42,7 @@
       "waf_alert": "waf_api_search"
     },
     "es": {
+      "host_behavior_summary": "host_behavior_summary_es_by_host_time",
       "waf_alert": "waf_es_by_src_ip_time",
       "web_access_log": "web_access_es_by_src_ip_time",
       "windows_event_log": "windows_event_by_host_time",
@@ -51,6 +53,89 @@
     }
   },
   "templates": {
+  "host_behavior_summary_by_host_time": {
+    "asset_types": [
+      "host_behavior_summary"
+    ],
+    "connector_types": [
+      "sls"
+    ],
+    "params": [
+      "host",
+      "time_start",
+      "time_end",
+      "limit"
+    ],
+    "defaults": {
+      "limit": 5000
+    },
+    "description": "Learning summaries and status; not raw execution evidence.",
+    "sls_query": "(event_type=\"behavior_summary\" or event_type=\"behavior_learning_status\") and (host_ip=\"{host}\" or host_name=\"{host}\")"
+  },
+  "host_behavior_summary_es_by_host_time": {
+    "asset_types": [
+      "host_behavior_summary"
+    ],
+    "connector_types": [
+      "es"
+    ],
+    "params": [
+      "host",
+      "time_start",
+      "time_end",
+      "limit"
+    ],
+    "defaults": {
+      "limit": 5000
+    },
+    "es_query": {
+      "query": {
+        "bool": {
+          "filter": [
+            {
+              "terms": {
+                "event_type": [
+                  "behavior_summary",
+                  "behavior_learning_status"
+                ]
+              }
+            },
+            {
+              "bool": {
+                "should": [
+                  {
+                    "term": {
+                      "host_ip": "{host}"
+                    }
+                  },
+                  {
+                    "term": {
+                      "host_name": "{host}"
+                    }
+                  }
+                ],
+                "minimum_should_match": 1
+              }
+            },
+            {
+              "range": {
+                "time": {
+                  "gte": "{time_start}",
+                  "lte": "{time_end}"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "size": "{limit}",
+      "sort": [
+        {
+          "time": "desc"
+        }
+      ]
+    }
+  },
     "waf_gateway_plugin_by_time": {
       "asset_types": ["waf_alert"],
       "connector_types": ["sls"],

@@ -71,16 +71,28 @@ Python 研判脚本，也不调用确定性规则引擎；智能体直接遵循�
 
 ### 一：Quick Start
 
-先用仓库自带的合成日志体验完整调查流程，无需接入 ES、SLS 或生产凭证。
-在 Linux/macOS 的 POSIX 终端中，准备 Python 3.10+ 和 Make，进入仓库根目录执行：
+先用仓库自带的合成日志体验完整调查流程，无需接入 ES、SLS 或生产凭证。Community
+客户端运行在 Linux/macOS POSIX 环境；Windows 用户统一使用 WSL2，不支持在原生 Windows
+Python 或 PowerShell 中运行客户端。
 
-```bash
-make quickstart
+Windows 尚未安装 WSL2 时，先打开管理员 Windows Terminal 或命令提示符执行：
+
+```text
+wsl --install
 ```
 
-WSL2 使用同一条 POSIX 路径。请在 WSL 发行版内部执行命令，并尽量把仓库放在
-WSL 的 Linux 文件系统中，例如 `~/src/secweaver-community`，不要优先放在
-`/mnt/c/...`：
+系统提示时重启，然后启动已安装的 Ubuntu 并完成首次账号初始化。命令无法完成时，查阅
+[微软 WSL 安装指南](https://learn.microsoft.com/windows/wsl/install)。已有 WSL 时可在 Windows
+侧执行 `wsl --list --verbose`；Ubuntu 显示版本 1 时，执行 `wsl --set-version Ubuntu 2`
+转换后再继续。进入 Ubuntu 后安装依赖：
+
+```bash
+sudo apt update
+sudo apt install -y git make python3 python3-venv python3-pip
+```
+
+尽量把仓库放在 WSL 的 Linux 文件系统中，例如 `~/src/secweaver-community`，不要优先
+放在 `/mnt/c/...`。在 WSL2、Linux 或 macOS 的仓库根目录执行：
 
 ```bash
 python3 --version
@@ -90,27 +102,17 @@ make quickstart
 
 WSL 可以运行 Python 工具、DataAsset、Skill、离线案例和 SLS Proxy 客户端流程，
 运行方式等同于 Linux。它不能替代原生 Windows Agent：Windows Event Log、Security
-4688、Sysmon 和 Windows 服务采集必须在 Windows 主机上运行 Agent。当前没有独立的
-WSL 贡献或发布门禁，公开 CI 仍以 Ubuntu 为基线。
-
-原生 Windows 安装带 `venv`、`pip` 的 Python 3.10+，在仓库根目录打开 Windows
-PowerShell 5.1+ 或 PowerShell 7，执行：
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
-```
+4688、Sysmon 和 Windows 服务采集必须在 Windows 主机上运行 Agent。WSL2 复用由
+Ubuntu 公共 CI 持续验证的 Linux/POSIX 流程；当前没有独立 WSL2 runner，发布门禁仍以
+Ubuntu 为基线。
 
 该命令创建 Python 环境、安装依赖、校验 DataAsset、运行四个离线 demo，并生成
 Codex、Cursor、Claude Code、OpenClaw、WorkBuddy 的本地适配器。适配器统一引用
 `src/skills/`，不复制 Skill 内容。首次安装依赖需要联网；智能体需自行安装并登录。
-两个入口使用同一个跨平台 Python 编排器，都会在安装依赖前检查选定解释器和已有
-`.venv`；任一版本低于 Python 3.10 都会输出处理提示并退出。Windows 启动器依次选择
-`py -3`、`python.exe`，也可通过 `-Python C:\path\to\python.exe` 指定解释器。
-POSIX 与 Windows 不能共用虚拟环境；仓库已有 WSL `.venv` 时，应使用
-`-VenvDir .venv-windows`。
+快速启动会在安装依赖前检查选定解释器和已有 `.venv`；任一版本低于 Python 3.10
+都会输出处理提示并退出。直接在原生 Windows 调用脚本会退出并提示安装 WSL2。
 这里的“四个 demo”是初始化时运行的脚本样例；下方 27 个离线评估案例是供智能体运行的调查任务。
-原生 Windows 快速上手由 `windows-latest` CI 持续验证；完整开发与发布门禁仍以 Ubuntu
-为基线。客户端环境要求不等同于 Agent 的采集平台支持。
+完整开发与发布门禁仍以 Ubuntu 为基线。客户端环境要求不等同于 Agent 的采集平台支持。
 
 ### 二：离线案例
 完成后，在智能体中打开当前仓库，输入：
@@ -199,7 +201,6 @@ Connector 能力目录包含 22 个内置类型、8 个配置型外部类型和 
 | 命令 | 用途 |
 |---|---|
 | `make quickstart` | 初始化环境、离线 demo 和 智能体适配器 |
-| `.\quickstart.ps1` | 在原生 Windows PowerShell 运行同一套快速上手流程 |
 | `make ai-showcase` | 运行全部离线评估案例 |
 | `make ui` | 浏览公开样例配置；真实接入前按指南指定 `DATAASSET_ROOT` |
 | `make validate` | 校验 DataAsset 配置 |

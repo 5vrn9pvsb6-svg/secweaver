@@ -9,18 +9,44 @@
 
 ## 开始前
 
-准备带 `venv`、`pip` 的 Python 3.10+，以及能读取本地仓库、执行命令的智能体。
-Linux/macOS 还需要 Make；原生 Windows 使用 Windows PowerShell 5.1+ 或 PowerShell 7，
-不需要 Make。智能体需要能够读取仓库文件，在 POSIX 执行 `.venv/bin/python`，或在 Windows
-执行 `.venv\Scripts\python.exe`，并写入 `outputs/ai-showcase/`；当前工作目录必须是仓库根目录。
-原生 Windows 快速上手已由公开 CI 验证；完整开发与发布门禁仍以 Ubuntu 为基线。
+准备带 `venv`、`pip` 的 Python 3.10+、Make，以及能读取本地仓库、执行命令的智能体。
+Linux/macOS 使用 POSIX 终端；Windows 用户必须使用 WSL2，Community 客户端不支持原生
+Windows Python 或 PowerShell。智能体需要在同一个 POSIX/WSL2 环境中读取仓库、执行
+`.venv/bin/python`，并写入 `outputs/ai-showcase/`；当前工作目录必须是仓库根目录。
+完整开发与发布门禁仍以 Ubuntu 为基线。
 十分钟是依赖和智能体就绪后的体验时间，首次环境准备另计。
 
 ## 1. 初始化
 
 先下载并解压项目，或克隆仓库。在终端进入包含 `README.zh-CN.md`、`Makefile` 和 `src/` 的那一层目录，不要进入 `docs_user/`。
 
-Linux/macOS 先检查工具并初始化：
+### Windows：先安装 WSL2
+
+Windows 尚未安装 WSL2 时，打开管理员 Windows Terminal 或命令提示符执行：
+
+```text
+wsl --install
+```
+
+系统提示时重启，然后启动 Ubuntu 并完成首次账号初始化。WSL 已存在但没有 Ubuntu 时，
+执行 `wsl --install -d Ubuntu`。在 Windows 侧执行 `wsl --list --verbose` 检查发行版版本；
+Ubuntu 显示版本 1 时，先执行 `wsl --set-version Ubuntu 2`。旧版 Windows 或安装失败时查阅
+[微软 WSL 安装指南](https://learn.microsoft.com/windows/wsl/install)。下面的 SecWeaver
+命令都在 Ubuntu 内执行，不在原生 Windows shell 中执行。
+
+进入 Ubuntu 后安装依赖：
+
+```bash
+sudo apt update
+sudo apt install -y git make python3 python3-venv python3-pip
+```
+
+尽量把仓库放在 WSL 文件系统中，例如 `~/src/secweaver-community`，不要优先放在
+`/mnt/c/...`。
+
+### Linux、macOS 或 WSL2
+
+从仓库根目录检查工具并初始化：
 
 ```bash
 python3 --version
@@ -33,39 +59,15 @@ Python 应为 3.10 或更高版本，Make 应能显示版本。若提示找不�
 make quickstart
 ```
 
-### WSL2
-
-WSL2 按上面的 Linux/POSIX 步骤执行。请在 WSL 发行版内部运行命令，尽量把仓库放在
-WSL 的 Linux 文件系统中，例如 `~/src/secweaver-community`，并使用 WSL 内创建的虚拟环境：
-
-```bash
-cd ~/src/secweaver-community
-python3 --version
-make --version
-make quickstart
-.venv/bin/python src/scripts/run_ai_showcase.py --all
-```
-
 这会在 WSL Linux 用户空间中验证 Python 客户端、DataAsset、Skill、离线案例和
-SLS Proxy 客户端流程，但不会采集 Windows 宿主机的 Event Log、Security 4688、
-Sysmon 或 Windows 服务数据。需要这些数据时，应在原生 Windows 主机上安装并运行
-Windows Agent。WSL 当前没有独立的公开 CI 目标，贡献和发布基线仍是 Ubuntu 检查。
-
-原生 Windows 在同一目录打开 PowerShell，执行：
-
-```powershell
-py -3 --version
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
-```
-
-没有 `py` 启动器时，脚本会继续尝试 `python.exe`；也可使用
-`-Python C:\path\to\python.exe` 指定解释器。如果仓库里已有 WSL/Linux 创建的
-`.venv`，应增加 `-VenvDir .venv-windows`，因为不同操作系统不能共用虚拟环境。
+SLS Proxy 客户端流程，但不会采集 Windows 宿主机的 Event Log、Security 4688、Sysmon
+或 Windows 服务数据。需要这些数据时，应在原生 Windows 主机上安装并运行 Windows
+Agent。WSL2 复用由 Ubuntu 公共 CI 持续验证的 Linux/POSIX 流程；当前没有独立 WSL2 runner。
 
 成功后会创建 `.venv`、校验 DataAsset、运行四个离线 demo，并生成五种智能体的薄适配器。
 适配器只引用 `src/skills/`，不复制 Skill。不要把“适配器生成成功”当成 AI 已完成分析。
-安装依赖前，两个入口都会检查选定解释器和已有虚拟环境；任一版本低于 Python 3.10，
-初始化都会输出处理提示并退出。
+安装依赖前，启动器会检查选定解释器和已有虚拟环境；任一版本低于 Python 3.10，
+初始化都会输出处理提示并退出。直接在原生 Windows 调用会退出并提示安装 WSL2。
 终端出现 `SecWeaver quickstart completed.` 表示初始化完成。接着在智能体中打开同一个项目目录，执行第 2 步。
 
 ## 2. 在智能体中运行案例
@@ -128,9 +130,6 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\quickstart.ps1
 make ai-showcase
 ```
 
-Windows PowerShell 改为运行
-`.venv\Scripts\python.exe src\scripts\run_ai_showcase.py --all`。
-
 该命令默认生成 JSON、逐例可读 Markdown 和可读汇总。全部当前案例及明确选例方式见
 [离线 AI Showcase](../examples/ai-showcase/README.zh-CN.md)。
 
@@ -139,14 +138,17 @@ Windows PowerShell 改为运行
 | 现象 | 下一步 |
 |---|---|
 | `make` 提示找不到 Makefile 或 quickstart 目标 | 回到包含 `Makefile` 的项目根目录 |
-| PowerShell 禁止运行 `quickstart.ps1` | 使用文档中的 `powershell.exe -ExecutionPolicy Bypass -File .\quickstart.ps1`；该设置只作用于当前进程 |
-| quickstart 提示 Python 低于 3.10 后退出 | 删除旧 `.venv`，安装 Python 3.10+，再运行对应平台的快速上手命令 |
-| `.venv` 来自 WSL/Linux 或其他系统 | 删除该目录，或运行 `.\quickstart.ps1 -VenvDir .venv-windows` |
+| Windows 没有 WSL2 | 在管理员 Windows Terminal 或命令提示符执行 `wsl --install`，重启后启动 Ubuntu |
+| WSL 已存在但没有 Ubuntu | 执行 `wsl --install -d Ubuntu`，启动 Ubuntu 并完成首次初始化 |
+| Ubuntu 使用 WSL1 | 在 Windows 侧执行 `wsl --set-version Ubuntu 2`，完成后回到 Ubuntu 重试 |
+| quickstart 提示不支持原生 Windows | 在 Ubuntu WSL2 shell 中运行，不要在原生 Windows shell 中运行 |
+| quickstart 提示 Python 低于 3.10 后退出 | 删除旧 `.venv`，安装 Python 3.10+，再执行 `make quickstart` |
+| 仓库位于 `/mnt/c/...` 且命令较慢 | 在 WSL 内把仓库克隆或移动到 `~/src/secweaver-community` |
 | 报告中的主机显示为 IP | 对照样例映射：web-01=`10.0.1.5`，db-01=`10.0.2.10`，app-02=`10.0.2.20` |
-| 依赖安装失败 | 检查 Python 版本和包下载网络，再运行对应平台的快速上手命令 |
+| 依赖安装失败 | 检查 Python 版本和包下载网络，再执行 `make quickstart` |
 | 适配器提示拒绝覆盖 | 备份或手动合并已有智能体配置，不删除用户自己的规则 |
 | 智能体找不到案例文件 | 确认智能体打开的是仓库根目录，并允许本地读取和命令执行 |
-| 脚本缺依赖 | 使用快速上手入口；直接调用时按系统选择 `.venv/bin/python` 或 `.venv\Scripts\python.exe` |
+| 脚本缺依赖 | 使用快速上手入口；直接调用时使用 `.venv/bin/python` |
 | AI 只复述 JSON | 任务尚未完成；智能体应自动遵循对应 Skill 补齐报告，无须用户重复提出报告要求 |
 
 ## 可选：接真实数据

@@ -81,10 +81,11 @@ After configuration, run the dry-run and live checks in §5, followed by `catalo
 
 ## 2. Prepare the Local Query Environment
 
-Use a Linux/macOS POSIX terminal or WSL2 with Python 3.10+, Make, SOPS, and age. In WSL2,
-keep the checkout and virtual environment inside the WSL filesystem; do not share the
-WSL `.venv` with native Windows. See the [quickstart](00-security-operator-quickstart.md)
-for environment limits. Run from the repository root:
+Use a Linux/macOS POSIX terminal or WSL2 with Python 3.10+, Make, SOPS, and age. Windows
+users must install WSL2 first; native Windows is not a supported Community query-client
+environment. In WSL2, keep the checkout and virtual environment inside the WSL filesystem.
+See the [quickstart](00-security-operator-quickstart.md) for installation and environment
+limits. Run from the repository root:
 
 ```bash
 make quickstart

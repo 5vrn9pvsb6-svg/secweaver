@@ -109,6 +109,15 @@ SecWeaver Skill：在**溯源调查 / 告警深度确认**前，评估已注册�
 | D6 | 资产配置（CMDB、漏洞） |
 | D7 | 应用业务日志 |
 
+## 行为学习覆盖
+
+host_behavior_summary 仅补充覆盖证据，不能替代 host_exec。
+对启用学习减量的主机，应查询同窗摘要/状态，报告 learning_state、suppressed_count、
+counter_complete 与缺失时段。过滤期间缺少原始执行日志不能说明没有执行。
+不得从摘要构造 PID 关联；context_only 补发保留原 event_id，统计时不能重复计数。
+按 source_event_type 分别统计（旧非空摘要默认 exec），网络/文件免报缺口需记在各自证据类型，
+不能算作 host_exec 覆盖；摘要计数不能替代 host_connect/host_file_op 原文或证明没有相关活动。
+
 ## 整体结论
 
 | overall_verdict | 含义 | next_skill |

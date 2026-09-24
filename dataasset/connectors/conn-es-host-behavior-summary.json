@@ -1,0 +1,17 @@
+{
+  "connector_id": "conn-es-host-behavior-summary",
+  "name": "Host behavior summary (es)",
+  "connector_type": "es",
+  "status": "draft",
+  "credentials_ref": "vault://es/security-readonly",
+  "config": {
+    "url": "https://es.example.com:9200",
+    "index": "secweaver-public-agent-behavior-learning-*",
+    "time_field": "time"
+  },
+  "constraints": {
+    "max_rows": 5000,
+    "max_time_span_hours": 72
+  },
+  "description": "Behavior learning aggregate/status stream. Configure and verify ingestion before marking active."
+}

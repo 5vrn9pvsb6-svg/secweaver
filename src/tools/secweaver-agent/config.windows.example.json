@@ -71,7 +71,12 @@
         "-evidence-output",
         "C:\\ProgramData\\SecWeaver\\Agent\\logs\\windows-process-execmon.log",
         "-min-level",
-        "medium"
+        "medium",
+        "-behavior-learning",
+        "-learning-event-types",
+        "exec,active_connect,file_op",
+        "-learning-file-roots",
+        "C:\\ProgramData"
       ]
     },
     "windows-process-execmon": {
@@ -83,6 +88,11 @@
         "Security,Microsoft-Windows-Sysmon/Operational",
         "-poll-interval",
         "5m",
+        "-behavior-learning",
+        "-learning-event-types",
+        "exec,active_connect,file_op",
+        "-learning-file-roots",
+        "C:\\ProgramData",
         "-output",
         "C:\\ProgramData\\SecWeaver\\Agent\\logs\\windows-process-execmon.log"
       ]

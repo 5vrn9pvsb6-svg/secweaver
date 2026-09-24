@@ -1,4 +1,4 @@
-"""Regression tests for the cross-platform quickstart orchestration."""
+"""Regression tests for the POSIX/WSL2 quickstart orchestration."""
 
 from __future__ import annotations
 
@@ -28,6 +28,9 @@ quickstart = load_quickstart()
 
 
 class QuickstartTests(unittest.TestCase):
+    def test_native_powershell_launcher_is_not_published(self) -> None:
+        self.assertFalse((REPO_ROOT / "quickstart.ps1").exists())
+
     def test_version_probe_accepts_the_supported_test_interpreter(self) -> None:
         result = subprocess.run(
             [sys.executable, "-c", quickstart.VENV_VERSION_CHECK],
@@ -35,31 +38,19 @@ class QuickstartTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0)
 
-    def test_powershell_launcher_delegates_without_string_evaluation(self) -> None:
-        launcher = (REPO_ROOT / "quickstart.ps1").read_text(encoding="utf-8")
-        self.assertIn("src/scripts/quickstart.py", launcher)
-        self.assertIn("@Arguments", launcher)
-        self.assertNotIn("Invoke-Expression", launcher)
-
-    def test_virtual_environment_interpreter_matches_platform(self) -> None:
+    def test_virtual_environment_uses_posix_layout(self) -> None:
         root = Path("checkout/.venv")
         self.assertEqual(
-            quickstart.venv_python_path(root, "windows"),
-            root / "Scripts/python.exe",
-        )
-        self.assertEqual(
-            quickstart.venv_python_path(root, "posix"),
+            quickstart.venv_python_path(root),
             root / "bin/python",
         )
 
-    def test_existing_other_platform_venv_is_rejected_before_commands(self) -> None:
+    def test_native_windows_is_rejected_with_wsl_install_guidance(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / ".venv/bin").mkdir(parents=True)
-            (root / ".venv/bin/python").touch()
             commands: list[list[str]] = []
 
-            with self.assertRaisesRegex(quickstart.QuickstartError, "no windows Python"):
+            with self.assertRaisesRegex(quickstart.QuickstartError, "wsl --install"):
                 quickstart.run_quickstart(
                     repo_root=root,
                     platform_name="windows",
@@ -67,7 +58,41 @@ class QuickstartTests(unittest.TestCase):
                 )
             self.assertEqual(commands, [])
 
-    def test_new_windows_venv_runs_the_complete_shared_workflow(self) -> None:
+    def test_wsl1_is_rejected_with_conversion_guidance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            commands: list[list[str]] = []
+
+            with self.assertRaisesRegex(quickstart.QuickstartError, "set-version Ubuntu 2"):
+                quickstart.run_quickstart(
+                    repo_root=Path(directory),
+                    platform_name="posix",
+                    kernel_release="4.4.0-19041-Microsoft",
+                    runner=lambda command, _cwd: commands.append(list(command)),
+                )
+            self.assertEqual(commands, [])
+
+    def test_wsl2_kernel_is_supported(self) -> None:
+        self.assertEqual(
+            quickstart.detect_wsl_version("5.15.153.1-microsoft-standard-WSL2"),
+            2,
+        )
+
+    def test_existing_windows_venv_is_rejected_on_posix(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / ".venv/Scripts").mkdir(parents=True)
+            (root / ".venv/Scripts/python.exe").touch()
+            commands: list[list[str]] = []
+
+            with self.assertRaisesRegex(quickstart.QuickstartError, "no POSIX Python"):
+                quickstart.run_quickstart(
+                    repo_root=root,
+                    platform_name="posix",
+                    runner=lambda command, _cwd: commands.append(list(command)),
+                )
+            self.assertEqual(commands, [])
+
+    def test_new_posix_venv_runs_the_complete_workflow(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "requirements-data-access.txt").touch()
@@ -78,18 +103,18 @@ class QuickstartTests(unittest.TestCase):
                 recorded = list(command)
                 commands.append(recorded)
                 if recorded[1:3] == ["-m", "venv"]:
-                    interpreter = root / ".venv/Scripts/python.exe"
+                    interpreter = root / ".venv/bin/python"
                     interpreter.parent.mkdir(parents=True)
                     interpreter.touch()
 
             result = quickstart.run_quickstart(
                 repo_root=root,
-                platform_name="windows",
+                platform_name="posix",
                 runtime_python=Path(sys.executable),
                 runner=fake_runner,
             )
 
-            self.assertEqual(result, root.resolve() / ".venv/Scripts/python.exe")
+            self.assertEqual(result, root.resolve() / ".venv/bin/python")
             self.assertEqual(commands[0][1:3], ["-m", "venv"])
             self.assertEqual(commands[2][1:4], ["-m", "pip", "install"])
             self.assertEqual(commands[3][1:], ["src/secweaver.py", "validate"])

@@ -127,11 +127,11 @@ class AgentElasticsearchTests(unittest.TestCase):
         # JSON is a YAML subset; parse without adding a runtime YAML dependency.
         config = json.loads((INTEGRATION / "filebeat.yml").read_text())
         inputs = config["filebeat.inputs"]
-        self.assertEqual(len(inputs), 6)
-        self.assertEqual(len({entry["id"] for entry in inputs}), 6)
+        self.assertEqual(len(inputs), 7)
+        self.assertEqual(len({entry["id"] for entry in inputs}), 7)
         sources = ROOT / "src/tools/secweaver-agent"
         agent = json.loads((sources / "config.example.json").read_text())
-        expected = {agent["operations_report"]["output"]}
+        expected = {agent["operations_report"]["output"], "/opt/secweaver-agent/logs/behavior-learning.log"}
         for module in ("syslog-risk-json", "host-process-snapshot", "host-state-snapshot"):
             args = agent["modules"][module]["args"]
             expected.add(args[args.index("-output") + 1])
@@ -151,6 +151,17 @@ class AgentElasticsearchTests(unittest.TestCase):
         self.assertIn("host", config["processors"][0]["drop_fields"]["fields"])
         self.assertTrue(config["processors"][1]["decode_json_fields"]["overwrite_keys"])
         self.assertEqual(es.template(1)["template"]["mappings"]["properties"]["host"]["type"], "keyword")
+
+    def test_behavior_summary_mappings_are_typed(self):
+        # Aggregates must remain separate from raw process evidence and support
+        # numeric count queries rather than dynamically mapped text fields.
+        fields = es.template(1)["template"]["mappings"]["properties"]
+        for name in ("baseline_id", "behavior_fingerprint", "summary_id", "source_event_type"):
+            self.assertEqual(fields[name]["type"], "keyword")
+        for name in ("observed_count", "suppressed_count", "original_emitted_count"):
+            self.assertEqual(fields[name]["type"], "long")
+        for name in ("counter_complete", "source_healthy", "filtering_active", "shadow"):
+            self.assertEqual(fields[name]["type"], "boolean")
 
     def test_installer_shell_syntax(self):
         subprocess.run(["bash", "-n", str(INTEGRATION / "install-agent.sh")], check=True)

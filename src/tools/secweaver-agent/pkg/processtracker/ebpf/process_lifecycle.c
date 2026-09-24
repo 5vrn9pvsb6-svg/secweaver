@@ -41,12 +41,36 @@ static long (*bpf_probe_read_kernel_str)(void *dst, __u32 size, const void *unsa
 
 // Minimal CO-RE flavor of task_struct. preserve_access_index lets the loader
 // relocate tgid even when a distribution kernel lays task_struct out differently.
+struct kuid_t {
+	__u32 val;
+} __attribute__((preserve_access_index));
+struct kgid_t {
+	__u32 val;
+} __attribute__((preserve_access_index));
+struct cred {
+	struct kuid_t uid, euid;
+	struct kgid_t gid, egid;
+} __attribute__((preserve_access_index));
+struct super_block {
+	__u32 s_dev;
+} __attribute__((preserve_access_index));
+struct inode {
+	unsigned long i_ino;
+	struct super_block *i_sb;
+} __attribute__((preserve_access_index));
+struct file {
+	struct inode *f_inode;
+} __attribute__((preserve_access_index));
 struct task_struct {
 	int tgid;
+	const struct cred *cred;
+	struct kuid_t loginuid;
+	__u64 start_boottime;
 } __attribute__((preserve_access_index));
 
 struct linux_binprm {
 	const char *filename;
+	struct file *file;
 } __attribute__((preserve_access_index));
 
 struct bpf_raw_tracepoint_args {
@@ -86,6 +110,16 @@ struct process_event {
 	__u32 argc;
 	__u32 flags;
 	__u64 timestamp_ns;
+	// Successful exec identity is captured in-kernel, not guessed from a later
+	// /proc snapshot. identity_valid marks all required reads as successful.
+	__u64 start_boottime_ns;
+	__u64 executable_inode;
+	__u32 executable_dev;
+	__u32 euid;
+	__u32 egid;
+	__u32 identity_valid;
+	__u32 auid;
+	__u32 identity_padding;
 	char comm[COMM_SIZE];
 	char filename[FILENAME_SIZE];
 	char args[MAX_ARGS][ARG_SIZE];
@@ -138,9 +172,10 @@ static __always_inline struct process_event *new_event(__u32 type, const struct 
 	event->ppid = ppid;
 	event->argc = 0;
 	event->flags = 0;
-	event->timestamp_ns = bpf_ktime_get_ns();
-	event->filename[0] = 0;
-	return event;
+ event->identity_valid = 0;
+ event->timestamp_ns = bpf_ktime_get_ns();
+ event->filename[0] = 0;
+ return event;
 }
 
 SEC("raw_tracepoint/sched_process_fork")
@@ -249,6 +284,48 @@ int handle_execveat_exit(struct syscall_exit_ctx *ctx)
 	return handle_exec_failure(ctx);
 }
 
+// capture_exec_identity is best-effort. Field existence guards retain support
+// for vendor kernels without start_boottime; such events remain full-output.
+static __always_inline void capture_exec_identity(struct process_event *event, struct task_struct *task,
+						  struct linux_binprm *bprm)
+{
+	const struct cred *cred = 0;
+	struct file *file = 0;
+	struct inode *inode = 0;
+	struct super_block *sb = 0;
+	event->identity_valid = 0;
+	if (!bprm || !__builtin_preserve_field_info(task->start_boottime, 2) ||
+	    !__builtin_preserve_field_info(task->loginuid, 2))
+		return;
+	if (bpf_probe_read_kernel(&cred, sizeof(cred), __builtin_preserve_access_index(&task->cred)) || !cred)
+		return;
+	if (bpf_probe_read_kernel(&event->auid, sizeof(event->auid),
+				  __builtin_preserve_access_index(&task->loginuid.val)) ||
+	    bpf_probe_read_kernel(&event->uid, sizeof(event->uid),
+				  __builtin_preserve_access_index(&cred->uid.val)) ||
+	    bpf_probe_read_kernel(&event->euid, sizeof(event->euid),
+				  __builtin_preserve_access_index(&cred->euid.val)) ||
+	    bpf_probe_read_kernel(&event->gid, sizeof(event->gid),
+				  __builtin_preserve_access_index(&cred->gid.val)) ||
+	    bpf_probe_read_kernel(&event->egid, sizeof(event->egid),
+				  __builtin_preserve_access_index(&cred->egid.val)) ||
+	    bpf_probe_read_kernel(&event->start_boottime_ns, sizeof(event->start_boottime_ns),
+				  __builtin_preserve_access_index(&task->start_boottime)))
+		return;
+	if (bpf_probe_read_kernel(&file, sizeof(file), __builtin_preserve_access_index(&bprm->file)) ||
+	    !file ||
+	    bpf_probe_read_kernel(&inode, sizeof(inode), __builtin_preserve_access_index(&file->f_inode)) ||
+	    !inode || bpf_probe_read_kernel(&sb, sizeof(sb), __builtin_preserve_access_index(&inode->i_sb)) ||
+	    !sb)
+		return;
+	if (bpf_probe_read_kernel(&event->executable_inode, sizeof(event->executable_inode),
+				  __builtin_preserve_access_index(&inode->i_ino)) ||
+	    bpf_probe_read_kernel(&event->executable_dev, sizeof(event->executable_dev),
+				  __builtin_preserve_access_index(&sb->s_dev)))
+		return;
+	event->identity_valid = 1;
+}
+
 SEC("raw_tracepoint/sched_process_exec")
 int handle_process_exec(struct bpf_raw_tracepoint_args *ctx)
 {
@@ -280,6 +357,7 @@ int handle_process_exec(struct bpf_raw_tracepoint_args *ctx)
 		}
 	}
 	event->timestamp_ns = bpf_ktime_get_ns();
+	capture_exec_identity(event, task, bprm);
 	bpf_get_current_comm(event->comm, sizeof(event->comm));
 	bpf_perf_event_output(ctx, &process_events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 	bpf_map_delete_elem(&pending_execs, &tgid);

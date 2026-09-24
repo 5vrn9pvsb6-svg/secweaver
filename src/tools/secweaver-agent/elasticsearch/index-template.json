@@ -183,36 +183,97 @@
             }
           }
         },
-        "persistence_type": {"type": "keyword"},
-        "category": {"type": "keyword"},
-        "file_type": {"type": "keyword"},
-        "hash": {"type": "keyword"},
-        "previous_hash": {"type": "keyword"},
-        "mode": {"type": "keyword"},
-        "actor_source": {"type": "keyword"},
-        "protocol": {"type": "keyword"},
-        "listen_address": {"type": "keyword"},
-        "listen_port": {"type": "keyword"},
-        "listener_process": {"type": "keyword"},
-        "listener_pid": {"type": "keyword"},
-        "cwd": {"type": "keyword", "ignore_above": 4096},
-        "program": {"type": "keyword"},
-        "parser_version": {"type": "keyword"},
-        "service_name": {"type": "keyword"},
-        "task_name": {"type": "keyword"},
-        "module_name": {"type": "keyword"},
-        "container_runtime": {"type": "keyword"},
-        "kernel_release": {"type": "keyword"},
-        "state": {"type": "keyword"},
-        "start_mode": {"type": "keyword"},
-        "gid": {"type": "keyword"},
-        "sid": {"type": "keyword"},
-        "groups": {"type": "keyword"},
-        "command_hash": {"type": "keyword"},
-        "change_fields": {"type": "keyword"},
-        "start_time": {"type": "date"},
-        "rss_bytes": {"type": "long"},
-        "thread_count": {"type": "integer"},
+        "persistence_type": {
+          "type": "keyword"
+        },
+        "category": {
+          "type": "keyword"
+        },
+        "file_type": {
+          "type": "keyword"
+        },
+        "hash": {
+          "type": "keyword"
+        },
+        "previous_hash": {
+          "type": "keyword"
+        },
+        "mode": {
+          "type": "keyword"
+        },
+        "actor_source": {
+          "type": "keyword"
+        },
+        "protocol": {
+          "type": "keyword"
+        },
+        "listen_address": {
+          "type": "keyword"
+        },
+        "listen_port": {
+          "type": "keyword"
+        },
+        "listener_process": {
+          "type": "keyword"
+        },
+        "listener_pid": {
+          "type": "keyword"
+        },
+        "cwd": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "program": {
+          "type": "keyword"
+        },
+        "parser_version": {
+          "type": "keyword"
+        },
+        "service_name": {
+          "type": "keyword"
+        },
+        "task_name": {
+          "type": "keyword"
+        },
+        "module_name": {
+          "type": "keyword"
+        },
+        "container_runtime": {
+          "type": "keyword"
+        },
+        "kernel_release": {
+          "type": "keyword"
+        },
+        "state": {
+          "type": "keyword"
+        },
+        "start_mode": {
+          "type": "keyword"
+        },
+        "gid": {
+          "type": "keyword"
+        },
+        "sid": {
+          "type": "keyword"
+        },
+        "groups": {
+          "type": "keyword"
+        },
+        "command_hash": {
+          "type": "keyword"
+        },
+        "change_fields": {
+          "type": "keyword"
+        },
+        "start_time": {
+          "type": "date"
+        },
+        "rss_bytes": {
+          "type": "long"
+        },
+        "thread_count": {
+          "type": "integer"
+        },
         "command_line": {
           "type": "text",
           "fields": {
@@ -230,6 +291,83 @@
               "ignore_above": 8192
             }
           }
+        },
+        "baseline_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "behavior_fingerprint": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "source_event_type": { "type": "keyword" },
+        "summary_id": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "learning_state": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "learning_decision": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "decision_reason": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "reason": {
+          "type": "keyword",
+          "ignore_above": 4096
+        },
+        "observed_count": {
+          "type": "long"
+        },
+        "suppressed_count": {
+          "type": "long"
+        },
+        "original_emitted_count": {
+          "type": "long"
+        },
+        "context_reemitted_count": {
+          "type": "long"
+        },
+        "baseline_entries": {
+          "type": "long"
+        },
+        "candidate_entries": {
+          "type": "long"
+        },
+        "fingerprint_version": {
+          "type": "long"
+        },
+        "context_only": {
+          "type": "boolean"
+        },
+        "counter_complete": {
+          "type": "boolean"
+        },
+        "source_healthy": {
+          "type": "boolean"
+        },
+        "filtering_active": {
+          "type": "boolean"
+        },
+        "shadow": {
+          "type": "boolean"
+        },
+        "ancestry_context_missing": {
+          "type": "boolean"
+        },
+        "healthy_seconds": {
+          "type": "double"
+        },
+        "window_start": {
+          "type": "date"
+        },
+        "window_end": {
+          "type": "date"
         }
       }
     }
