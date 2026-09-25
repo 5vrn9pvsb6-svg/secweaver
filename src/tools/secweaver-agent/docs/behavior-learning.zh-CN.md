@@ -107,7 +107,9 @@ Windows 状态使用 SYSTEM/Administrators 受保护继承 ACL、独占句柄锁
 后降级，不能据此承诺精确一次计数。
 正常停止也先刷盘两个输出再标记状态为正常退出；最终刷盘失败会持久化降级状态。
 
-需要给 Filebeat/ES Shipper 或 Logtail 增加 Windows 摘要文件，接入独立的
+Windows SaaS 0.3.50 受管安装要求签名采集清单包含摘要文件，缺失规则时安装失败，
+见 [Windows 采集就绪](windows-installation.zh-CN.md#windows-sls-采集就绪)。
+外部输送模式需要给 Filebeat/ES Shipper 或 Logtail 增加 Windows 摘要文件，接入独立的
 `host_behavior_summary`，云端 Logstore 可命名为 `host-behavior-summary`，不能混作 `host_exec`。
 Linux 路径样例不会自动完成 Windows 上传。验收应先开 shadow，对照本地及云端
 `behavior_learning_status`，并核对命令/哈希变化、PowerShell、交互和 4688 原文均保留。

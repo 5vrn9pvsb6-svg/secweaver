@@ -92,12 +92,26 @@ func collectDoctorReport(configPath string, checkLicense bool) doctorReport {
 
 	cfg, modules, updater, configOK := doctorCheckConfig(configPath, add)
 	if configOK {
+		mode := cfg.DeploymentMode
+		if mode == "" {
+			mode = "unspecified (legacy/standalone)"
+		}
+		add(doctorOK, "deployment_mode", "Agent installation channel", mode)
 		preflight := collectPreflightReport(configPath, modules, updater)
 		for _, check := range preflight.Checks {
 			add(doctorLevel(check.Level), "preflight/"+check.Component, check.Message, check.Detail)
 		}
+		if runtime.GOOS == "windows" {
+			sysmon := false
+			for _, check := range preflight.Checks {
+				if check.Component == "windows-channel/Microsoft-Windows-Sysmon/Operational" && check.Level == preflightOK {
+					sysmon = true
+				}
+			}
+			doctorCheckWindowsLearning(cfg, modules, sysmon, add)
+		}
 		doctorCheckService(add)
-		doctorCheckSLSIdentity(cfg, add)
+		doctorCheckSLSIdentity(cfg, configPath, add)
 		doctorCheckStatusFile(cfg, add)
 		doctorCheckRecentLogs(modules, add)
 		if checkLicense {
@@ -161,13 +175,13 @@ func doctorCheckService(add func(doctorLevel, string, string, string)) {
 		}
 		add(doctorError, "service", "secweaver-agent.service is not active", stateOrError(state, err))
 	case "windows":
-		out, err := commandOutput(5*time.Second, "sc.exe", "query", "secweaver-agent")
+		out, err := commandOutput(5*time.Second, "sc.exe", "query", layout.WindowsServiceName)
 		text := strings.TrimSpace(string(out))
 		if err == nil && strings.Contains(strings.ToUpper(text), "RUNNING") {
-			add(doctorOK, "service", "secweaver-agent Windows service is running", firstNonEmptyLine(text))
+			add(doctorOK, "service", layout.WindowsServiceName+" Windows service is running", firstNonEmptyLine(text))
 			return
 		}
-		add(doctorError, "service", "secweaver-agent Windows service is not running", stateOrError(firstNonEmptyLine(text), err))
+		add(doctorError, "service", layout.WindowsServiceName+" Windows service is not running", stateOrError(firstNonEmptyLine(text), err))
 	default:
 		add(doctorWarn, "service", "service check is unsupported on this platform", runtime.GOOS)
 	}

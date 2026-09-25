@@ -22,15 +22,16 @@ type moduleDescriptor = modulecontract.Descriptor
 type moduleSpec = moduleDescriptor
 
 type agentConfig struct {
-	EnterpriseID string                       `json:"enterprise_id"`
-	StatusPath   string                       `json:"status_path,omitempty"`
-	Operations   operationsReportConfig       `json:"operations_report,omitempty"`
-	License      agentlicense.Config          `json:"license,omitempty"`
-	RemoteConfig remoteConfigConfig           `json:"remote_config,omitempty"`
-	Modules      map[string]moduleConfig      `json:"modules"`
-	Update       updateConfig                 `json:"update,omitempty"`
-	Metrics      metricsConfig                `json:"metrics,omitempty"`
-	DiskBudget   agentoutput.DiskBudgetConfig `json:"disk_budget,omitempty"`
+	DeploymentMode string                       `json:"deployment_mode,omitempty"`
+	EnterpriseID   string                       `json:"enterprise_id"`
+	StatusPath     string                       `json:"status_path,omitempty"`
+	Operations     operationsReportConfig       `json:"operations_report,omitempty"`
+	License        agentlicense.Config          `json:"license,omitempty"`
+	RemoteConfig   remoteConfigConfig           `json:"remote_config,omitempty"`
+	Modules        map[string]moduleConfig      `json:"modules"`
+	Update         updateConfig                 `json:"update,omitempty"`
+	Metrics        metricsConfig                `json:"metrics,omitempty"`
+	DiskBudget     agentoutput.DiskBudgetConfig `json:"disk_budget,omitempty"`
 }
 
 type operationsReportConfig struct {
@@ -45,6 +46,8 @@ type operationsReportConfig struct {
 }
 
 type operationsReportRuntime struct {
+	ConfigPath           string
+	DeploymentMode       string
 	Enabled              bool
 	Output               string
 	SnapshotInterval     time.Duration
@@ -153,6 +156,9 @@ func loadConfig(path string) (agentConfig, error) {
 	}
 	var cfg agentConfig
 	if err := decodeStrictJSON(body, &cfg); err != nil {
+		return agentConfig{}, err
+	}
+	if err := validateDeploymentMode(cfg.DeploymentMode); err != nil {
 		return agentConfig{}, err
 	}
 	enterpriseID, err := agentoutput.NormalizeEnterpriseID(cfg.EnterpriseID)

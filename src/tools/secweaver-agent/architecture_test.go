@@ -40,7 +40,7 @@ func TestAgentConfigSchemaTopLevelPropertiesMatchRuntime(t *testing.T) {
 	}
 	// Keep this list next to the runtime contract. A new top-level field must be
 	// added to both the strict Go decoder and the published JSON Schema.
-	want := []string{"disk_budget", "enterprise_id", "license", "metrics", "modules", "operations_report", "remote_config", "status_path", "update"}
+	want := []string{"deployment_mode", "disk_budget", "enterprise_id", "license", "metrics", "modules", "operations_report", "remote_config", "status_path", "update"}
 	if len(schema.Properties) != len(want) {
 		t.Fatalf("schema top-level properties=%v want=%v", schema.Properties, want)
 	}
@@ -220,6 +220,9 @@ func TestLinuxInstallerPersistsBootstrapCABeforeConfigValidation(t *testing.T) {
 			t.Fatalf("Linux installer bootstrap CA contract missing %q", contract)
 		}
 	}
+	if !strings.Contains(script, `install -m 0755 "${ROOT_DIR}/uninstall.sh" "${BIN_DIR}/uninstall.sh"`) {
+		t.Fatal("Linux installer must install the canonical uninstaller below the product root")
+	}
 }
 
 func TestLinuxInstallerUpgradeMakesBootstrapCAAvailableToExistingConfig(t *testing.T) {
@@ -240,6 +243,11 @@ func TestLinuxInstallerUpgradeMakesBootstrapCAAvailableToExistingConfig(t *testi
 	}
 	installerPath := filepath.Join(packageRoot, "install.sh")
 	if err := os.WriteFile(installerPath, installer, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The release archive keeps uninstall.sh beside install.sh as its bootstrap
+	// input; the installer must copy it into the installed bin directory.
+	if err := os.WriteFile(filepath.Join(packageRoot, "uninstall.sh"), []byte("#!/bin/sh\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	// The fake binary makes the first config mutation fail unless both current
@@ -298,6 +306,11 @@ fi
 	)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("installer regression scenario failed: %v\n%s", err, output)
+	}
+	if info, err := os.Stat(filepath.Join(installRoot, "bin", "uninstall.sh")); err != nil {
+		t.Fatalf("canonical uninstaller was not installed: %v", err)
+	} else if info.Mode().Perm() != 0o755 {
+		t.Fatalf("canonical uninstaller mode = %o, want 755", info.Mode().Perm())
 	}
 }
 

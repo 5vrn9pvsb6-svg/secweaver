@@ -6,13 +6,17 @@ set -euo pipefail
 : "${OUTPUT_DIR:?OUTPUT_DIR must point to the public logtail release directory}"
 : "${PUBLIC_BASE_URL:?PUBLIC_BASE_URL must be the HTTPS public origin}"
 
-REGION="${LOGTAIL_REGION:-cn-hangzhou}"
+REGION="${LOGTAIL_REGION:-cn-hangzhou-internet}"
 case "${REGION}" in
   hangzhou)
     REGION="cn-hangzhou"
     ;;
 esac
-SOURCE_URL="${LOGTAIL_SOURCE_URL:-https://logtail-release-${REGION}.oss-${REGION}.aliyuncs.com/linux64/logtail.sh}"
+# The vendor selector controls runtime download/upload networking. OSS source
+# naming uses the geographic region only, never the '-internet' selector suffix.
+SOURCE_REGION="${LOGTAIL_SOURCE_REGION:-${REGION%-internet}}"
+[[ "${SOURCE_REGION}" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]] || { echo "invalid LOGTAIL_SOURCE_REGION" >&2; exit 1; }
+SOURCE_URL="${LOGTAIL_SOURCE_URL:-https://logtail-release-${SOURCE_REGION}.oss-${SOURCE_REGION}.aliyuncs.com/linux64/logtail.sh}"
 
 [[ "${PUBLIC_BASE_URL}" =~ ^https:// ]] || {
   echo "PUBLIC_BASE_URL must use HTTPS" >&2
@@ -43,7 +47,12 @@ trap 'rm -rf "${temp_dir}"' EXIT INT TERM
 
 installer_path="${temp_dir}/install.sh"
 curl --fail --location --proto '=https' --tlsv1.2 --silent --show-error \
-  --output "${installer_path}" "${SOURCE_URL}"
+  --proto-redir '=https' --connect-timeout 10 --max-time 120 \
+  --retry 2 --retry-delay 2 --retry-max-time 260 \
+  --output "${installer_path}" "${SOURCE_URL}" || {
+    echo "stage=publish-logtail-installer download failed; check source DNS/proxy/HTTPS reachability: ${SOURCE_REGION}" >&2
+    exit 1
+  }
 
 [[ -s "${installer_path}" ]] || {
   echo "downloaded installer is empty" >&2
@@ -65,6 +74,7 @@ cat >"${OUTPUT_DIR}/release.env" <<EOF
 EOF
 printf 'export BOOTSTRAP_LOGTAIL_INSTALL_URL=%q\n' "${PUBLIC_BASE_URL%/}/logtail/install.sh" >>"${OUTPUT_DIR}/release.env"
 printf 'export BOOTSTRAP_LOGTAIL_INSTALL_SHA256=%q\n' "${digest}" >>"${OUTPUT_DIR}/release.env"
+printf 'export BOOTSTRAP_LOGTAIL_REGION=%q\n' "${REGION}" >>"${OUTPUT_DIR}/release.env"
 chmod 0644 "${OUTPUT_DIR}/release.env"
 
 echo "published ${OUTPUT_DIR}/install.sh"

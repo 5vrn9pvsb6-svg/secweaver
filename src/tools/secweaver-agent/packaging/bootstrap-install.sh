@@ -32,7 +32,8 @@ VERSION=""
 #     logs. The Bootstrap writes /etc/ilogtail/users/<aliuid>.
 #
 #   BOOTSTRAP_LOGTAIL_REGION
-#     Region used by the Logtail installer, for example cn-hangzhou.
+#     Vendor region/network selector; default cn-hangzhou-internet. A bare
+#     cn-hangzhou explicitly selects intranet. No automatic network fallback.
 #
 #   BOOTSTRAP_LICENSE_SERVER_URL
 #     Shared Data Cloud authorization origin, normally the SLS Proxy origin.
@@ -64,7 +65,7 @@ EMBEDDED_ENROLLMENT_ID="${SECWEAVER_LOGTAIL_EMBEDDED_ENROLLMENT_ID:-}"
 EMBEDDED_LOGTAIL_INSTALL_URL="${SECWEAVER_LOGTAIL_EMBEDDED_INSTALL_URL:-https://YOUR_DATA_CLOUD_HOST/logtail/install.sh}"
 EMBEDDED_LOGTAIL_INSTALL_SHA256="${SECWEAVER_LOGTAIL_EMBEDDED_INSTALL_SHA256:-}"
 EMBEDDED_LOGTAIL_ALIUID="${SECWEAVER_LOGTAIL_EMBEDDED_ALIUID:-}"
-EMBEDDED_LOGTAIL_REGION="${SECWEAVER_LOGTAIL_EMBEDDED_REGION:-}"
+EMBEDDED_LOGTAIL_REGION="${SECWEAVER_LOGTAIL_EMBEDDED_REGION:-cn-hangzhou-internet}"
 EMBEDDED_UPDATE_MANIFEST_URL="${SECWEAVER_AGENT_EMBEDDED_UPDATE_MANIFEST_URL:-https://YOUR_DATA_CLOUD_HOST/secweaver-agent/updates/stable/update-manifest.json}"
 EMBEDDED_UPDATE_PUBLIC_KEY="${SECWEAVER_AGENT_EMBEDDED_UPDATE_PUBLIC_KEY:-}"
 # SECWEAVER_BOOTSTRAP_EMBEDDED_CONFIG_END
@@ -87,6 +88,16 @@ ALLOW_HTTP=0
 START_SERVICE=1
 CONFIGURE_LOGTAIL=1
 TEMP_DIR=""
+NO_COLOR="${NO_COLOR:-}"
+INSTALL_LOG=""
+STEP_NUMBER=0
+STEP_TITLE=""
+STEP_STARTED=0
+UI_OWNER="${BASHPID:-$$}"
+FALLBACK_REPORTED=0
+# stderr stays a terminal when curl supplies stdin. Never emit ANSI escapes to
+# redirected logs/automation; the original descriptor is only for concise UI.
+exec 3>&2
 
 usage() {
   cat <<'EOF'
@@ -107,7 +118,8 @@ Options:
   --logtail-install-sha256 SHA256
                            Override the embedded Logtail installer checksum
   --logtail-aliuid UID     Override the embedded managed SLS account UID
-  --logtail-region REGION  Override the embedded Logtail upload region
+  --logtail-region REGION  Vendor region/network selector (default: cn-hangzhou-internet)
+                           Bare cn-hangzhou explicitly selects intranet; no fallback
   --license-check-interval-seconds N
                            Periodic authorization recheck interval (default: 21600)
   --license-heartbeat-interval-seconds N
@@ -117,6 +129,7 @@ Options:
   --skip-logtail           Install only secweaver-agent; do not configure log upload
   --allow-http             Allow HTTP release URLs for local testing only
   --no-start               Install and preflight without enabling the service
+  --no-color               Disable terminal colors (also honors NO_COLOR)
   -h, --help               Show this help
 
 Operator deployment note:
@@ -138,8 +151,105 @@ log() {
 }
 
 fatal() {
-  echo "[secweaver-agent bootstrap] ERROR: $*" >&2
+  if [[ -z "${INSTALL_LOG}" ]]; then
+    status_line FAIL "$*"
+  else
+    echo "[secweaver-agent bootstrap] ERROR: $*" >&2
+  fi
   exit 1
+}
+
+# Presentation is independent of command execution. Commands remain at top
+# level under errexit: wrapping shell functions in `if` would disable failures
+# inside those functions and could incorrectly print a successful step.
+status_line() {
+  local level="$1" color="" reset=""
+  shift
+  if [[ -t 3 && -z "${NO_COLOR}" && "${TERM:-dumb}" != dumb ]]; then
+    case "${level}" in
+      OK) color=$'\033[32m' ;;
+      FAIL) color=$'\033[31m' ;;
+      WARN) color=$'\033[33m' ;;
+    esac
+    [[ -z "${color}" ]] || reset=$'\033[0m'
+  fi
+  printf '%s[%-4s]%s %s\n' "${color}" "${level}" "${reset}" "$*" >&3
+}
+
+step_begin() {
+  STEP_NUMBER=$((STEP_NUMBER + 1))
+  STEP_TITLE="$*"
+  STEP_STARTED=${SECONDS}
+  status_line RUN "[${STEP_NUMBER}/8] ${STEP_TITLE}"
+}
+
+step_complete() {
+  status_line OK "[${STEP_NUMBER}/8] ${STEP_TITLE} ($((SECONDS - STEP_STARTED))s)"
+  STEP_TITLE=""
+}
+
+step_skip() {
+  STEP_NUMBER=$((STEP_NUMBER + 1))
+  status_line SKIP "[${STEP_NUMBER}/8] $*"
+}
+
+# Create a private log outside the shipped JSONL collection paths. mktemp
+# prevents filename races; reject symlink directories before opening as root.
+# Logs survive failed setup and are removed by a full --purge uninstall.
+initialize_install_log() {
+  local directory=/opt/secweaver-agent/install-logs
+  [[ ! -L /opt/secweaver-agent && ! -L "${directory}" ]] || fatal "installation log directory must not be a symlink"
+  install -d -m 0755 /opt/secweaver-agent
+  install -d -m 0700 "${directory}"
+  INSTALL_LOG="$(mktemp "${directory}/install.log.XXXXXXXX")"
+  chmod 0600 "${INSTALL_LOG}"
+  status_line INFO "Detailed installation log: ${INSTALL_LOG}"
+  exec >>"${INSTALL_LOG}" 2>&1
+}
+
+# Emit only classified diagnostics, not vendor internals or full configuration
+# dumps. Startup-empty logs and verified audit fallback are not failed steps.
+# Other warnings/errors remain visible, and the original report stays in the log.
+show_diagnostics() {
+  local report="$1" line empty=0 fallback=0
+  cat "${report}"
+  while IFS= read -r line; do
+    case "${line}" in
+      '[WARN] logs/'*'output log exists but has no recent lines'*) empty=1 ;;
+      '[WARN] '*'ebpf/btf:'*'backend=auto falls back to audit'*) fallback=1 ;;
+      '[WARN] logtail/cloud_delivery:'*) : ;;
+      '[WARN] '*) status_line WARN "${line#'[WARN] '}" ;;
+      '[ERROR] '*|'[FAIL] '*) status_line FAIL "${line}" ;;
+    esac
+  done <"${report}"
+  [[ "${empty}" != 1 ]] || status_line INFO "New output logs are awaiting events; this is not proof of cloud delivery."
+  if [[ "${fallback}" == 1 && "${FALLBACK_REPORTED}" == 0 ]]; then
+    status_line INFO "Kernel BTF unavailable; backend=auto uses audit instead of eBPF."
+    FALLBACK_REPORTED=1
+  fi
+  # Cloud verification is summarized once in the final result, never as a
+  # successful local check. Keep its complete diagnostic in the detailed log.
+  return 0
+}
+
+# Preserve the failing exit status, including signals/unexpected shell errors.
+# Do not echo commands or raw vendor tails: they can contain installation tokens.
+# Only the top-level shell owns UI completion and temporary-directory cleanup.
+finish_install() {
+  local rc="$1"
+  [[ "${BASHPID:-$$}" == "${UI_OWNER}" ]] || return 0
+  trap - EXIT
+  if [[ "${rc}" != 0 ]]; then
+    status_line FAIL "${STEP_TITLE:-Installation validation} failed (exit=${rc})."
+    if [[ -n "${INSTALL_LOG}" ]]; then
+      if grep -q 'returned HTTP 401' "${INSTALL_LOG}"; then
+        status_line WARN "Enrollment token may be expired, revoked or invalid; generate a new installation command in Data Cloud."
+      fi
+      status_line INFO "Details: ${INSTALL_LOG}"
+    fi
+  fi
+  cleanup
+  exit "${rc}"
 }
 
 cleanup() {
@@ -280,6 +390,10 @@ while [[ "$#" -gt 0 ]]; do
       START_SERVICE=0
       shift
       ;;
+    --no-color)
+      NO_COLOR=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -354,37 +468,91 @@ case "$(uname -m)" in
     ;;
 esac
 
-for command_name in tar mktemp awk wc cat; do
+for command_name in tar mktemp awk wc cat timeout; do
   command -v "${command_name}" >/dev/null 2>&1 || fatal "required command not found: ${command_name}"
 done
 
+# Emit only the endpoint host: a future URL may include credentials or tokens.
+download_host() {
+  local host="${1#*://}"
+  host="${host%%/*}"; host="${host##*@}"; host="${host%%\?*}"; host="${host%%\#*}"
+  printf '%s' "${host}"
+}
+
+# Bound both per-attempt work and total retries. The outer timeout also covers
+# DNS/proxy/slow-drip behavior and differences between curl/wget versions.
 download() {
   local url="$1"
   local output="$2"
+  local stage="${3:-release-download}" rc=0
   if [[ "${SECWEAVER_BOOTSTRAP_ALLOW_FILE:-0}" == "1" && "${url}" =~ ^file:// ]]; then
     cp "${url#file://}" "${output}"
     return
   fi
+  log "stage=${stage} host=$(download_host "${url}") download started (total limit 300s)"
+  local tls=()
   if command -v curl >/dev/null 2>&1; then
-    if [[ "${ALLOW_HTTP}" == "1" ]]; then
-      curl --fail --silent --show-error --location --output "${output}" "${url}"
-    else
-      curl --fail --silent --show-error --location \
-        --proto '=https' --proto-redir '=https' --tlsv1.2 \
-        --output "${output}" "${url}"
-    fi
-    return
+    [[ "${ALLOW_HTTP}" == 1 ]] || tls=(--proto '=https' --proto-redir '=https' --tlsv1.2)
+    timeout --kill-after=10 300 curl --fail --silent --show-error --location \
+      --connect-timeout 10 --max-time 120 --retry 2 --retry-delay 2 --retry-max-time 260 \
+      "${tls[@]}" --output "${output}" "${url}" || rc=$?
+  elif command -v wget >/dev/null 2>&1; then
+    [[ "${ALLOW_HTTP}" == 1 ]] || tls=(--https-only)
+    timeout --kill-after=10 300 wget --quiet --timeout=30 --dns-timeout=10 \
+      --connect-timeout=10 --tries=3 --waitretry=2 "${tls[@]}" --output-document="${output}" "${url}" || rc=$?
+  else
+    fatal "stage=${stage}: curl or wget is required"
   fi
-  if command -v wget >/dev/null 2>&1; then
-    if [[ "${ALLOW_HTTP}" == "1" ]]; then
-      wget --quiet --output-document="${output}" "${url}"
-    else
-      wget --quiet --https-only --output-document="${output}" "${url}"
-    fi
-    return
+  if [[ "${rc}" != 0 ]]; then
+    rm -f -- "${output}"
+    fatal "stage=${stage} host=$(download_host "${url}") download failed (exit=${rc}; 124/137=timeout). Check DNS, proxy and endpoint reachability; retry the installation command. No network mode was changed."
   fi
-  fatal "curl or wget is required"
 }
+
+# Interpose only inside the vendor subprocess, leaving the pinned installer
+# byte-for-byte intact. Current vendor scripts invoke curl/wget by name. Absolute
+# paths or future download tools remain bounded by the overall 600-second limit.
+vendor_download() {
+  local tool="$1" arg host="unknown" rc=0
+  shift
+  for arg in "$@"; do
+    case "${arg}" in http://*|https://*) host="$(download_host "${arg}")" ;; esac
+  done
+  if [[ "${host}" != unknown ]]; then
+    printf '[secweaver-agent bootstrap] stage=logtail-binary-download host=%s\n' "${host}" >&2
+  fi
+  if [[ "${tool}" == curl ]]; then
+    timeout --kill-after=10 300 "${SECWEAVER_VENDOR_CURL}" "$@" \
+      --connect-timeout 10 --max-time 120 --retry 2 --retry-delay 2 --retry-max-time 260 || rc=$?
+  else
+    timeout --kill-after=10 300 "${SECWEAVER_VENDOR_WGET}" "$@" \
+      --timeout=30 --dns-timeout=10 --connect-timeout=10 --tries=3 --waitretry=2 || rc=$?
+  fi
+  if [[ "${rc}" != 0 && "${host}" != unknown ]]; then
+    printf '[secweaver-agent bootstrap] stage=logtail-binary-download host=%s failed exit=%s\n' "${host}" "${rc}" >&2
+  fi
+  return "${rc}"
+}
+
+# Do not retry a partially executed installer automatically: it may already have
+# changed files/services. The parent retains the install lock; the child closes
+# its inherited FD so a daemon cannot hold that lock after bootstrap exits.
+run_logtail_installer() (
+  local rc=0
+  export SECWEAVER_VENDOR_CURL="$(type -P curl || true)"
+  export SECWEAVER_VENDOR_WGET="$(type -P wget || true)"
+  curl() { vendor_download curl "$@"; }
+  wget() { vendor_download wget "$@"; }
+  export -f download_host vendor_download curl wget
+  log "stage=logtail-install region=${LOGTAIL_REGION} total limit=600s; no automatic network fallback"
+  timeout --kill-after=10 600 bash "$1" install "${LOGTAIL_REGION}" 9>&- || rc=$?
+  if [[ "${rc}" != 0 ]]; then
+    if [[ "${LOGTAIL_REGION}" != *-internet ]]; then
+      log "If this is an ordinary public-network host, retry with --logtail-region ${LOGTAIL_REGION}-internet after confirming that selector is supported by your SLS region."
+    fi
+    fatal "stage=logtail-install region=${LOGTAIL_REGION} failed (exit=${rc}; 124/137=timeout). Check the preceding logtail-binary-download host/error; otherwise inspect vendor install/service output. No upload success is claimed."
+  fi
+)
 
 sha256_file() {
   local file="$1"
@@ -414,7 +582,7 @@ logtail_installed() {
 
 install_logtail() {
   if logtail_installed; then
-    log "Logtail/LoongCollector is already installed"
+    log "Logtail/LoongCollector is already installed; existing endpoints are retained (region selector is used only for a fresh vendor install)"
     return
   fi
   [[ -n "${LOGTAIL_INSTALL_URL}" && "${LOGTAIL_INSTALL_URL}" != *YOUR_DATA_CLOUD_HOST* ]] || fatal "Logtail is not installed and the embedded installer URL is not configured"
@@ -430,12 +598,12 @@ install_logtail() {
 
   local installer_path="${TEMP_DIR}/logtail-install.sh"
   log "downloading pinned Logtail installer"
-  download "${LOGTAIL_INSTALL_URL}" "${installer_path}"
+  download "${LOGTAIL_INSTALL_URL}" "${installer_path}" logtail-installer-download
   local actual_sha256
   actual_sha256="$(sha256_file "${installer_path}" | tr '[:upper:]' '[:lower:]')"
   [[ "${actual_sha256}" == "${LOGTAIL_INSTALL_SHA256}" ]] || fatal "Logtail installer checksum mismatch"
   log "Logtail installer checksum verified"
-  bash "${installer_path}" install "${LOGTAIL_REGION}"
+  run_logtail_installer "${installer_path}"
   logtail_installed || fatal "Logtail installer completed but Logtail/LoongCollector was not found"
 }
 
@@ -451,14 +619,66 @@ configure_logtail_identity() {
   log "Logtail identity configured for the Data Cloud custom-identifier machine group"
 }
 
+# The vendor installer starts a daemon outside systemd. Serialize bootstrap
+# instances and hand it over only after the old owner has released its PID lock.
+logtail_processes() {
+  local pid exe
+  for pid in $(pgrep -f 'ilogtail|loongcollector' || true); do
+    exe="$(readlink "/proc/${pid}/exe" 2>/dev/null || true)"
+    case "${exe}" in
+      /usr/local/ilogtail/ilogtail*|/usr/local/ilogtail/loongcollector*)
+        [[ "$(readlink "/proc/${pid}/ns/pid" 2>/dev/null)" == "$(readlink /proc/1/ns/pid)" ]] && printf '%s\n' "${pid}"
+        ;;
+    esac
+  done
+  return 0
+}
+
+# Never unlink a live lock: force-stop is the vendor's bounded recovery path,
+# followed by an independent /proc check (oneshot active/exited is insufficient).
+stop_logtail_for_handoff() {
+  local service_name="$1" init_script="$2" attempt file
+  if [[ -n "${service_name}" ]]; then
+    timeout 60 systemctl stop "${service_name}" || log "Logtail service stop needs process verification"
+    [[ "$(systemctl show -p ActiveState "${service_name}")" != ActiveState=deactivating ]] || fatal "${service_name} is still stopping; retry after its stop job finishes"
+  fi
+  if [[ -n "$(logtail_processes)" ]]; then
+    timeout 40 "${init_script}" stop || true
+  fi
+  if [[ -n "$(logtail_processes)" ]]; then
+    log "Logtail graceful stop did not finish; using vendor force-stop"
+    # Recovery is visible once; repetitive vendor PID messages stay in the log.
+    if declare -F status_line >/dev/null; then
+      status_line WARN "Logtail graceful stop timed out; using bounded force-stop before service verification."
+    fi
+    timeout 10 "${init_script}" force-stop || true
+  fi
+  for ((attempt=0; attempt<10; attempt++)); do
+    [[ -z "$(logtail_processes)" ]] && break
+    sleep 1
+  done
+  [[ -z "$(logtail_processes)" ]] || fatal "Logtail processes remain; refusing to remove live PID locks"
+  # Some vendor init versions remove '.pid' rather than the versioned PID file.
+  # Restrict cleanup to this installation, after proving no owner remains.
+  for file in /usr/local/ilogtail/ilogtail*.pid /usr/local/ilogtail/loongcollector*.pid; do
+    [[ ! -f "${file}" ]] || rm -f -- "${file}"
+  done
+}
+
 start_logtail() {
-  local service_name
+  local service_name init_script
   if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload
     for service_name in loongcollectord.service ilogtaild.service; do
       if systemctl cat "${service_name}" >/dev/null 2>&1; then
-        systemctl enable --now "${service_name}"
-        systemctl restart "${service_name}"
-        systemctl is-active --quiet "${service_name}" || fatal "${service_name} did not become active"
+        init_script="/etc/init.d/${service_name%.service}"
+        [[ -x "${init_script}" ]] || fatal "missing supported Logtail init script: ${init_script}"
+        stop_logtail_for_handoff "${service_name}" "${init_script}"
+        [[ "${START_SERVICE}" == 1 ]] || return 0
+        systemctl reset-failed "${service_name}" || true
+        systemctl enable "${service_name}"
+        timeout 45 systemctl start "${service_name}" || fatal "${service_name} failed to start"
+        systemctl is-active --quiet "${service_name}" && timeout 5 "${init_script}" status >/dev/null 2>&1 || fatal "${service_name} has no healthy collector processes"
         log "${service_name} is active"
         return
       fi
@@ -466,8 +686,10 @@ start_logtail() {
   fi
   for service_name in loongcollectord ilogtaild; do
     if [[ -x "/etc/init.d/${service_name}" ]]; then
-      "/etc/init.d/${service_name}" restart
-      "/etc/init.d/${service_name}" status >/dev/null 2>&1 || fatal "${service_name} init service did not become active"
+      stop_logtail_for_handoff "" "/etc/init.d/${service_name}"
+      [[ "${START_SERVICE}" == 1 ]] || return 0
+      timeout 45 "/etc/init.d/${service_name}" start
+      timeout 5 "/etc/init.d/${service_name}" status >/dev/null 2>&1 || fatal "${service_name} init service did not become active"
       log "${service_name} init service is active"
       return
     fi
@@ -476,7 +698,12 @@ start_logtail() {
 }
 
 TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/secweaver-agent-bootstrap.XXXXXX")"
-trap cleanup EXIT
+trap 'finish_install "$?"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+initialize_install_log
+status_line INFO "SecWeaver Agent installation (linux/${ARCH})"
+step_begin "Resolve release version"
 
 # Resolve once before install side effects. Publishers switch this HTTPS pointer
 # only after every immutable archive exists. Missing/invalid pointers fail closed.
@@ -484,12 +711,13 @@ trap cleanup EXIT
 # the installed Agent into signed-manifest verification.
 if [[ -z "${VERSION}" ]]; then
   VERSION_FILE="${TEMP_DIR}/latest-version.txt"
-  download "${RELEASE_BASE_URL}/latest-version.txt" "${VERSION_FILE}"
+  download "${RELEASE_BASE_URL}/latest-version.txt" "${VERSION_FILE}" agent-version-download
   (( $(wc -c <"${VERSION_FILE}") <= 65 )) || fatal "release version pointer exceeds 65 bytes"
   VERSION="$(cat "${VERSION_FILE}")"
   [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ && ${#VERSION} -le 64 ]] || fatal "invalid release version pointer"
   (( $(wc -c <"${VERSION_FILE}") <= ${#VERSION} + 1 )) || fatal "invalid release version pointer whitespace"
 fi
+step_complete
 
 PACKAGE_NAME="${APP_NAME}_${VERSION}_linux_${ARCH}"
 ARCHIVE_NAME="${PACKAGE_NAME}.tar.gz"
@@ -499,17 +727,10 @@ CHECKSUM_URL="${PACKAGE_URL}.sha256"
 ARCHIVE_PATH="${TEMP_DIR}/${ARCHIVE_NAME}"
 CHECKSUM_PATH="${ARCHIVE_PATH}.sha256"
 
-cleanup_temp_dir() {
-  if [[ -n "${TEMP_DIR}" && -d "${TEMP_DIR}" ]]; then
-    rm -rf -- "${TEMP_DIR}"
-  fi
-}
-
-trap cleanup_temp_dir EXIT
-
+step_begin "Download and verify Agent package"
 log "downloading ${PACKAGE_URL}"
-download "${PACKAGE_URL}" "${ARCHIVE_PATH}"
-download "${CHECKSUM_URL}" "${CHECKSUM_PATH}"
+download "${PACKAGE_URL}" "${ARCHIVE_PATH}" agent-package-download
+download "${CHECKSUM_URL}" "${CHECKSUM_PATH}" agent-checksum-download
 
 EXPECTED_SHA256="$(awk 'NR == 1 {print tolower($1)}' "${CHECKSUM_PATH}")"
 [[ "${EXPECTED_SHA256}" =~ ^[0-9a-f]{64}$ ]] || fatal "invalid checksum file: ${CHECKSUM_URL}"
@@ -528,9 +749,12 @@ done < <(tar -tzf "${ARCHIVE_PATH}")
 tar -xzf "${ARCHIVE_PATH}" -C "${TEMP_DIR}"
 PACKAGE_ROOT="${TEMP_DIR}/${PACKAGE_NAME}"
 [[ -x "${PACKAGE_ROOT}/install.sh" ]] || fatal "package install.sh not found or not executable"
+step_complete
 
+step_begin "Install Agent and register/configure device"
 log "installing ${APP_NAME} ${VERSION} for linux/${ARCH}"
 INSTALL_ARGS=(
+  --deployment-mode sls_saas
   --license-server-url "${LICENSE_SERVER_URL}"
   --license-check-interval-seconds "${LICENSE_CHECK_INTERVAL_SECONDS}"
   --license-heartbeat-interval-seconds "${LICENSE_HEARTBEAT_INTERVAL_SECONDS}"
@@ -550,16 +774,44 @@ else
 fi
 "${PACKAGE_ROOT}/install.sh" "${INSTALL_ARGS[@]}"
 ENTERPRISE_ENROLLMENT_TOKEN=""
+INSTALL_ARGS=()
+step_complete
 
+step_begin "Check platform and collection prerequisites"
 command -v secweaver-agent >/dev/null 2>&1 || fatal "secweaver-agent was not installed in PATH"
-secweaver-agent preflight -config /opt/secweaver-agent/etc/config.json -strict
+PREFLIGHT_RC=0
+secweaver-agent preflight -config /opt/secweaver-agent/etc/config.json -strict >"${TEMP_DIR}/preflight.txt" 2>&1 || PREFLIGHT_RC=$?
+show_diagnostics "${TEMP_DIR}/preflight.txt"
+[[ "${PREFLIGHT_RC}" == 0 ]] || exit "${PREFLIGHT_RC}"
+step_complete
 
 if [[ "${CONFIGURE_LOGTAIL}" == "1" ]]; then
+  step_begin "Install or reuse Logtail (${LOGTAIL_REGION})"
+  for dependency in timeout flock pgrep readlink; do
+    command -v "${dependency}" >/dev/null 2>&1 || fatal "Logtail handoff requires ${dependency}"
+  done
+  install -d -m 0755 /run/lock
+  exec 9>/run/lock/secweaver-logtail-install.lock
+  flock -w 120 9 || fatal "another Logtail bootstrap is still running"
+  # Persist intent before download: doctor must detect an interrupted SLS setup,
+  # including the case where the collector has not been installed at all.
+  SHIPPER_KIND_TEMP="$(mktemp /opt/secweaver-agent/etc/.shipper-kind.XXXXXX)"
+  printf 'logtail\n' > "${SHIPPER_KIND_TEMP}"
+  chmod 0600 "${SHIPPER_KIND_TEMP}"
+  mv -f "${SHIPPER_KIND_TEMP}" /opt/secweaver-agent/etc/shipper-kind
   install_logtail
+  step_complete
+  step_begin "Configure Logtail identity and service handoff"
   configure_logtail_identity
+  start_logtail
+  step_complete
+else
+  step_skip "Logtail installation (--skip-logtail)"
+  step_skip "Logtail identity/service (--skip-logtail)"
 fi
 
 if [[ "${START_SERVICE}" == "1" ]]; then
+  step_begin "Start Agent service"
   command -v systemctl >/dev/null 2>&1 || fatal "systemctl not found after installation"
   systemctl enable secweaver-agent
   systemctl restart secweaver-agent
@@ -568,17 +820,27 @@ if [[ "${START_SERVICE}" == "1" ]]; then
     systemctl --no-pager --full status secweaver-agent >&2 || true
     fatal "secweaver-agent service did not become active"
   fi
-  if ! secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json; then
+  step_complete
+  step_begin "Verify local installation health"
+  DOCTOR_RC=0
+  secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json >"${TEMP_DIR}/doctor.txt" 2>&1 || DOCTOR_RC=$?
+  show_diagnostics "${TEMP_DIR}/doctor.txt"
+  if [[ "${DOCTOR_RC}" != 0 ]]; then
     systemctl --no-pager --full status secweaver-agent >&2 || true
-    fatal "secweaver-agent post-install diagnostics failed"
+    exit "${DOCTOR_RC}"
   fi
+  step_complete
   if [[ "${CONFIGURE_LOGTAIL}" == "1" ]]; then
-    start_logtail
-    log "installation complete; secweaver-agent and Logtail/LoongCollector are active"
-    log "Data Cloud must confirm machine-group heartbeat and server-side Logstore binding"
+    status_line OK "Agent ${VERSION} and Logtail are running."
+    status_line INFO "Data Cloud must confirm machine-group heartbeat and Logstore delivery."
   else
-    log "installation complete; secweaver-agent is active; Logtail setup was skipped"
+    status_line OK "Agent ${VERSION} is running; Logtail was not configured."
   fi
 else
-  log "installation, preflight, and local identity configuration complete; service start skipped"
+  step_skip "Agent service start (--no-start)"
+  step_skip "Running-service diagnostics (--no-start)"
+  status_line OK "Agent ${VERSION} installed; service start was skipped."
 fi
+status_line INFO "Config: /opt/secweaver-agent/etc/config.json"
+status_line INFO "Collection logs: /opt/secweaver-agent/logs"
+status_line INFO "Detailed installation log: ${INSTALL_LOG}"

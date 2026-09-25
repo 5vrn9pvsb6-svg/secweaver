@@ -464,7 +464,7 @@ func checkWindowsProcessCommandLinePolicy(add func(preflightLevel, string, strin
 
 func checkScheduledUpdate(updater *scheduledUpdateConfig, add func(preflightLevel, string, string, string)) {
 	if updater == nil {
-		add(preflightOK, "update", "scheduled update is disabled", "update.enabled=false")
+		add(preflightOK, "update", "scheduled update is disabled", "update.enabled=false; generic templates default to disabled. Managed installation enables updates when a real manifest URL is supplied; upgrades without one preserve the previous setting.")
 		return
 	}
 	add(preflightOK, "update", "scheduled update is enabled", fmt.Sprintf("manifest=%s channel=%s interval=%s auto_install=%v", updater.Options.ManifestURL, updater.Options.Channel, updater.Interval, updater.AutoInstall))
@@ -472,7 +472,9 @@ func checkScheduledUpdate(updater *scheduledUpdateConfig, add func(preflightLeve
 		add(preflightWarn, "update", "manifest_url still points to an example domain", "configure the internal update server manifest URL before enabling production auto-update")
 	}
 	if runtime.GOOS == "windows" && updater.AutoInstall {
-		add(preflightWarn, "update/windows", "Windows update replacement is scheduled after process exit", "service restart is required to complete install_scheduled or rollback_scheduled updates")
+		// This is the supported update lifecycle, not an observed failure or
+		// pending restart. Runtime update status remains responsible for errors.
+		add(preflightOK, "update/windows", "Windows automatic updates use process exit and service restart", "future update activation replaces files after exit; this check does not indicate a current failure or pending restart")
 	}
 	if updater.Options.StateDir != "" && !filepath.IsAbs(updater.Options.StateDir) {
 		add(preflightWarn, "update/state", "update state_dir is not absolute", updater.Options.StateDir)

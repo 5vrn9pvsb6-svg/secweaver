@@ -1,6 +1,14 @@
 # Agent 运维健康日志
 
-SecWeaver Agent 默认开启一条独立的运维健康 JSON Lines 流，用于 Filebeat、Fluent Bit 或原生 `secweaver-shipper` 上传。它描述 Agent 是否正常采集和发送，不替代审计、系统日志或主机状态证据。
+从 0.3.47 起，配置了部署模式的健康日志包含可选 `deployment_mode`
+（`sls_saas` / `es_private`），据此选择本地输送链路；ES 模式不检查 SLS
+机器组身份或无关 Logtail。旧配置兼容及迁移见[部署模式](deployment-modes.zh-CN.md)。
+
+SecWeaver Agent 默认开启一条独立的运维健康 JSON Lines 流，用于 Logtail、Filebeat、Fluent Bit 或原生 `secweaver-shipper` 上传。它描述 Agent 采集和本地输送器状态，不证明云端入库，不替代审计、系统日志或主机状态证据。
+
+从 0.3.41 起，共享 Logtail 身份、systemd 和进程探测，子进程有超时，频繁事件至少缓存
+60 秒。本地异常降级健康状态；`shipper.cloud_delivery=unverified` 明确不代表入库成功。
+字段与边界见[采集器生命周期与验收](collector-lifecycle.zh-CN.md)。
 
 ## 文件与默认值
 
@@ -51,3 +59,7 @@ SaaS 用户使用平台提供的运维监控和上传配置。托管交付配置
 建议告警：10 分钟没有 `health_snapshot`、模块连续重启超过 3 次、熔断、`audit.reader_ready=false`、backlog 覆盖数增量大于 0、授权拒绝、磁盘不足、版本落后和 shipper 服务停止。
 
 Agent 或 shipper 已经完全停止时无法上报“自己停止”的记录。缺失主机应由 Data Cloud 注册表/心跳和 ES/SLS 查询超时联合判断；本地健康日志负责解释停止前的最后状态。
+
+Windows 从 0.3.46 起通过有时限的 CIM 查询检查 `LogtailDaemon`、worker 与
+`C:\LogtailData` 身份。预期采集器缺失会降级健康状态；查询失败是 unknown，
+本机检查成功仍保持云端输送未验证。见 [Windows 验收](windows-installation.zh-CN.md)。

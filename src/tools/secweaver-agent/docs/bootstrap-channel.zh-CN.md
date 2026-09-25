@@ -1,5 +1,44 @@
 # Bootstrap 动态安装版本
 
+## 安装进度（0.3.44）
+
+Linux SaaS Bootstrap 在 stderr 显示八个编号步骤：终端中成功为绿色 `OK`、失败为红色
+`FAIL`、恢复或其他告警为黄色 `WARN`；`RUN`、`INFO`、`SKIP` 为普通文本。
+颜色判断使用 stderr 是否连接终端，curl 管道占用 stdin 不影响颜色。重定向和
+`TERM=dumb` 自动输出纯文本；安装参数追加 `--no-color`，或在 sudo 环境设置非空
+`NO_COLOR`，可显式禁用。本次不改变 Windows PowerShell 或直接运行归档内 install.sh
+的输出，适用范围是 Linux SaaS Bootstrap。
+
+八步为：解析版本；下载/校验/解包；安装、注册和配置 Agent；预检；安装或复用 Logtail；
+配置身份和服务交接；启动 Agent；检查本地健康。只有命令完成才显示 OK，并附耗时秒数。
+`--skip-logtail`、`--no-start` 对省略步骤显示 SKIP。已有 Logtail 复用，不把本地检查
+通过误报为云端上传成功。
+
+子安装器、配置命令、供应商和诊断完整输出保存在每次唯一的
+`/opt/secweaver-agent/install-logs/install.log.*`（文件 0600，目录 0700），开始及
+结束/失败时显示路径。该目录不在采集 JSONL 路径内，安装失败后保留，完整卸载
+`uninstall.sh --purge` 随安装根目录删除。日志可能包含主机/配置详情，分享前需检查
+并脱敏；不主动记录命令跟踪或安装令牌参数。每次调用一份日志，无后台持续写入，
+运维可按需清理旧安装记录。在另一个终端执行 `sudo tail -f <显示的日志路径>` 查看细节。
+
+失败后停止后续步骤，保留原失败退出码并显示失败阶段及日志路径；HTTP 401 额外显示
+令牌恢复指引，信号中断返回 130/143。BTF 不可用时 auto 后端回退 audit、新建事件日志
+暂时为空，显示为 INFO；其他诊断警告和错误保持可见。供应商正常停止失败后，终端仅
+显示一条 WARN，再执行有限时长的 force-stop；重复 PID 信息保存在日志中，服务验证
+通过后才能显示 OK。独立执行 doctor 的输出和级别不改变。
+
+回归包括真实 PTY 颜色、重定向纯文本、NO_COLOR、子安装失败、预检/doctor 失败、
+版本指针失败和私有日志权限。发布后在 Linux systemd 主机验证公开脚本，并独立确认
+服务运行及云端收件。
+
+从 0.3.42 起 Linux SaaS 默认采用 `cn-hangzhou-internet`，保留显式内网模式。
+下载与供应商安装增加超时、有限重试、阶段/目标主机错误提示；详见
+[网络策略](collector-lifecycle.zh-CN.md#网络策略)。
+
+Agent 0.3.41 增加 Logtail/systemd 串行交接，`--no-start` 会停止供应商安装器自动拉起的
+进程；下载前记录 SLS 安装意图，采集器启动后再执行 doctor。详见
+[采集器生命周期与验收](collector-lifecycle.zh-CN.md)。
+
 Agent 源码 0.3.21 移除 Linux/Windows Bootstrap 的固定安装版本。固定安装 URL 每次读取
 `https://agent-gateway.id-net.cn:30443/secweaver-agent/releases/latest-version.txt`，
 解析一次版本后下载对应不可变目录中的安装包和 SHA-256 文件。保留 `--version` / `-Version`
@@ -21,7 +60,8 @@ Linux 支持 amd64/arm64/loong64，要求 Bash、curl/wget、tar、SHA-256 工�
 
 Linux 安装器从同一次成功注册中取得企业 ID 和自动更新设备 ID。只传企业令牌时
 无需 `--update-device-id`；显式传入冲突值会拒绝继续。旧企业 ID 安装方式启用更新时
-仍需显式更新设备 ID。本修复不改变 Windows 行为。
+仍需显式更新设备 ID。Windows 从 0.3.46 起使用同一注册身份处理，见
+[Windows 安装说明](windows-installation.zh-CN.md)。
 
 `secweaver-agent enroll` 默认仍只向 stdout 输出企业 ID；`-output installer`
 在身份落盘后输出严格的 `enterprise_id<TAB>device_id<LF>`。非法输出格式在注册前拒绝，
@@ -39,7 +79,7 @@ Linux 安装器从同一次成功注册中取得企业 ID 和自动更新设备 
 先将五个平台审核过的安装包和校验文件以原始不可变字节发布到 `<release-root>/<version>/`，再执行：
 
 ```bash
-python3 scripts/publish-release-channel.py --release-root /srv/secweaver-agent/releases --version <审核过的版本>
+python3 scripts/publish-release-channel.py --release-root /srv/secweaver-agent/releases --version <审核过的版本> --runtime-user secweaver-agent-gateway
 ```
 
 工具验证全部平台的名称、哈希、大小、权限和非符号链接条件后，原子替换 `latest-version.txt`。

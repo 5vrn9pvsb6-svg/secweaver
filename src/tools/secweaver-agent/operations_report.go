@@ -48,39 +48,45 @@ type agentOperationsReporter struct {
 	done    chan struct{}
 	lastKey string
 	seq     uint64
+	// The reporter goroutine owns this cache. Avoid systemctl/init subprocesses
+	// on every module transition during a restart storm; quiet hosts refresh at
+	// their next snapshot and checked_at exposes the actual observation time.
+	shipperCheckedAt time.Time
+	shipperStatus    operationsShipper
 }
 
 type operationsReportEvent struct {
-	SchemaVersion string                   `json:"schema_version"`
-	Time          string                   `json:"time"`
-	Timestamp     string                   `json:"timestamp"`
-	AssetType     string                   `json:"asset_type"`
-	EventType     string                   `json:"event_type"`
-	Severity      string                   `json:"severity"`
-	HealthStatus  string                   `json:"health_status"`
-	Sequence      uint64                   `json:"sequence"`
-	EnterpriseID  string                   `json:"enterprise_id"`
-	EvidenceID    string                   `json:"evidence_id"`
-	DeviceID      string                   `json:"device_id,omitempty"`
-	HostName      string                   `json:"host_name"`
-	Host          string                   `json:"host"`
-	HostIP        string                   `json:"host_ip"`
-	AgentVersion  string                   `json:"agent_version"`
-	OS            string                   `json:"os"`
-	Arch          string                   `json:"arch"`
-	PID           int                      `json:"pid"`
-	UptimeSeconds int64                    `json:"uptime_seconds"`
-	Modules       []operationsModuleHealth `json:"modules"`
-	Audit         operationsAuditHealth    `json:"audit"`
-	License       operationsLicenseHealth  `json:"license"`
-	Persistence   operationsPersistence    `json:"persistence"`
-	Resources     *operationsResource      `json:"resources,omitempty"`
-	Shipper       *operationsShipper       `json:"shipper,omitempty"`
-	ReasonCodes   []string                 `json:"reason_codes,omitempty"`
-	Component     string                   `json:"component,omitempty"`
-	StateFrom     string                   `json:"state_from,omitempty"`
-	StateTo       string                   `json:"state_to,omitempty"`
-	Message       string                   `json:"message,omitempty"`
+	SchemaVersion  string                   `json:"schema_version"`
+	Time           string                   `json:"time"`
+	Timestamp      string                   `json:"timestamp"`
+	AssetType      string                   `json:"asset_type"`
+	EventType      string                   `json:"event_type"`
+	Severity       string                   `json:"severity"`
+	HealthStatus   string                   `json:"health_status"`
+	Sequence       uint64                   `json:"sequence"`
+	EnterpriseID   string                   `json:"enterprise_id"`
+	EvidenceID     string                   `json:"evidence_id"`
+	DeviceID       string                   `json:"device_id,omitempty"`
+	HostName       string                   `json:"host_name"`
+	Host           string                   `json:"host"`
+	HostIP         string                   `json:"host_ip"`
+	AgentVersion   string                   `json:"agent_version"`
+	DeploymentMode string                   `json:"deployment_mode,omitempty"`
+	OS             string                   `json:"os"`
+	Arch           string                   `json:"arch"`
+	PID            int                      `json:"pid"`
+	UptimeSeconds  int64                    `json:"uptime_seconds"`
+	Modules        []operationsModuleHealth `json:"modules"`
+	Audit          operationsAuditHealth    `json:"audit"`
+	License        operationsLicenseHealth  `json:"license"`
+	Persistence    operationsPersistence    `json:"persistence"`
+	Resources      *operationsResource      `json:"resources,omitempty"`
+	Shipper        *operationsShipper       `json:"shipper,omitempty"`
+	ReasonCodes    []string                 `json:"reason_codes,omitempty"`
+	Component      string                   `json:"component,omitempty"`
+	StateFrom      string                   `json:"state_from,omitempty"`
+	StateTo        string                   `json:"state_to,omitempty"`
+	Message        string                   `json:"message,omitempty"`
 }
 
 type operationsModuleHealth struct {
@@ -127,8 +133,16 @@ type operationsResource struct {
 }
 
 type operationsShipper struct {
-	Type          string `json:"type"`
-	Configuration string `json:"configuration"`
+	Type          string   `json:"type"`
+	Configuration string   `json:"configuration"`
+	ConfigPath    string   `json:"config_path,omitempty"`
+	MissingPaths  []string `json:"missing_paths,omitempty"`
+	Service       string   `json:"service,omitempty"`
+	ServiceStatus string   `json:"service_status"`
+	ProcessStatus string   `json:"process_status"`
+	CloudDelivery string   `json:"cloud_delivery"`
+	Reason        string   `json:"reason,omitempty"`
+	CheckedAt     string   `json:"checked_at"`
 }
 
 // newAgentOperationsReporter binds jitter to the durable device identity when
@@ -271,6 +285,7 @@ func (r *agentOperationsReporter) emit(eventType, severity, healthStatus, reason
 		ReasonCodes: reasons, Component: componentForEvent(eventType), StateFrom: from, StateTo: to, Message: truncateOperationsMessage(message),
 	}
 	event.Timestamp = event.Time
+	event.DeploymentMode = r.config.DeploymentMode
 	event.Host = event.HostName
 	event.EvidenceID = operationsEvidenceID(event)
 	if r.config.IncludeResourceUsage {
@@ -279,8 +294,20 @@ func (r *agentOperationsReporter) emit(eventType, severity, healthStatus, reason
 		event.Resources = &operationsResource{Goroutines: runtime.NumGoroutine(), GoHeapAllocBytes: memory.HeapAlloc, GoSysBytes: memory.Sys, GoGCCount: memory.NumGC}
 	}
 	if r.config.IncludeShipperStatus {
-		shipper := detectOperationsShipper()
+		if r.shipperCheckedAt.IsZero() || time.Since(r.shipperCheckedAt) >= time.Minute {
+			r.shipperStatus = detectOperationsShipper(r.config.DeploymentMode, r.config.ConfigPath)
+			r.shipperCheckedAt = time.Now()
+		}
+		shipper := r.shipperStatus
 		event.Shipper = &shipper
+		// A running Agent is not a healthy delivery path if its expected local
+		// collector is absent/broken. Lack of cloud proof alone is not a failure.
+		if shipperLocallyBroken(shipper) {
+			if event.HealthStatus == "healthy" {
+				event.HealthStatus, event.Severity = "degraded", "medium"
+			}
+			event.ReasonCodes = append(event.ReasonCodes, "shipper_local_unhealthy")
+		}
 	}
 	body, err := json.Marshal(event)
 	if err != nil {
@@ -403,23 +430,50 @@ func operationModules(snapshot agentStatusFile, tracker *statusTracker) []operat
 	return modules
 }
 
-func detectOperationsShipper() operationsShipper {
-	// Configuration presence is portable and cheap. Actual shipper delivery
-	// latency belongs to Filebeat/native shipper metrics and server-side alerts.
+func detectOperationsShipper(mode string, configPaths ...string) operationsShipper {
+	// The intent marker survives an interrupted bootstrap before Logtail exists.
+	// It is not a cloud receipt, nor is the collector's active service state.
+	// Explicit ES installations must ignore unrelated machine-wide Logtail.
+	if runtime.GOOS == "linux" && mode != deploymentES {
+		marker, _ := os.ReadFile(filepath.Join(layout.LinuxRoot, "etc", "shipper-kind"))
+		status := probeLogtail("/etc/ilogtail", "/usr/local/ilogtail", "/etc/init.d", mode == deploymentSLS || strings.TrimSpace(string(marker)) == "logtail", commandOutput)
+		if status.Type == "logtail" {
+			return status
+		}
+	}
 	paths := []struct{ kind, path string }{
 		{"filebeat", filepath.Join(layout.LinuxShipper, "filebeat.yml")},
 		{"native", filepath.Join(layout.LinuxShipper, "shipper.json")},
 		{"fluent_bit", filepath.Join(layout.LinuxShipper, "fluent-bit.conf")},
 	}
 	if runtime.GOOS == "windows" {
+		// Contract location follows the actual configuration, including custom
+		// installation roots. Never accept a different Agent's default contract.
+		configDir := filepath.Join(layout.WindowsRootDir(), "etc")
+		if len(configPaths) > 0 && configPaths[0] != "" {
+			configDir = filepath.Dir(configPaths[0])
+		}
+		// Match Linux channel isolation: a shared host-wide Logtail service
+		// does not establish delivery for an explicitly ES-managed Agent.
+		if mode != deploymentES {
+			marker, _ := os.ReadFile(filepath.Join(configDir, "shipper-kind"))
+			status := probeWindowsLogtail(`C:\LogtailData`, mode == deploymentSLS || strings.TrimSpace(string(marker)) == "logtail", configDir, commandOutput)
+			if status.Type == "logtail" {
+				return status
+			}
+		}
 		paths = []struct{ kind, path string }{{"native", filepath.Join(layout.WindowsShipper, "shipper.json")}, {"fluent_bit", filepath.Join(layout.WindowsShipper, "fluent-bit.conf")}}
 	}
 	for _, candidate := range paths {
+		// A leftover ES config does not prove SLS delivery is configured.
+		if mode == deploymentSLS {
+			break
+		}
 		if info, err := os.Stat(candidate.path); err == nil && info.Mode().IsRegular() {
-			return operationsShipper{Type: candidate.kind, Configuration: "configured"}
+			return operationsShipper{Type: candidate.kind, Configuration: "configured", ServiceStatus: "unknown", ProcessStatus: "unknown", CloudDelivery: "unverified", CheckedAt: time.Now().UTC().Format(time.RFC3339), Reason: "configuration_present_only"}
 		}
 	}
-	return operationsShipper{Type: "unknown", Configuration: "not_detected"}
+	return operationsShipper{Type: "unknown", Configuration: "not_detected", ServiceStatus: "unknown", ProcessStatus: "unknown", CloudDelivery: "unverified", CheckedAt: time.Now().UTC().Format(time.RFC3339), Reason: "shipper_not_detected"}
 }
 
 func componentForEvent(eventType string) string {

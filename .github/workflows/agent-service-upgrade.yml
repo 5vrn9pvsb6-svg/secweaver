@@ -28,6 +28,23 @@ jobs:
         with:
           go-version-file: src/tools/secweaver-agent/go.mod
           cache-dependency-path: src/tools/secweaver-agent/go.sum
+      - name: Windows installer contracts
+        working-directory: src/tools/secweaver-agent
+        shell: powershell
+        run: .\integration\windows-install\contracts.ps1
+      - name: Windows Bootstrap failures and installation rollback contracts
+        working-directory: src/tools/secweaver-agent
+        shell: powershell
+        run: .\integration\windows-install\failures.ps1
+      - name: Windows offline uninstall and purge contracts
+        # Exercise destructive paths only against temporary fixture directories.
+        working-directory: src/tools/secweaver-agent
+        shell: powershell
+        run: .\integration\windows-install\uninstall.ps1
+      - name: Windows bounded SCM error record
+        working-directory: src/tools/secweaver-agent
+        shell: powershell
+        run: go test . -run TestWindowsServiceFailureRecord
       - name: N-1 to N health failure and rollback under Windows SCM
         working-directory: src/tools/secweaver-agent
         shell: powershell

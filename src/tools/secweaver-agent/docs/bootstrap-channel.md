@@ -1,5 +1,50 @@
 # Dynamic Bootstrap Version
 
+## Installation Progress (0.3.44)
+
+Linux SaaS Bootstrap now prints eight numbered steps to stderr. Terminal success is
+green `OK`, failure red `FAIL`, recovery/other warnings yellow `WARN`; `RUN`, `INFO` and
+`SKIP` stay plain. Color depends on stderr being a terminal, not stdin, so the curl
+pipeline supports it. Redirected output and `TERM=dumb` are plain. Pass `--no-color`
+after the installation arguments or set a nonempty `NO_COLOR` in the sudo environment
+to disable ANSI escapes explicitly. No color or progress change applies to Windows
+PowerShell or a direct archive `install.sh` invocation in this release.
+
+Steps: resolve version; download/checksum/extract; install/register/configure Agent;
+preflight; install/reuse Logtail; configure its identity/service handoff; start Agent;
+verify local health. A step gets OK only after its commands succeed, with elapsed
+seconds. `--skip-logtail` and `--no-start` show SKIP for omitted work. Existing Logtail
+is reused. The installer does not label cloud delivery successful from local checks.
+
+Full child-installer, configuration, vendor and diagnostic output goes to a unique
+`/opt/secweaver-agent/install-logs/install.log.*` file (0600, directory 0700), whose path
+is printed at the start and end/failure. These text logs are outside collected JSONL
+paths and survive setup failure; `uninstall.sh --purge` removes them with the root.
+They can contain host/configuration details, so share only reviewed/redacted excerpts.
+No command tracing or enrollment arguments are deliberately recorded. Review/remove old
+installation logs as needed; there is one file per invocation, not a background stream.
+Use `sudo tail -f <printed-log-path>` in a second terminal for detailed progress.
+
+Failure stops the flow, preserves the failing exit status and prints the failed stage
+and log path. HTTP 401 adds token recovery guidance. Signals return 130/143. An expected
+auto-backend fallback from unavailable BTF and newly empty event logs are INFO; other
+diagnostic warnings/errors remain visible. Vendor graceful-stop failure becomes one
+WARN before bounded force-stop; repeated PID output stays in the log. Service checks
+must still pass before OK. Standalone doctor output/severity is unchanged.
+
+Regression checks exercise real PTYs, plain redirected output, NO_COLOR, child failures,
+preflight/doctor failures, immutable pointer failures and private log permissions.
+Post-release acceptance should verify the public script on a Linux systemd host, then
+confirm services and actual cloud receipt independently.
+
+Since 0.3.42 the Linux SaaS default is `cn-hangzhou-internet`. Explicit intranet selectors
+are preserved. Downloads and vendor installation now have bounded time/retries and
+stage/host errors; see [network policy](collector-lifecycle.md#network-policy).
+
+Agent 0.3.41 adds serialized Logtail/systemd handoff, stops vendor-started daemons
+under `--no-start`, and records SLS intent before download. Doctor runs after collector
+startup. See [collector lifecycle and verification](collector-lifecycle.md).
+
 Agent source 0.3.21 removes the installed-version constant from Linux and Windows
 Bootstrap scripts. The fixed installation URL resolves
 `https://agent-gateway.id-net.cn:30443/secweaver-agent/releases/latest-version.txt`
@@ -27,7 +72,8 @@ The Linux installer derives its update device ID from the same successful
 enrollment that supplies the enterprise ID. Token-only installation needs no
 `--update-device-id`; an explicitly conflicting value fails closed. Legacy
 enterprise-ID installation still needs an explicit update ID when updates are
-enabled. Windows behavior is unchanged.
+enabled. Windows gained the same enrollment identity handling in 0.3.46; see
+[Windows installation](windows-installation.md).
 
 `secweaver-agent enroll` retains enterprise-ID-only stdout by default.
 `-output installer` emits exactly `enterprise_id<TAB>device_id<LF>` after saving
@@ -52,7 +98,7 @@ Publish all five reviewed archives and matching sidecars under
 `<release-root>/<version>/`, using the original immutable bytes. Then run:
 
 ```bash
-python3 scripts/publish-release-channel.py --release-root /srv/secweaver-agent/releases --version <reviewed-version>
+python3 scripts/publish-release-channel.py --release-root /srv/secweaver-agent/releases --version <reviewed-version> --runtime-user secweaver-agent-gateway
 ```
 
 The publisher validates names, hashes, size and non-writable/non-symlink files,

@@ -4,6 +4,8 @@ import importlib.util
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest import mock
+import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("release_channel", ROOT / "src/tools/secweaver-agent/scripts/publish-release-channel.py")
@@ -15,6 +17,7 @@ class ReleaseChannelTests(unittest.TestCase):
     def test_promotion_is_all_platforms_or_nothing(self):
         with TemporaryDirectory() as temp:
             root = Path(temp)
+            root.chmod(0o755)
             version = "0.3.21"
             (root / version).mkdir()
             pointer = root / "latest-version.txt"
@@ -31,6 +34,18 @@ class ReleaseChannelTests(unittest.TestCase):
                 channel.promote(root, version)
             self.assertEqual(pointer.read_text(), "0.3.19\n")
             archives[-1].write_bytes(b"windows_arm64")
+            # Restrictive umasks must fail before changing the public pointer,
+            # including when the publisher itself can read every archive.
+            for path, mode, restore in ((root / version, 0o700, 0o755), (archives[0], 0o600, 0o644)):
+                path.chmod(mode)
+                with self.assertRaises(ValueError):
+                    channel.promote(root, version)
+                self.assertEqual(pointer.read_text(), "0.3.19\n")
+                path.chmod(restore)
+            with mock.patch.object(channel.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "runuser")):
+                with self.assertRaisesRegex(ValueError, "runtime-user"):
+                    channel.promote(root, version, "gateway-test")
+            self.assertEqual(pointer.read_text(), "0.3.19\n")
             channel.promote(root, version)
             self.assertEqual(pointer.read_text(), version + "\n")
             archives[0].unlink()

@@ -2,6 +2,11 @@
 
 本目录存放**逻辑数据资产**与**连接器配置**，供安全运营同学自行编辑。
 
+Windows Agent 0.3.51 的风险 parser 0.3.1 将完整 PowerShell 4104 脚本片段保留在
+`command`，`message` 改为摘要，并增加 `script_sha256`、`script_bytes`。
+查询/分析完整脚本应读取 command，不依赖重复的 fields.ScriptBlockText；现有通用模板
+读取全部字段，必需字段不变。详见 [Windows 日志合同](../src/tools/secweaver-agent/docs/windows-installation.zh-CN.md)。
+
 运行和管理程序统一放在 [`../src/dataasset/`](../src/dataasset/)；不要把
 Python、Shell、插件或编译程序复制到任何资产目录。
 

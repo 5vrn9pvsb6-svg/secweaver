@@ -19,6 +19,8 @@ func runConfigCommand(args []string) int {
 		return 2
 	}
 	switch args[0] {
+	case "set-deployment-mode":
+		return runDeploymentModeCommand(args[1:])
 	case "set-enterprise-id":
 		fs := flag.NewFlagSet("config set-enterprise-id", flag.ContinueOnError)
 		fs.SetOutput(os.Stderr)
@@ -536,6 +538,9 @@ func validateAndWriteConfig(path string, payload map[string]json.RawMessage) err
 	if len(candidate.Modules) == 0 {
 		return fmt.Errorf("validate config: modules is empty")
 	}
+	if err := validateDeploymentMode(candidate.DeploymentMode); err != nil {
+		return err
+	}
 	if _, err := enabledModules(candidate); err != nil {
 		return fmt.Errorf("validate config: %w", err)
 	}
@@ -588,6 +593,7 @@ func validateAndWriteConfig(path string, payload map[string]json.RawMessage) err
 
 func printConfigUsage(out *os.File) {
 	fmt.Fprintf(out, `Usage:
+  secweaver-agent config set-deployment-mode -config <path> [-mode sls_saas|es_private] [-check-only]
   secweaver-agent config set-enterprise-id -config <path> -enterprise-id <16-char-id>
   secweaver-agent config set-license -config <path> -protocol <legacy_v1|device_v2> -server-url <url> [-ca-file <path>] [-enrollment-id <id>]
   secweaver-agent config set-update -config <path> -manifest-url <https-url> [-public-key <base64>] [-ca-file <path>] [flags]

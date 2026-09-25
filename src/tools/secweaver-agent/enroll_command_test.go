@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,21 @@ import (
 
 	"secweaver-agent/pkg/agentlicense"
 )
+
+func TestEnrollmentTokenStdin(t *testing.T) {
+	got, err := enrollmentTokenInput(strings.NewReader("synthetic-token\r\n"), "", true)
+	if err != nil || got != "synthetic-token" {
+		t.Fatal("stdin credential not accepted")
+	}
+	for _, input := range []string{"", "secret\nsecond", strings.Repeat("x", 513)} {
+		if _, err := enrollmentTokenInput(strings.NewReader(input), "", true); err == nil || strings.Contains(err.Error(), "secret") {
+			t.Fatal("invalid input accepted or reflected")
+		}
+	}
+	if _, err := enrollmentTokenInput(strings.NewReader("secret"), "argument", true); err == nil {
+		t.Fatal("ambiguous credentials accepted")
+	}
+}
 
 // A child process captures the real command's stdout without mutating the test
 // runner's global streams. The TLS fixture echoes the cryptographically bound ID.
@@ -69,5 +85,37 @@ func TestEnrollInstallerOutput(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 	if err == nil || !strings.Contains(string(out), "invalid enrollment output format") {
 		t.Fatalf("invalid format: %v %s", err, out)
+	}
+}
+
+// Guidance must follow typed status, even through wrapping, without leaking
+// supplied credentials or misdiagnosing transport/server failures as expiry.
+func TestEnrollmentRecoveryHint(t *testing.T) {
+	for _, status := range []int{401, 403, 404, 409, 429, 500} {
+		err := fmt.Errorf("wrapped: %w", &agentlicense.HTTPStatusError{StatusCode: status, Reason: "secret-must-not-appear"})
+		hint := enrollmentRecoveryHint(err)
+		if (hint != "") != (status == 401 || status == 404) || strings.Contains(hint, "secret-must-not-appear") {
+			t.Fatalf("status %d: %q", status, hint)
+		}
+	}
+	if hint := enrollmentRecoveryHint(fmt.Errorf("network timeout")); hint != "" {
+		t.Fatal(hint)
+	}
+}
+
+func TestEnrollmentFailureMessageRedactsCredentials(t *testing.T) {
+	for _, err := range []error{
+		&agentlicense.HTTPStatusError{StatusCode: 401, Reason: "swenr_example.secret"},
+		fmt.Errorf(`Post "https://user:password@example.test/path?token=secret": timeout swenr_example.secret`),
+	} {
+		message := enrollmentFailureMessage(err, "https://user:password@example.test?token=secret", "swenr_example.secret")
+		for _, secret := range []string{"password", "token=", "swenr_example.secret"} {
+			if strings.Contains(message, secret) {
+				t.Fatalf("leaked credential in %q", message)
+			}
+		}
+		if !strings.Contains(message, "stage=device-enrollment") || !strings.Contains(message, "/api/secweaver/v2/agent/enroll") {
+			t.Fatal(message)
+		}
 	}
 }

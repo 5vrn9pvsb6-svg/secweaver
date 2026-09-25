@@ -1,5 +1,165 @@
 # Changelog
 
+## Agent 0.3.60
+
+- Fix Windows OS-version fallback reporting: extract the full ASCII build from
+  localized `cmd ver` output instead of forwarding OEM/code-page bytes as UTF-8.
+  Reject damaged CIM captions and preserve the patch component without inferring
+  a Windows edition. Add an exact CP936 corruption reproduction and failure tests.
+
+## Agent 0.3.59
+
+- Enrich Windows enrollment/heartbeat `os_version` with the local CIM product
+  caption and system version, distinguishing desktop and Server editions without
+  guessing from build numbers. Bound probes and retain the numeric fallback when
+  CIM/PowerShell is unavailable; invalid/oversized metadata cannot block registration.
+- Document Linux distribution/version reporting and Windows upgrade/verification,
+  with regression coverage for localized captions, failures and the existing
+  128-byte protocol limit. The payload schema and independent log collection are unchanged.
+
+## Agent 0.3.58
+
+- Clarify Windows installation diagnostics: successful installs no longer advertise a startup error file; failure diagnostics include only a bounded detail file from the current attempt. Automatic-update restart semantics are informational instead of a preflight/doctor warning and do not imply a pending restart.
+- Reuse preflight channel results to distinguish missing/inaccessible Sysmon, an available channel awaiting eligible learning evidence, and unverified capability. Explain that Security 4688 and risk events remain full-output. Keep cloud-receipt verification visibly pending without claiming an upload failure or success.
+
+## Agent 0.3.57
+
+- Fix Windows PowerShell 5.1 installation failing with InvokeMethodOnNull in Get-AgentArchitecture when RuntimeInformation.OSArchitecture is unavailable. Bootstrap and managed Logtail checks now use native Windows architecture variables, with WOW64 precedence, explicit unsupported-platform errors, and matching regression coverage. Existing x64 and ARM64 Agent support is unchanged; managed Windows Logtail remains x64-only.
+
+## Agent 0.3.56
+
+- Preserve Windows purge exit status by exiting the dedicated CMD child instead of returning to a deleted batch file with EXIT /B. Document cmd /d /c invocation from CMD/SSH so the interactive session remains open. Native temporary-directory testing found that pre-parsing alone in the unpromoted 0.3.55 acceptance build was insufficient.
+
+## Agent 0.3.55
+
+- Fix the Windows uninstall CMD entry's self-removal exit status: parse the entire invocation/return block before deleting the launcher and ship native CRLF line endings. Agent 0.3.54 was an unpromoted acceptance build; archive bytes are not reused.
+
+## Agent 0.3.54
+
+- Install persistent Windows bin/uninstall.cmd and uninstall-service.ps1 entries with rollback-covered layout metadata. Default removal keeps data; -Purge removes Agent and standard-layout Logtail services, exact owned processes, local files, identities and checkpoints without network access. -KeepLogtail preserves shared collectors; -Json returns a machine-readable result with nonzero exit on failure.
+- Validate installation/service paths and reject junctions before mutation. Serialize against installation, bound SCM/process waits, and verify remaining services/directories. External InstallDir/ConfigDir and nonstandard Logtail layouts require operator cleanup. Cloud history and Windows audit policy are preserved.
+
+## Agent 0.3.53
+
+- Fix Windows Bootstrap token cleanup so PowerShell 5.1 returns success after a successful installation and preserves the original error after a failed installation. Remove validated token references instead of assigning an invalid empty value; cover the actual cleanup block in both paths.
+
+## Agent 0.3.52
+
+- Accept the native Windows Logtail 1.6.1.0 `metrics` cache as well as the legacy `log_config` envelope. Validate both namespaces together to reject duplicate collection rules and retain strict signed destination checks.
+
+## Agent [0.3.51] - 2026-09-25
+
+- Windows enrollment pipes its token through bounded stdin instead of an audited child-process command line.
+
+- Windows installers expose `-LearningMode preserve|enable|shadow|disable`; upgrades retain existing choices by default and never reset baseline generations. Doctor distinguishes disabled learning, missing device identity and missing Sysmon context from active filtering.
+- Windows risk parser 0.3.1 stores a complete PowerShell 4104 fragment once in `command`, adds `script_sha256`/`script_bytes`, and removes identical copies from `fields` and `message`. Classification, fragment metadata, raw-XML opt-in and event counts are preserved.
+- Windows installation reports colored collection, authorization, shipper and cloud-delivery stages. One strict dry-run validates configuration and preflight without duplicate OS probes; cloud receipt remains explicitly unverified until queried server-side.
+
+## Agent [0.3.50] - 2026-09-25
+
+- Require an Ed25519-signed Windows SLS collection plan in managed Bootstrap;
+  reject missing/mismatched account, group, region or log-root settings before
+  host mutation. Publish the plan and pinned public key with immutable releases.
+- Wait for the running Logtail worker's delivered native JSON rules before Agent
+  activation. Verify all eight files, destination and overlapping rules; roll back
+  pre-activation Agent changes on timeout while retaining identity/shared Logtail.
+- Share bounded signature/cache validation between installer, logtail-check,
+  doctor and health, including custom config locations and missing route details.
+  Local readiness deliberately remains distinct from real SLS receipt.
+
+## Agent [0.3.49] - 2026-09-25
+
+- Validate Windows Bootstrap null/empty/text/byte version responses and SHA-256
+  sidecars; bound downloads and report redacted stage/URL/HTTP diagnostics.
+- Roll back pre-activation Windows installation failures to the prior binary,
+  configuration and SCM command/start state, or remove a failed fresh service.
+  Preserve identity, cursors, evidence, shared Logtail and private failure backups.
+- Share the default Windows SCM/doctor service identifier and verify persisted
+  managed-update settings. Explain disabled generic templates versus enabled
+  managed Bootstrap and policy-gated rollout.
+- Add PowerShell failure-path regression tests and Windows CI coverage; distinguish
+  401/404 enrollment rejection from successful HTTP responses with invalid JSON.
+
+## Agent [0.3.48] - 2026-09-25
+
+- Finalize Windows installer regression fixes: preserve timestamp timezones across
+  PowerShell 5.1/7, relocate implicit Event Log cursors for custom roots, reject
+  unverified collector archives, and honor persisted SLS/ES delivery ownership.
+- Ship the Windows helper and bilingual acceptance guide in actual release archives;
+  exercise PowerShell contracts and bounded SCM failure records on Windows CI.
+
+## Agent [0.3.47] - 2026-09-25
+
+- Keep a shared Agent binary while persisting SLS SaaS / private ES deployment
+  ownership. Channel installers reject conflicting ordinary upgrades; remote
+  policies preserve local mode and cannot switch it.
+- Select delivery diagnostics by explicit mode, report it in health events and
+  doctor, and retain explicit opt-in for standalone collector removal.
+
+## Agent [0.3.46] - 2026-09-25
+
+- Repair Windows enrollment/update identity, SCM name diagnostics and custom-root paths;
+  validate configuration and fresh module readiness before installation success.
+- Install/reuse pinned amd64 Windows Logtail with a Windows-only machine group,
+  bounded download/install, explicit NoStart/SkipLogtail behavior and worker checks.
+- Persist bounded SCM failure details and report local Windows shipper health without
+  treating HTTP 200 or service Running as proof of cloud receipt.
+- Add bilingual Windows prerequisites, migration and host-exec marker acceptance.
+
+## Agent [0.3.45] - 2026-09-25
+
+- Install the Linux uninstaller at `/opt/secweaver-agent/bin/uninstall.sh` so
+  uninstall operations do not depend on an extracted archive or test staging directory.
+- Add installer and lifecycle documentation regressions for the canonical uninstaller path.
+
+## Agent [0.3.44] - 2026-09-24
+
+- Present Linux SaaS Bootstrap as eight numbered stages with terminal-only green
+  OK, red FAIL and yellow WARN; redirected output, NO_COLOR and --no-color are plain.
+- Keep raw package/vendor/diagnostic output in private 0600 install logs; preserve
+  failed exit codes and show the failed stage/log path without echoing credentials.
+- Explain expected audit fallback and startup-empty logs as INFO, retain genuine
+  warnings and explicit Logtail force-stop recovery, and separate local health from
+  cloud-delivery confirmation. Skipped service/upload stages are never labeled OK.
+- Add PTY color tests and full Bootstrap success/failure/diagnostic regressions.
+
+## Agent [0.3.43] - 2026-09-24
+
+- Explain enrollment HTTP 401 recovery in English/Chinese without guessing whether
+  the credential expired, was revoked or is invalid; preserve installer stdout.
+- Reject unreadable public release directories/files before channel promotion and
+  add optional Linux runtime-user traversal/readability checks.
+- Accept only standard CentOS/RHEL init and merged-/usr systemd directory symlinks
+  during uninstall; continue rejecting arbitrary symlink removal roots.
+- Add real shell compatibility, typed enrollment-error and atomic publication
+  regressions, plus synchronized operator instructions.
+
+## Agent [0.3.42] - 2026-09-24
+
+- Defaulted the Linux SaaS Logtail selector to `cn-hangzhou-internet`; explicit bare
+  regions remain intranet choices with no automatic public-network fallback. Publisher
+  source geography is separate from the runtime selector and exported alongside the pin.
+- Bounded Bootstrap downloads and vendor curl/wget retries, added a 600-second vendor
+  install deadline and stage/host failure diagnostics. Never automatically rerun a
+  partially executed vendor installer; cloud delivery remains separately unverified.
+- Closed the inherited Bootstrap lock descriptor in the vendor child so a launched
+  daemon cannot retain it. Added isolated network-policy and end-to-end bootstrap tests,
+  and synchronized English/Chinese operator defaults and migration instructions.
+
+## Agent [0.3.41] - 2026-09-24
+
+- Fixed Linux Logtail installer/systemd handoff with serialized bootstrap ownership,
+  bounded stop/recovery, live-process checks before stale PID cleanup, and one managed
+  start. `--no-start` also stops the daemon launched by the upstream installer.
+- Added explicit standalone Logtail/Filebeat removal, package-aware Filebeat cleanup,
+  rotated-log cleanup and post-removal verification. Uninstall JSON is now clean stdout,
+  handles zero audit rules, distinguishes audit-query failure and returns failure on leftovers.
+- Added shared Logtail service/process/identity checks for doctor and health output,
+  including systemd 219 and oneshot services. Interrupted SLS setup is recorded locally;
+  local collector faults degrade health while cloud delivery is explicitly `unverified`.
+- Added isolated installer/uninstaller and shipper-health regressions plus bilingual
+  lifecycle, diagnostic and clean-host verification instructions.
+
 ## Agent [0.3.40] - 2026-09-24
 
 - Fixed Linux shared audit reader shutdown ordering: normal service stops no longer race

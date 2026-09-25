@@ -11,12 +11,14 @@ import (
 )
 
 const (
-	LinuxRoot    = "/opt/secweaver-agent"
-	LinuxBin     = LinuxRoot + "/bin"
-	LinuxEtc     = LinuxRoot + "/etc"
-	LinuxData    = LinuxRoot + "/data"
-	LinuxLogs    = LinuxRoot + "/logs"
-	LinuxShipper = LinuxRoot + "/shipper"
+	// WindowsServiceName is shared by SCM dispatch and default doctor probes.
+	WindowsServiceName = "SecWeaverAgent"
+	LinuxRoot          = "/opt/secweaver-agent"
+	LinuxBin           = LinuxRoot + "/bin"
+	LinuxEtc           = LinuxRoot + "/etc"
+	LinuxData          = LinuxRoot + "/data"
+	LinuxLogs          = LinuxRoot + "/logs"
+	LinuxShipper       = LinuxRoot + "/shipper"
 
 	WindowsRoot    = `C:\ProgramData\SecWeaver\Agent`
 	WindowsBin     = WindowsRoot + `\bin`

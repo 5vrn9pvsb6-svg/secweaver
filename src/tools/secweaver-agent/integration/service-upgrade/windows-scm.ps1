@@ -143,7 +143,7 @@ exit /b 0
 "@
   Set-Content -Path $RollbackScript -Value $RollbackBody -Encoding Ascii
 
-  $BinaryPath = "`"$Binary`" service -config `"$ConfigPath`""
+  $BinaryPath = "`"$Binary`" service -name $ServiceName -config `"$ConfigPath`""
   New-Service -Name $ServiceName -BinaryPathName $BinaryPath -StartupType Manual `
     -DisplayName "SecWeaver Agent upgrade integration test" | Out-Null
   $RollbackCommand = "`"$env:ComSpec`" /d /s /c `"`"$RollbackScript`"`""

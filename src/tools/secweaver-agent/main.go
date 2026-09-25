@@ -50,6 +50,8 @@ func run(args []string) int {
 		return runPreflightCommand(args[1:])
 	case "doctor":
 		return runDoctorCommand(args[1:])
+	case "logtail-check":
+		return runLogtailCheckCommand(args[1:])
 	case "collect-existing-logs":
 		return runCollectExistingLogsCommand(args[1:])
 	case "config":
@@ -185,9 +187,15 @@ func runAgentCommand(args []string) int {
 	fs.SetOutput(os.Stderr)
 	configPath := defaultAgentConfigPath()
 	dryRun := false
+	strictPreflight := false
 	fs.StringVar(&configPath, "config", configPath, "agent JSON config path")
 	fs.BoolVar(&dryRun, "dry-run", false, "validate config and print enabled modules without starting them")
+	fs.BoolVar(&strictPreflight, "strict-preflight", false, "with -dry-run, fail when platform prerequisites report errors")
 	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if strictPreflight && !dryRun {
+		fmt.Fprintln(os.Stderr, "-strict-preflight requires -dry-run")
 		return 2
 	}
 
@@ -234,6 +242,8 @@ func runAgentCommand(args []string) int {
 		statusPath = defaultStatusPath()
 	}
 	operationsRuntime, err := normalizeOperationsReportConfig(cfg.Operations)
+	operationsRuntime.DeploymentMode = cfg.DeploymentMode
+	operationsRuntime.ConfigPath = configPath
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "configure operations report failed: %v\n", err)
 		return configurationErrorExitCode
@@ -275,7 +285,13 @@ func runAgentCommand(args []string) int {
 		}
 		fmt.Fprintf(os.Stdout, "- operations_report enabled=%v output=%s snapshot_interval=%s jitter=%s\n",
 			operationsRuntime.Enabled, operationsRuntime.Output, operationsRuntime.SnapshotInterval, operationsRuntime.Jitter)
-		printPreflightReport(os.Stdout, collectPreflightReport(configPath, modules, updateRuntime), true)
+		// Installers need full configuration validation and strict OS checks in
+		// one pass. Ordinary dry-run keeps its existing informational behavior.
+		report := collectPreflightReport(configPath, modules, updateRuntime)
+		printPreflightReport(os.Stdout, report, true)
+		if strictPreflight && preflightHasErrors(report) {
+			return configurationErrorExitCode
+		}
 		return 0
 	}
 	if err := agentoutput.ApplyDiskBudgetEnvironment(cfg.DiskBudget, configuredOutputFileCount(modules, updateRuntime, &operationsRuntime)); err != nil {

@@ -4,6 +4,12 @@
 
 This directory holds **logical data assets** and **connector configurations** for security operations teams to edit directly.
 
+Windows Agent 0.3.51 risk parser 0.3.1 retains complete PowerShell 4104 fragments in
+`command`, makes `message` a summary and adds `script_sha256`/`script_bytes`. Read
+command for script analysis rather than the former duplicate fields.ScriptBlockText.
+Generic queries select all fields and required fields are unchanged. See the
+[Windows record contract](../src/tools/secweaver-agent/docs/windows-installation.md).
+
 Executable runtime and management programs live in
 [`../src/dataasset/`](../src/dataasset/). Do not copy Python, shell, plugin, or
 compiled program files into an asset root.

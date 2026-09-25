@@ -24,6 +24,10 @@
       "provider",
       "user",
       "message",
+      "command",
+      "script_sha256",
+      "script_bytes",
+      "parser_version",
       "src_ip",
       "process",
       "action"

@@ -14,11 +14,14 @@ import (
 	"time"
 	"unsafe"
 
+	"secweaver-agent/pkg/layout"
 	"secweaver-agent/pkg/metrics"
 	agentoutput "secweaver-agent/pkg/output"
 )
 
-const windowsServiceName = "SecWeaverAgent"
+// The SCM name is set once before dispatcher startup and is immutable while
+// callbacks run. Installers pass custom names explicitly.
+var windowsServiceName = layout.WindowsServiceName
 
 const (
 	serviceWin32OwnProcess = 0x00000010
@@ -78,10 +81,15 @@ func runServiceCommand(args []string) int {
 	fs.SetOutput(os.Stderr)
 	configPath := defaultAgentConfigPath()
 	fs.StringVar(&configPath, "config", configPath, "agent JSON config path")
+	fs.StringVar(&windowsServiceName, "name", windowsServiceName, "registered SCM service name")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
+	// A bounded last-failure file survives SCM stderr being discarded. Keep it
+	// beside the ACL-protected config; this is not a growing service log.
+	_ = os.Remove(configPath + ".service-error.txt")
 	if err := runWindowsService(configPath); err != nil {
+		writeWindowsServiceFailure(configPath, err)
 		fmt.Fprintf(os.Stderr, "service failed: %v\n", err)
 		return 1
 	}
@@ -131,6 +139,7 @@ func windowsServiceMain(argc uint32, argv uintptr) {
 	_ = argv
 	handle, err := registerServiceCtrlHandler()
 	if err != nil {
+		writeWindowsServiceFailure(serviceConfigPath, err)
 		serviceLogf("register service control handler failed: %v", err)
 		return
 	}
@@ -138,7 +147,7 @@ func windowsServiceMain(argc uint32, argv uintptr) {
 	serviceHandle = handle
 	serviceCheckPoint = 1
 	serviceMu.Unlock()
-	setWindowsServiceStatus(serviceStartPending, 0, 1, 30000)
+	setWindowsServiceStatus(serviceStartPending, 0, 0, 30000)
 
 	serviceLogf("service starting config=%s", serviceConfigPath)
 
@@ -153,6 +162,7 @@ func windowsServiceMain(argc uint32, argv uintptr) {
 	exitCode := uint32(0)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		exitCode = 1
+		writeWindowsServiceFailure(serviceConfigPath, err)
 		serviceLogf("service stopped with error: %v", err)
 	} else {
 		serviceLogf("service stopped")
@@ -185,7 +195,7 @@ func windowsServiceCtrlHandler(control uint32, eventType uint32, eventData uintp
 	_ = context
 	switch control {
 	case serviceControlStop, serviceControlShutdown:
-		setWindowsServiceStatus(serviceStopPending, 0, 1, 30000)
+		setWindowsServiceStatus(serviceStopPending, 0, 0, 30000)
 		serviceMu.Lock()
 		cancel := serviceCancel
 		serviceMu.Unlock()
@@ -264,6 +274,8 @@ func runWindowsServiceSupervisor(ctx context.Context, configPath string) error {
 		return err
 	}
 	operationsRuntime, err := normalizeOperationsReportConfig(cfg.Operations)
+	operationsRuntime.DeploymentMode = cfg.DeploymentMode
+	operationsRuntime.ConfigPath = configPath
 	if err != nil {
 		return fmt.Errorf("configure operations report: %w", err)
 	}
@@ -312,4 +324,17 @@ func serviceLogf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "%s ", time.Now().Format(time.RFC3339))
 	fmt.Fprintf(os.Stderr, format, args...)
 	fmt.Fprintln(os.Stderr)
+}
+
+// writeWindowsServiceFailure persists only the latest startup/runtime failure.
+// SCM discards stderr, so config/license errors must remain inspectable after a
+// service reaches Stopped. Inherited installation ACLs protect this bounded file.
+func writeWindowsServiceFailure(configPath string, err error) {
+	message := time.Now().UTC().Format(time.RFC3339) + " " + err.Error() + "\n"
+	if len(message) > 16384 {
+		message = message[:16384]
+	}
+	if writeErr := os.WriteFile(configPath+".service-error.txt", []byte(message), 0600); writeErr != nil {
+		serviceLogf("persist service failure: %v", writeErr)
+	}
 }

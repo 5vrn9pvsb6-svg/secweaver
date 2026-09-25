@@ -35,6 +35,7 @@ func TestLinuxInstallerEnrollmentUpdateIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			write("package/install.sh", string(body), 0755)
+			write("package/uninstall.sh", "#!/bin/sh\n", 0755)
 			write("package/bin/secweaver-agent", `#!/usr/bin/env bash
 set -euo pipefail
 if [[ "$1" == enroll ]]; then

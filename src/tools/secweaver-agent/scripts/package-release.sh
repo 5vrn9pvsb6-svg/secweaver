@@ -9,7 +9,14 @@ BOOTSTRAP_ENROLLMENT_ID="${BOOTSTRAP_ENROLLMENT_ID:-}"
 BOOTSTRAP_LOGTAIL_INSTALL_URL="${BOOTSTRAP_LOGTAIL_INSTALL_URL:-https://agent-gateway.id-net.cn:30443/logtail/install.sh}"
 BOOTSTRAP_LOGTAIL_INSTALL_SHA256="${BOOTSTRAP_LOGTAIL_INSTALL_SHA256:-}"
 BOOTSTRAP_LOGTAIL_ALIUID="${BOOTSTRAP_LOGTAIL_ALIUID:-}"
-BOOTSTRAP_LOGTAIL_REGION="${BOOTSTRAP_LOGTAIL_REGION:-}"
+# SLS machine groups cannot mix operating systems. Provision this distinct
+# Windows custom identifier and bind Windows JSON file collection rules.
+BOOTSTRAP_WINDOWS_LOGTAIL_MACHINE_GROUP="${BOOTSTRAP_WINDOWS_LOGTAIL_MACHINE_GROUP:-${BOOTSTRAP_ENROLLMENT_ID}-windows}"
+BOOTSTRAP_WINDOWS_COLLECTION_FILE="${BOOTSTRAP_WINDOWS_COLLECTION_FILE:-}"
+BOOTSTRAP_WINDOWS_COLLECTION_PUBLIC_KEY="${BOOTSTRAP_WINDOWS_COLLECTION_PUBLIC_KEY:-}"
+# Public SaaS hosts must not require Alibaba Cloud intranet reachability.
+# An explicit bare region is retained as the operator's intranet choice.
+BOOTSTRAP_LOGTAIL_REGION="${BOOTSTRAP_LOGTAIL_REGION:-cn-hangzhou-internet}"
 UPDATE_SIGNING_PRIVATE_KEY_FILE="${UPDATE_SIGNING_PRIVATE_KEY_FILE:-}"
 UPDATE_CHANNEL="${UPDATE_CHANNEL:-stable}"
 BOOTSTRAP_UPDATE_BASE_URL="${BOOTSTRAP_UPDATE_BASE_URL:-${BOOTSTRAP_LICENSE_SERVER_URL%/}/secweaver-agent/updates/${UPDATE_CHANNEL}}"
@@ -132,6 +139,17 @@ validate_es_integration_inputs() {
       exit 1
     }
   done
+  # Shipped README links must resolve without a source checkout. Validate these
+  # lifecycle guides before the first architecture build starts.
+  local guide language
+  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation; do
+    for language in md zh-CN.md; do
+      [[ -f "${ROOT_DIR}/docs/${guide}.${language}" ]] || {
+        echo "missing Agent package guide: ${guide}.${language}" >&2
+        exit 1
+      }
+    done
+  done
 }
 
 install_es_integration() {
@@ -143,6 +161,14 @@ install_es_integration() {
   install -d -m 0755 "${package_root}/elasticsearch" "${package_root}/docs" "${package_root}/logtail"
   install -m 0644 "${ROOT_DIR}/docs/behavior-learning.md" "${package_root}/docs/behavior-learning.md"
   install -m 0644 "${ROOT_DIR}/docs/behavior-learning.zh-CN.md" "${package_root}/docs/behavior-learning.zh-CN.md"
+  # Keep installation recovery and health field semantics available offline in
+  # both Linux and Windows archives, even when the affected flow is Linux-only.
+  local guide language
+  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation; do
+    for language in md zh-CN.md; do
+      install -m 0644 "${ROOT_DIR}/docs/${guide}.${language}" "${package_root}/docs/${guide}.${language}"
+    done
+  done
   install -m 0644 "${ROOT_DIR}/logtail/behavior-learning.example.json" "${package_root}/logtail/behavior-learning.example.json"
   install -m 0755 "${ES_INTEGRATION_SOURCE}/init_es.py" "${package_root}/elasticsearch/init_es.py"
   install -m 0644 "${ES_INTEGRATION_SOURCE}/index-template.json" "${package_root}/elasticsearch/index-template.json"
@@ -200,10 +226,23 @@ validate_bootstrap_inputs() {
     echo "BOOTSTRAP_LOGTAIL_ALIUID is required and must contain 6-32 digits" >&2
     exit 1
   fi
+  if [[ ! "${BOOTSTRAP_WINDOWS_LOGTAIL_MACHINE_GROUP}" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{1,127}$ || "${BOOTSTRAP_WINDOWS_LOGTAIL_MACHINE_GROUP}" == "${BOOTSTRAP_ENROLLMENT_ID}" ]]; then
+    echo "BOOTSTRAP_WINDOWS_LOGTAIL_MACHINE_GROUP must be a distinct Windows-only identifier (2-128 safe ASCII characters)" >&2
+    exit 1
+  fi
   if [[ ! "${BOOTSTRAP_LOGTAIL_REGION}" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]]; then
     echo "BOOTSTRAP_LOGTAIL_REGION is required and must be a valid SLS region" >&2
     exit 1
   fi
+  # A valid signature authenticates operator intent; the Windows installer still
+  # verifies live local rule delivery. Never publish identity-only SaaS installers.
+  [[ -f "${BOOTSTRAP_WINDOWS_COLLECTION_FILE}" && -n "${BOOTSTRAP_WINDOWS_COLLECTION_PUBLIC_KEY}" ]] || {
+    echo "signed BOOTSTRAP_WINDOWS_COLLECTION_FILE and BOOTSTRAP_WINDOWS_COLLECTION_PUBLIC_KEY are required" >&2
+    exit 1
+  }
+  (cd "${ROOT_DIR}" && go run . logtail-check -manifest "${BOOTSTRAP_WINDOWS_COLLECTION_FILE}" \
+    -public-key "${BOOTSTRAP_WINDOWS_COLLECTION_PUBLIC_KEY}" -aliuid "${BOOTSTRAP_LOGTAIL_ALIUID}" \
+    -machine-group "${BOOTSTRAP_WINDOWS_LOGTAIL_MACHINE_GROUP}" -region "${BOOTSTRAP_LOGTAIL_REGION%-internet}")
   [[ "${BOOTSTRAP_UPDATE_MANIFEST_URL}" =~ ^https:// ]] || {
     echo "BOOTSTRAP_UPDATE_MANIFEST_URL must use HTTPS" >&2
     exit 1
@@ -263,11 +302,18 @@ render_windows_bootstrap_installer() {
     "${BOOTSTRAP_RELEASE_BASE_URL%/}" \
     "${BOOTSTRAP_LICENSE_SERVER_URL%/}" \
     "${BOOTSTRAP_UPDATE_MANIFEST_URL}" \
-    "${BOOTSTRAP_UPDATE_PUBLIC_KEY}" <<'PY'
+    "${BOOTSTRAP_UPDATE_PUBLIC_KEY}" \
+    "${BOOTSTRAP_LOGTAIL_ALIUID}" \
+    "${BOOTSTRAP_WINDOWS_LOGTAIL_MACHINE_GROUP}" \
+    "${BOOTSTRAP_LOGTAIL_REGION}" \
+    "${BOOTSTRAP_WINDOWS_COLLECTION_FILE}" \
+    "${BOOTSTRAP_WINDOWS_COLLECTION_PUBLIC_KEY}" <<'PY'
+import base64
 import sys
 from pathlib import Path
 
-source_path, destination_path, release_url, license_url, update_manifest_url, update_public_key = sys.argv[1:]
+source_path, destination_path, release_url, license_url, update_manifest_url, update_public_key, aliuid, machine_group, region, collection_file, collection_key = sys.argv[1:]
+collection = base64.b64encode(Path(collection_file).read_bytes()).decode('ascii')
 source = Path(source_path).read_text(encoding="utf-8")
 begin = "# SECWEAVER_WINDOWS_BOOTSTRAP_EMBEDDED_CONFIG_BEGIN"
 end = "# SECWEAVER_WINDOWS_BOOTSTRAP_EMBEDDED_CONFIG_END"
@@ -284,6 +330,11 @@ embedded = "\n".join(
         f"$EmbeddedLicenseServerUrl = {ps_quote(license_url)}",
         f"$EmbeddedUpdateManifestUrl = {ps_quote(update_manifest_url)}",
         f"$EmbeddedUpdatePublicKey = {ps_quote(update_public_key)}",
+        f"$EmbeddedLogtailAliUid = {ps_quote(aliuid)}",
+        f"$EmbeddedLogtailMachineGroup = {ps_quote(machine_group)}",
+        f"$EmbeddedLogtailRegion = {ps_quote(region)}",
+        f"$EmbeddedWindowsCollectionEnvelope = {ps_quote(collection)}",
+        f"$EmbeddedWindowsCollectionPublicKey = {ps_quote(collection_key)}",
         end,
     )
 )
@@ -431,8 +482,12 @@ for target in "${WINDOWS_TARGETS[@]}"; do
   install -m 0644 "${ROOT_DIR}/host-persistence.windows.example.json" "${package_root}/etc/secweaver-agent/host-persistence.windows.example.json"
   install -m 0644 "${ROOT_DIR}/README.md" "${package_root}/README.md"
   install -m 0644 "${ROOT_DIR}/README.zh-CN.md" "${package_root}/README.zh-CN.md"
+  install -m 0644 "${ROOT_DIR}/packaging/windows/windows-install-common.ps1" "${package_root}/windows-install-common.ps1"
   install -m 0644 "${ROOT_DIR}/packaging/windows/install-service.ps1" "${package_root}/install-service.ps1"
   install -m 0644 "${ROOT_DIR}/packaging/windows/uninstall-service.ps1" "${package_root}/uninstall-service.ps1"
+  # CMD batch parsing/self-deletion requires native line endings on Windows 5.1 hosts.
+  python3 -c 'from pathlib import Path; import sys; Path(sys.argv[2]).write_bytes(Path(sys.argv[1]).read_bytes().replace(b"\r\n", b"\n").replace(b"\n", b"\r\n"))' \
+    "${ROOT_DIR}/packaging/windows/uninstall.cmd" "${package_root}/uninstall.cmd"
   install -m 0644 "${ROOT_DIR}/examples/update-server/"* "${package_root}/examples/update-server/"
   install_es_integration "${package_root}"
 

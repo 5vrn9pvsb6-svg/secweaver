@@ -96,7 +96,14 @@ func pullAndApplyRemoteConfig(ctx context.Context, cfg scheduledRemoteConfig) (b
 	if err := validateRemoteAgentConfig(configBytes, cfg.EnterpriseID); err != nil {
 		return false, err
 	}
-	current, _ := os.ReadFile(cfg.ConfigPath)
+	current, err := os.ReadFile(cfg.ConfigPath)
+	if err != nil {
+		return false, err
+	}
+	configBytes, err = preserveDeploymentMode(current, configBytes)
+	if err != nil {
+		return false, err
+	}
 	if string(bytesTrimSpace(current)) == string(configBytes) {
 		return false, nil
 	}

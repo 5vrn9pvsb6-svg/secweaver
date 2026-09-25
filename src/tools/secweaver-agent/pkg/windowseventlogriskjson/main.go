@@ -2,6 +2,7 @@ package windowseventlogriskjson
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -19,7 +20,7 @@ import (
 	"secweaver-agent/pkg/windowseventlog"
 )
 
-const parserVersion = "0.3.0"
+const parserVersion = "0.3.1"
 
 const defaultStateFile = layout.WindowsData + `\windows-eventlog-risk-json.cursor.json`
 
@@ -55,6 +56,8 @@ type riskEvent struct {
 	LogonType       string            `json:"logon_type,omitempty"`
 	Process         string            `json:"process,omitempty"`
 	Command         string            `json:"command,omitempty"`
+	ScriptSHA256    string            `json:"script_sha256,omitempty"`
+	ScriptBytes     int               `json:"script_bytes,omitempty"`
 	Message         string            `json:"message"`
 	RawXML          string            `json:"raw_xml,omitempty"`
 	Fields          map[string]string `json:"fields,omitempty"`
@@ -374,17 +377,40 @@ func classifyRiskEvent(event windowseventlog.Event, includeRaw bool) []riskEvent
 	case 7045:
 		return []riskEvent{finish(base, "windows_service_installed", "high", "WIN-SYSTEM-7045", "Windows service installed", user, srcIP, logonType, process, command)}
 	case 4104:
+		// Keep the exact script fragment once. Classification still sees its full
+		// contents; compaction must not act as an allowlist or merge 4104 fragments.
+		command = firstNonEmpty(event.Field("ScriptBlockText"), command)
 		severity := "medium"
 		if containsSuspiciousCommand(command) {
 			severity = "high"
 		}
-		return []riskEvent{finish(base, "powershell_script_block", severity, "WIN-PS-4104", "PowerShell script block", user, srcIP, logonType, process, command)}
+		result := finish(base, "powershell_script_block", severity, "WIN-PS-4104", "PowerShell script block", user, srcIP, logonType, process, command)
+		compactScriptBlock(&result)
+		return []riskEvent{result}
 	case 4688:
 		if containsSuspiciousCommand(command) || containsSuspiciousCommand(process) {
 			return []riskEvent{finish(base, "windows_process_high_risk", "high", "WIN-PROC-4688", "High-risk process creation", user, srcIP, logonType, process, command)}
 		}
 	}
 	return nil
+}
+
+// compactScriptBlock removes only byte-identical copies, preserving differing
+// fields, fragment IDs/order and optional raw XML. Existing consumers can keep
+// reading command; message is a bounded summary rather than another script copy.
+func compactScriptBlock(event *riskEvent) {
+	if event.Command == "" {
+		return
+	}
+	event.ScriptSHA256 = fmt.Sprintf("%x", sha256.Sum256([]byte(event.Command)))
+	event.ScriptBytes = len(event.Command)
+	for _, key := range []string{"ScriptBlockText", "CommandLine"} {
+		if event.Fields[key] == event.Command {
+			delete(event.Fields, key)
+		}
+	}
+	event.Message = buildMessage(event.RuleName, event.User, event.SrcIP, event.Process, "") +
+		fmt.Sprintf(" script_sha256=%s script_bytes=%d", event.ScriptSHA256, event.ScriptBytes)
 }
 
 func isInternalPowerShellEvent(event windowseventlog.Event) bool {

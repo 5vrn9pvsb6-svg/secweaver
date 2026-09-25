@@ -1,5 +1,30 @@
 # secweaver-agent
 
+源码 0.3.60 修复 Windows 本地化 `cmd ver` 备用路径，只上报完整数字构建号，
+仍优先使用 CIM 返回的产品名称。
+
+源码 0.3.59 在 Windows 注册/心跳中补充系统产品名称和版本；Linux 已上报发行版及版本。
+前提和降级行为见[操作系统信息](#操作系统信息)。
+
+源码 0.3.58 明确 Windows 安装告警和普通说明的区别，保留 PowerShell 5.1 原生架构识别修复、Windows 固定离线卸载入口与彻底清理、CMD 自删除退出状态修复、Bootstrap 收尾修复、Logtail 原生缓存兼容、学习模式显式迁移、PowerShell 风险日志去重及分阶段安装结果，
+见 [Windows 安装说明](docs/windows-installation.zh-CN.md)。要求运营签名的 Windows SLS 采集清单，安装成功前核对下发规则；
+doctor 和健康日志明确报告缺失、冲突或错误目标，见 [Windows 采集就绪](docs/windows-installation.zh-CN.md#windows-sls-采集就绪)。
+
+源码 0.3.49 补齐 Windows 0.3.22 测试问题：Bootstrap 响应校验、激活前安装回滚、
+脱敏 HTTP/SCM 诊断及自动升级默认值，见 [Windows 安装说明](docs/windows-installation.zh-CN.md)。
+
+ES 与 SLS SaaS 共用 Agent 二进制和版本号，安装渠道持久化各自归属。
+详见[部署模式](docs/deployment-modes.zh-CN.md)。
+
+0.3.46 修复 Windows 注册/升级身份和服务诊断，检查启动就绪状态，并安装固定校验值的
+Windows Logtail 输送器。见 [Windows 安装与云端验收](docs/windows-installation.zh-CN.md)。
+
+源码 0.3.42 将 Linux SaaS Logtail 默认设为杭州公网模式，并限制下载/供应商安装耗时。
+显式内网配置保持不变；见[网络策略与迁移](docs/collector-lifecycle.zh-CN.md#网络策略)。
+
+源码 0.3.41 修复 Logtail 服务交接，增加独立采集器显式卸载，并区分本地 shipper
+健康和未经验证的云端到达状态。见[采集器生命周期与诊断](docs/collector-lifecycle.zh-CN.md)。
+
 源码 0.3.40 修复 Linux 父进程停止顺序：子模块退出前保持 audit 管道打开，避免正常重启
 导致行为学习误降级。已降级的旧代次仍需显式重新学习，操作见行为学习指南。
 
@@ -38,6 +63,36 @@ eBPF/Audit 历史评估。运行时行为、配置和 Schema 均未改变。
 验证。本次源码修改不代表已经发布或部署安装包。
 
 包名中的版本号仅为已下载归档的示例；安装时使用实际归档版本。下一次构建版本以 `VERSION` 为准，源码版本更新不代表安装包已发布。
+
+## 操作系统信息
+
+托管注册和心跳上报 `os`（`linux`/`windows`）及可选的 `os_version`，描述的是
+Agent 所在主机，不是接收日志的服务器。未启用注册的独立采集不依赖这些字段。
+
+- Linux 依次读取 `/etc/os-release`、`/usr/lib/os-release`，优先 `PRETTY_NAME`，
+  否则使用 `NAME` 加 `VERSION_ID`，例如 `Ubuntu 22.04.5 LTS`、`CentOS Stream 9`。
+  缺少发行版信息时，以有超时限制的 `uname -sr` 回退；内核版本不能作为发行版名称。
+- Windows 0.3.59 使用本机 Windows PowerShell 5.1+ 和 CIM `Win32_OperatingSystem`
+  的 `Caption`、`Version`，例如
+  `Microsoft Windows Server 2019 Standard (10.0.17763)`。只读探测最多三秒，
+  被策略阻止、输出异常或不可用时，回退到最多两秒的 `cmd /d /c ver`。
+  从 0.3.60 开始，此路径只提取 ASCII 数字构建号，例如 `Windows (10.0.17763.9245)`，
+  不再把本地代码页字节直接当作 UTF-8 上报；保留全部补丁位，不推断产品/版本类型。
+  CIM 输出含非法 UTF-8 或替换字符时也会拒绝。探测全部失败或格式无法识别时省略
+  此可选字段，不阻止注册；结果遵守现有 128 字节 UTF-8 协议上限。
+  只对完整匹配的固定 PowerShell 脚本标记内部采集活动。
+
+已有 Windows 托管主机需升级到新 Agent 构建并成功心跳，才能替换旧的纯数字版本。
+离线主机保留最后上报值；修改源码不代表已发布安装包，也不会直接改写存量主机信息。
+无需新增协议字段或迁移数据库。
+
+旧命令标签在存储时可能已经产生无法还原的替换字符。升级 0.3.60 后，下次注册/心跳
+会修正后续上报；不会直接重写历史记录，也不会自动升级其他主机。
+
+验证时，Linux 对照 `/etc/os-release`，Windows 执行
+`Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version`，再核对该主机
+下次注册/心跳元数据。在本目录执行 `go test ./pkg/agentlicense -run OSVersion`，
+可在任意开发系统验证格式、发行版及失败回退；交叉编译和模拟测试不能替代安装后的真实 Windows 验收。
 
 ## 先选择使用路径
 
@@ -86,7 +141,7 @@ Agent 0.3.22 修复 Linux 仅传企业令牌且启用自动更新时的安装错
 | 平台 | 支持状态 | 说明 |
 |---|---|---|
 | Linux systemd，amd64/arm64/loong64 | 支持 | 默认 Linux 发布包、`install.sh`、auditd、syslog、host_persistence 均面向该场景 |
-| Windows，amd64/arm64 | 支持试点 | 支持安装为 `SecWeaverAgent` 服务，依赖 Windows Event Log、Security 审计策略、可选 Sysmon，以及文件型 host-persistence 轮询 |
+| Windows，amd64/arm64 | 支持试点 | 支持安装为 `SecWeaverAgent` 服务，依赖 Windows Event Log、Security 审计策略、可选 Sysmon，以及文件型 host-persistence 轮询；托管 Logtail 仅 amd64，ARM64 需独立输送器 |
 | WSL2 Linux 环境 | 仅限客户端/开发 | 可按 Linux 运行 Community Python 工具，但不是 Windows 宿主机传感器，不采集宿主机 Event Log、Security 4688、Sysmon 或 Windows 服务 |
 | Linux 非 systemd | 不作为默认安装目标 | 可手工运行二进制，但发布包安装脚本默认拒绝安装 systemd 服务 |
 | 容器内 Linux | 支持工作负载模式 | 非 root Docker 部署采集容器自身的进程、端口、身份和 cgroup/容器上下文；不声称具备宿主机 audit 或持久化监控覆盖 |
@@ -103,7 +158,7 @@ secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json -json
 
 `preflight` 会检查当前 OS 与启用模块是否匹配、systemd、root 权限、容器迹象、`auditctl`/audit log、`netstat`/`/proc`、传统 syslog 文件、`host-persistence` 配置、Windows `wevtutil`/Event Log 通道、4688 命令行审计策略，以及定时升级配置。`-strict` 会在发现 `ERROR` 时返回非 0，适合安装脚本或巡检系统使用。
 
-`doctor` 面向线上一键诊断，会在 `preflight` 基础上继续检查 Agent 服务、授权连通性、本机 `status.json`、各模块最近 JSON 输出；检测到 SLS Logtail/LoongCollector 时，还会校验其身份。Agent 自诊断不会校验 ES/Filebeat/Fluent Bit 或其他日志输送器的配置；Community 自建 ES 用户应按[公开 ES 接入指南](elasticsearch/README.zh-CN.md)运行 Filebeat 配置、输出和入库验收，其他输送器使用各自的标准诊断。未检测到 Logtail 目录时，Agent 会明确报告已跳过 SLS 身份检查，不会误要求阿里云身份文件。`-json` 输出机器可读报告，便于企业工作台后台、巡检脚本或工单系统采集。`secweaver-agent run -dry-run` 也会输出 preflight 完整报告；正常 `run` 会把 warning/error 摘要写到 stderr。Windows service 模式不创建专用 service log 文件，排障时查看 Windows 服务状态、事件查看器/SCM 诊断以及各模块 JSONL 输出。
+`doctor` 在 preflight 基础上检查 Agent 服务、授权连通性、本机 `status.json`、最近模块输出和 Logtail 服务/进程/身份。Bootstrap 在安装 Logtail 之前记录 SLS 意图：预期采集器缺失时报错，不再按跳过成功处理。既无 SLS 意图也无安装目录时提示上传未验证，不要求 ES 主机具备阿里云身份。本地检查不能证明云端入库；SLS 还需验收机器组、采集绑定和 Logstore，Filebeat 使用[公开 ES 接入指南](elasticsearch/README.zh-CN.md)进行输出和入库验证。`-json` 输出机器可读报告；`run -dry-run` 输出 preflight；正常 `run` 把 warning/error 摘要写入 stderr。Windows service 将最近一次失败保存在 `<配置路径>.service-error.txt`（最多 16 KiB），并可使用 SCM/事件查看器和模块 JSONL 排障。
 
 当前已知边界：
 
@@ -218,7 +273,7 @@ Linux unit 使用 systemd 219 兼容的 `StartLimitInterval=0` 禁用启动次�
 ```bash
 OUTPUT_DIR=/srv/secweaver-sls-proxy/releases/logtail \
 PUBLIC_BASE_URL=https://agent-gateway.id-net.cn:30443 \
-LOGTAIL_REGION=cn-hangzhou \
+LOGTAIL_REGION=cn-hangzhou-internet \
 src/tools/secweaver-agent/scripts/publish-logtail-installer.sh
 source /srv/secweaver-sls-proxy/releases/logtail/release.env
 ```
@@ -246,8 +301,10 @@ Agent 默认还会写入独立的运维健康 JSON Lines：`/opt/secweaver-agent
 
 托管 SaaS 的授权地址为 `https://agent-gateway.id-net.cn:30443`，因此通常不需要填写
 `endpoint` 或传入 `BOOTSTRAP_LICENSE_SERVER_URL`。只有私有化部署使用另一套授权服务时，
-才配置 `endpoint` 或显式覆盖该变量。`region` 建议填写阿里云标准 Region ID
-`cn-hangzhou`；输入 `hangzhou` 时，发布脚本会自动规范化。
+才配置 `endpoint` 或显式覆盖该变量。Logtail 安装器模式默认 `cn-hangzhou-internet`。
+显式 `cn-hangzhou`（或旧别名 `hangzhou`）保持内网含义，不会自动改为公网。非杭州 SaaS
+必须配置所属地域支持的网络模式。SLS API connector 的地域仍是 `cn-hangzhou`，
+不要把安装器专用的 `-internet` 后缀加到 connector 地域中。
 
 发布脚本会把这些共享参数写入 `dist/packages/install.sh`。不要手工编辑
 `packaging/bootstrap-install.sh` 或生成后的公共 `install.sh`，参数变化要重新执行发布构建。
@@ -295,7 +352,7 @@ Windows 包包含：
 - `elasticsearch/index-template.json`
 - `elasticsearch/filebeat.yml`
 - `elasticsearch/README.md` 和 `elasticsearch/README.zh-CN.md`
-- `install-service.ps1`
+- `install-service.ps1` and `windows-install-common.ps1`
 - `uninstall-service.ps1`
 - `examples/update-server/`
 - README
@@ -647,15 +704,21 @@ systemd unit 配置了 `ExecStopPost=/opt/secweaver-agent/bin/secweaver-agent au
 sudo /usr/local/bin/secweaver-agent audit-cleanup
 ```
 
-Linux 发布包卸载：
+安装完成后，使用稳定的产品目录卸载入口：
 
 ```bash
-sudo ./uninstall.sh
+sudo /opt/secweaver-agent/bin/uninstall.sh
 ```
 
-`uninstall.sh` 会停止 Agent/shipper 服务、删除 systemd unit、清理 audit 规则，并默认删除
+压缩包根目录的 `uninstall.sh` 只是安装包输入文件。Linux 安装器会把它复制到
+`/opt/secweaver-agent/bin/uninstall.sh`，运维不再依赖解压目录或临时测试暂存目录。
+该脚本会停止 Agent/shipper 服务、删除 systemd unit、清理 audit 规则，并默认删除
 `/opt/secweaver-agent/bin` 与命令软链接。配置、状态、日志和 shipper 默认保留；
-`sudo ./uninstall.sh --purge` 删除整个 `/opt/secweaver-agent`。其他卸载开关和 `--json` 验证输出保持不变。
+`sudo /opt/secweaver-agent/bin/uninstall.sh --purge` 删除整个 `/opt/secweaver-agent`。其他卸载开关和 `--json` 验证输出保持不变。
+独立采集器默认保留。清空测试机使用：
+`sudo /opt/secweaver-agent/bin/uninstall.sh --purge --remove-logtail --remove-filebeat --json`。
+这两个显式开关会删除选中采集器的配置、状态和日志，包括其中共用的采集任务。
+支持路径和结果验收见[采集器生命周期与诊断](docs/collector-lifecycle.zh-CN.md)。
 
 直接运行单个模块：
 
@@ -692,7 +755,9 @@ Set-Location ".\secweaver-agent_${AgentVersion}_windows_amd64"
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\install-service.ps1 `
   -EnterpriseEnrollmentToken 'swenr_TOKEN_ID.SECRET' `
-  -LicenseServerUrl 'https://agent-gateway.id-net.cn:30443'
+  -LicenseServerUrl 'https://agent-gateway.id-net.cn:30443' `
+  -LogtailAliUid '1234567890123456' `
+  -LogtailMachineGroup 'YOUR_WINDOWS_ONLY_GROUP'
 ```
 
 正式交付优先执行 Data Cloud CLI 使用 `--platform windows` 生成的一键 PowerShell
@@ -713,17 +778,21 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 - 配置：`C:\ProgramData\SecWeaver\Agent\etc\config.json`
 - host-persistence 配置：`C:\ProgramData\SecWeaver\Agent\etc\host-persistence.json`
 - 服务：`SecWeaverAgent`
-- 服务包装层日志：不单独写文件；查看服务状态/事件查看器和模块 JSONL 输出
+- 最近服务失败：`<配置路径>.service-error.txt`（最多 16 KiB）；同时查看 SCM 和模块 JSONL 输出
 
 服务管理：
 
 ```powershell
 Get-Service SecWeaverAgent
 Restart-Service SecWeaverAgent
-.\uninstall-service.ps1
+& 'C:\ProgramData\SecWeaver\Agent\bin\uninstall.cmd'
+# 管理员终端：彻底删除 Agent、Logtail 和本地数据
+& 'C:\ProgramData\SecWeaver\Agent\bin\uninstall.cmd' -Purge
 ```
 
 Windows 注意事项：
+
+- `-Purge` 删除配置、设备身份、学习状态、日志，以及标准目录下的 Logtail（包含该主机全部 Logtail 采集身份和断点）。共享 Logtail 时增加 `-KeepLogtail`。不会删除云端数据/设备记录、Sysmon 或恢复 Windows 审计策略。`-Json` 返回单个结果对象。详见 [卸载边界与验证](docs/windows-installation.zh-CN.md#windows-卸载)。
 
 - Windows 默认只由 `windows-eventlog-risk-json` 一个 `wevtutil` reader 读取 Security、System、PowerShell 和 Sysmon。它把风险写入 `windows-eventlog-risk-json.log`，同时通过 `-evidence-output` 把 Security 4688 和 Sysmon 1/3/11/23 映射为 `host_exec`、`host_connect`、`host_file_op` 写入 `windows-process-execmon.log`。
 - 独立 `windows-process-execmon` 模块仍保留，供关闭统一证据输出的部署使用，默认每 5 分钟轮询一次；默认包已关闭它。若两个模块同时启用，必须给 `windows-eventlog-risk-json` 显式传入 `-evidence-output=`，把证据所有权交给 standalone reader，否则 preflight 和启动会拒绝配置，避免重复查询、重复事件和两个 writer 竞争同一日志。

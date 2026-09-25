@@ -186,6 +186,17 @@ type HTTPStatusError struct {
 	Reason     string
 }
 
+// ResponseValidationError separates a successful HTTP exchange with an invalid
+// body from credential rejection and transport failure, without retaining bodies.
+type ResponseValidationError struct {
+	StatusCode int
+	Check      string
+}
+
+func (e *ResponseValidationError) Error() string {
+	return fmt.Sprintf("enrollment response HTTP %d check=%s; verify the Gateway JSON API and reverse proxy", e.StatusCode, e.Check)
+}
+
 func (e *HTTPStatusError) Error() string {
 	operation := strings.TrimSpace(e.Operation)
 	if operation == "" {
@@ -757,6 +768,9 @@ func addrIP(addr net.Addr) net.IP {
 	}
 }
 
+// detectOSVersion reports local product metadata for enrollment and heartbeat.
+// Missing distribution tools degrade to a kernel/version label rather than
+// inventing a product name or preventing enrollment.
 func detectOSVersion() string {
 	switch runtime.GOOS {
 	case "linux":
@@ -768,7 +782,7 @@ func detectOSVersion() string {
 		}
 		return commandOutput(2*time.Second, "uname", "-sr")
 	case "windows":
-		return commandOutput(2*time.Second, "cmd", "/c", "ver")
+		return windowsOSVersion(commandOutput)
 	case "darwin":
 		return commandOutput(2*time.Second, "sw_vers", "-productVersion")
 	default:

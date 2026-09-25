@@ -13,6 +13,7 @@ INSTALL_DEPS="${INSTALL_DEPS:-1}"
 REQUIRE_SYSTEMD="${REQUIRE_SYSTEMD:-1}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENTERPRISE_ID=""
+DEPLOYMENT_MODE=""
 ENTERPRISE_ENROLLMENT_TOKEN=""
 LICENSE_SERVER_URL=""
 LICENSE_ENROLLMENT_ID=""
@@ -34,6 +35,7 @@ usage() {
 Usage: sudo ./install.sh --enterprise-enrollment-token <token> --license-server-url <url>
 
 Options:
+  --deployment-mode MODE             sls_saas or es_private; upgrades preserve existing mode
   --enterprise-enrollment-token TOKEN Reusable enterprise-scoped installation credential
   --enterprise-id ID                  Legacy v1 platform-issued enterprise ID
   --license-server-url URL            WEB shield authorization server URL
@@ -53,6 +55,15 @@ EOF
 
 while [[ "$#" -gt 0 ]]; do
   case "$1" in
+    --deployment-mode)
+      [[ "$#" -ge 2 ]] || { usage >&2; exit 2; }
+      DEPLOYMENT_MODE="$2"
+      shift 2
+      ;;
+    --deployment-mode=*)
+      DEPLOYMENT_MODE="${1#*=}"
+      shift
+      ;;
     --enterprise-id)
       [[ "$#" -ge 2 ]] || { usage >&2; exit 2; }
       ENTERPRISE_ID="$2"
@@ -421,6 +432,13 @@ stop_legacy_collectors() {
   fi
 }
 
+# Validate delivery ownership before stopping services or changing credentials.
+# Include the legacy source when this upgrade will migrate its configuration.
+MODE_CONFIG="${CONFIG_DIR}/config.json"
+if [[ ! -f "${MODE_CONFIG}" && -f /etc/secweaver-agent/config.json ]]; then
+  MODE_CONFIG=/etc/secweaver-agent/config.json
+fi
+"${ROOT_DIR}/bin/secweaver-agent" config set-deployment-mode -config "${MODE_CONFIG}" -mode "${DEPLOYMENT_MODE}" -check-only
 require_systemd
 stop_legacy_collectors
 ensure_linux_dependencies
@@ -446,6 +464,7 @@ fi
 if [[ ! -f "${CONFIG_DIR}/config.json" ]]; then
   install -m 0600 "${ROOT_DIR}/etc/secweaver-agent/config.example.json" "${CONFIG_DIR}/config.json"
 fi
+"${ROOT_DIR}/bin/secweaver-agent" config set-deployment-mode -config "${CONFIG_DIR}/config.json" -mode "${DEPLOYMENT_MODE}"
 if [[ -n "${ENTERPRISE_ENROLLMENT_TOKEN}" ]]; then
   log "enrolling this host with SecWeaver Data Cloud"
   # Use one successful enrollment response for both tenant and rollout identity.
@@ -533,6 +552,10 @@ if [[ -n "${UPDATE_MANIFEST_URL}" ]]; then
 fi
 install -m 0755 "${ROOT_DIR}/bin/secweaver-agent" "${BIN_DIR}/secweaver-agent"
 install -m 0755 "${ROOT_DIR}/libexec/secweaver-agent-launch" "${BIN_DIR}/secweaver-agent-launch"
+# Keep the destructive lifecycle entrypoint inside the product-owned tree. The
+# archive-root copy is only the package bootstrap input; upgrades and operators
+# must have one stable path that survives the current working directory.
+install -m 0755 "${ROOT_DIR}/uninstall.sh" "${BIN_DIR}/uninstall.sh"
 install -d -m 0755 "$(dirname "${COMMAND_LINK}")"
 ln -sfn "${BIN_DIR}/secweaver-agent" "${COMMAND_LINK}"
 if [[ ! -f "${CONFIG_DIR}/audit-port-execmon.json" ]]; then

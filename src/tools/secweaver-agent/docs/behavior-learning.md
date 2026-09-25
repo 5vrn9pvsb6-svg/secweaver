@@ -123,7 +123,9 @@ counts at cursor checkpoints, so summary windows may be shorter than 300 seconds
 cursor/learning state are separate files: crashes degrade instead of promising exactly-once counts.
 Shutdown syncs both sinks before marking the baseline clean; a final sync error persists degradation.
 
-Configure Filebeat/ES Shipper or Logtail to upload the Windows summary file to
+Managed Windows SaaS 0.3.50 requires the signed collection plan to include this
+summary file before installation succeeds; see [Windows readiness](windows-installation.md#windows-sls-collection-readiness).
+For external delivery, configure Filebeat/ES Shipper or Logtail to upload the Windows summary file to
 `host_behavior_summary`, separately from `host_exec`; the cloud Logstore may be named
 `host-behavior-summary`. Linux-only path examples do not configure Windows shipping automatically.
 Validate `behavior_learning_status` in the local file and backend, use shadow mode first, and

@@ -17,9 +17,23 @@ REMOVE_STATE=0
 REMOVE_LOGS=0
 CLEAN_AUDIT_RULES=1
 JSON_OUTPUT=0
+REMOVE_LOGTAIL=0
+REMOVE_FILEBEAT=0
+# Explicit opt-in is required because standalone collectors may serve other apps.
+LOGTAIL_ROOT="${LOGTAIL_ROOT:-/usr/local/ilogtail}"
+LOGTAIL_ETC="${LOGTAIL_ETC:-/etc/ilogtail}"
+FILEBEAT_ROOT="${FILEBEAT_ROOT:-/usr/share/filebeat}"
+FILEBEAT_ETC="${FILEBEAT_ETC:-/etc/filebeat}"
+FILEBEAT_STATE="${FILEBEAT_STATE:-/var/lib/filebeat}"
+FILEBEAT_LOGS="${FILEBEAT_LOGS:-/var/log/filebeat}"
+FILEBEAT_COMMAND="${FILEBEAT_COMMAND:-/usr/bin/filebeat}"
+FILEBEAT_LOCAL_COMMAND="${FILEBEAT_LOCAL_COMMAND:-/usr/local/bin/filebeat}"
+INIT_DIR="${INIT_DIR:-/etc/init.d}"
+VENDOR_SYSTEMD_DIR="${VENDOR_SYSTEMD_DIR:-/usr/lib/systemd/system}"
+LEGACY_SYSTEMD_DIR="${LEGACY_SYSTEMD_DIR:-/lib/systemd/system}"
 
 log() {
-  echo "[secweaver-agent uninstall] $*"
+  echo "[secweaver-agent uninstall] $*" >&2
 }
 
 warn() {
@@ -43,6 +57,8 @@ Options:
   --remove-logs       Remove secweaver-agent module log files under LOG_DIR.
   --keep-binary       Keep INSTALL_ROOT/bin and the command link.
   --no-audit-clean    Do not attempt to clean stale SecWeaver audit rules.
+  --remove-logtail    Remove standalone Logtail/LoongCollector, including data.
+  --remove-filebeat   Remove standalone Filebeat, including data and package.
   --json              Print a machine-readable verification result at the end.
   -h, --help          Show this help.
 
@@ -82,6 +98,8 @@ while [[ "$#" -gt 0 ]]; do
     --json)
       JSON_OUTPUT=1
       ;;
+    --remove-logtail) REMOVE_LOGTAIL=1 ;;
+    --remove-filebeat) REMOVE_FILEBEAT=1 ;;
     -h|--help)
       usage
       exit 0
@@ -92,6 +110,55 @@ while [[ "$#" -gt 0 ]]; do
   esac
   shift
 done
+
+# Preserve a machine-readable failure even when an intermediate removal fails.
+# Successful verification disables this trap before returning its own exit code.
+uninstall_failed() {
+  local rc="$1"
+  trap - ERR
+  if [[ "${JSON_OUTPUT}" == 1 ]]; then
+    printf '{"ok":false,"error":"uninstall_incomplete","exit_code":%s}\n' "${rc}"
+  fi
+  exit "${rc}"
+}
+set -E
+trap 'uninstall_failed "$?"' ERR
+
+# These paths are recursive deletion boundaries, including caller overrides.
+# Reject broad roots, relative paths and symlink roots before any service stops.
+validate_removal_paths() {
+  normalize_service_directories || return 1
+  local path
+  for path in "${INSTALL_ROOT}" "${BIN_DIR}" "${CONFIG_DIR}" "${STATE_DIR}" "${LOG_DIR}" "${SHIPPER_DIR}" "${SYSTEMD_DIR}" "${VENDOR_SYSTEMD_DIR}" "${LEGACY_SYSTEMD_DIR}" "${INIT_DIR}" "${LOGTAIL_ROOT}" "${LOGTAIL_ETC}" "${FILEBEAT_ROOT}" "${FILEBEAT_ETC}" "${FILEBEAT_STATE}" "${FILEBEAT_LOGS}"; do
+    case "${path}" in
+      /*/*) ;;
+      *) warn "unsafe removal path: ${path}"; return 1 ;;
+    esac
+    case "${path}" in
+      /usr/local|/usr/share|/usr/lib|/var/log|/var/lib|*/../*|*/..|*/./*|*/.|*//*|*/) warn "unsafe removal path: ${path}"; return 1 ;;
+    esac
+    [[ ! -L "${path}" ]] || { warn "symlink removal root: ${path}"; return 1; }
+  done
+}
+
+# CentOS/RHEL use /etc/init.d -> rc.d/init.d; merged-/usr distributions
+# may link /lib/systemd/system. Resolve only these exact standard mappings.
+# Arbitrary operator-supplied links remain forbidden before any service stops.
+normalize_service_directories() {
+  local variable path target
+  for variable in INIT_DIR LEGACY_SYSTEMD_DIR; do
+    path="${!variable}"
+    [[ -L "${path}" ]] || continue
+    target="$(readlink -f -- "${path}")" || return 1
+    case "${path}:${target}" in
+      /etc/init.d:/etc/rc.d/init.d|/lib/systemd/system:/usr/lib/systemd/system)
+        [[ -d "${target}" && ! -L "${target}" ]] || return 1
+        printf -v "${variable}" '%s' "${target}"
+        ;;
+      *) warn "unsupported service directory symlink: ${path}"; return 1 ;;
+    esac
+  done
+}
 
 need_cmd() {
   command -v "$1" >/dev/null 2>&1 && return 0
@@ -112,12 +179,13 @@ stop_systemd_service() {
 
   local service_name
   for service_name in "${SERVICE_NAME}" "${SHIPPER_SERVICE_NAME}"; do
-    if systemctl list-unit-files "${service_name}" >/dev/null 2>&1 || [[ -f "${SYSTEMD_DIR}/${service_name}" ]]; then
-      systemctl stop "${service_name}" >/dev/null 2>&1 || true
+    if systemctl cat "${service_name}" >/dev/null 2>&1 || [[ -f "${SYSTEMD_DIR}/${service_name}" ]]; then
+      timeout 90 systemctl stop "${service_name}" >/dev/null 2>&1 || true
       systemctl disable "${service_name}" >/dev/null 2>&1 || true
     fi
+    rm -rf -- "${SYSTEMD_DIR:?}/${service_name}.d"
 
-    if [[ -f "${SYSTEMD_DIR}/${service_name}" ]]; then
+    if [[ -e "${SYSTEMD_DIR}/${service_name}" || -L "${SYSTEMD_DIR}/${service_name}" ]]; then
       rm -f "${SYSTEMD_DIR:?}/${service_name}"
       log "removed systemd unit: ${SYSTEMD_DIR}/${service_name}"
     fi
@@ -125,6 +193,70 @@ stop_systemd_service() {
     systemctl reset-failed "${service_name}" >/dev/null 2>&1 || true
   done
   systemctl daemon-reload >/dev/null 2>&1 || true
+}
+
+# Match the executable path and host PID namespace, never just the process name
+# or a PID file that may belong to a reused PID or a container installation.
+collector_pids() {
+  local root="$1" pid exe
+  for pid in $(pgrep -f 'ilogtail|loongcollector|filebeat' || true); do
+    exe="$(readlink "/proc/${pid}/exe" 2>/dev/null || true)"
+    case "${exe}" in
+      "${root}/"*|/usr/bin/filebeat|/usr/bin/filebeat\ \(deleted\))
+        [[ "${root}" == "${FILEBEAT_ROOT}" || "${exe}" == "${root}/"* ]] || continue
+        [[ "$(readlink "/proc/${pid}/ns/pid" 2>/dev/null)" == "$(readlink /proc/1/ns/pid)" ]] && printf '%s\n' "${pid}"
+        ;;
+    esac
+  done
+  return 0
+}
+
+# Stop before deleting any executable/configuration. Package-managed Filebeat is
+# removed through its package manager, keeping the package database consistent.
+remove_standalone_collector() {
+  local kind="$1" root="$2" service pid attempt
+  local services=(filebeat)
+  [[ "${kind}" != logtail ]] || services=(ilogtaild loongcollectord)
+  for service in "${services[@]}"; do
+    if need_cmd systemctl; then
+      timeout 60 systemctl stop "${service}.service" >/dev/null 2>&1 || true
+      systemctl disable "${service}.service" >/dev/null 2>&1 || true
+    fi
+    if [[ -x "${INIT_DIR}/${service}" && -n "$(collector_pids "${root}")" ]]; then
+      timeout 40 "${INIT_DIR}/${service}" stop >&2 || true
+    fi
+  done
+  for pid in $(collector_pids "${root}"); do kill -TERM "${pid}" 2>/dev/null || true; done
+  for ((attempt=0; attempt<10; attempt++)); do
+    [[ -z "$(collector_pids "${root}")" ]] && break
+    sleep 1
+  done
+  for pid in $(collector_pids "${root}"); do kill -KILL "${pid}" 2>/dev/null || true; done
+  for ((attempt=0; attempt<5; attempt++)); do
+    [[ -z "$(collector_pids "${root}")" ]] && break
+    sleep 1
+  done
+  [[ -z "$(collector_pids "${root}")" ]] || { warn "${kind} still running; files retained"; return 1; }
+  if [[ "${kind}" == filebeat ]]; then
+    if command -v rpm >/dev/null 2>&1 && rpm -q filebeat >/dev/null 2>&1; then
+      rpm -e filebeat >&2
+    elif command -v dpkg-query >/dev/null 2>&1 && dpkg-query -W filebeat >/dev/null 2>&1; then
+      dpkg --purge filebeat >&2
+    fi
+    rm -rf -- "${FILEBEAT_ROOT}" "${FILEBEAT_ETC}" "${FILEBEAT_STATE}" "${FILEBEAT_LOGS}"
+    rm -f -- "${FILEBEAT_COMMAND}" "${FILEBEAT_LOCAL_COMMAND}"
+  else
+    rm -rf -- "${LOGTAIL_ROOT}" "${LOGTAIL_ETC}"
+  fi
+  for service in "${services[@]}"; do
+    if command -v chkconfig >/dev/null 2>&1; then chkconfig --del "${service}" >/dev/null 2>&1 || true; fi
+    if command -v update-rc.d >/dev/null 2>&1; then update-rc.d -f "${service}" remove >&2 || true; fi
+    rm -f -- "${SYSTEMD_DIR}/${service}.service" "${VENDOR_SYSTEMD_DIR}/${service}.service" "${LEGACY_SYSTEMD_DIR}/${service}.service" "${INIT_DIR}/${service}"
+    rm -rf -- "${SYSTEMD_DIR}/${service}.service.d"
+    if need_cmd systemctl; then systemctl reset-failed "${service}.service" >/dev/null 2>&1 || true; fi
+  done
+  if need_cmd systemctl; then systemctl daemon-reload; fi
+  log "removed standalone ${kind} and its configuration/state"
 }
 
 cleanup_audit_rules_by_exact_keys() {
@@ -236,13 +368,14 @@ remove_optional_data() {
 
   if [[ "${REMOVE_LOGS}" -eq 1 ]]; then
     rm -f \
-      "${LOG_DIR}/audit-port-execmon.log" \
-      "${LOG_DIR}/syslog-risk-json.log" \
-      "${LOG_DIR}/host-persistence.log" \
-	  "${LOG_DIR}/host-process-snapshot.log" \
-	  "${LOG_DIR}/host-state-snapshot.log" \
-	      "${LOG_DIR}/secweaver-agent-update.log" \
-	      "${LOG_DIR}/secweaver-agent-health.log"
+      "${LOG_DIR}/audit-port-execmon.log"* \
+      "${LOG_DIR}/syslog-risk-json.log"* \
+      "${LOG_DIR}/host-persistence.log"* \
+      "${LOG_DIR}/host-process-snapshot.log"* \
+      "${LOG_DIR}/host-state-snapshot.log"* \
+      "${LOG_DIR}/host-behavior-summary.log"* \
+      "${LOG_DIR}/secweaver-agent-update.log"* \
+      "${LOG_DIR}/secweaver-agent-health.log"*
     log "removed known module logs under ${LOG_DIR}"
   else
     log "logs kept under ${LOG_DIR}"
@@ -280,11 +413,11 @@ path_exists_bool() {
 service_unit_exists_bool() {
   local service_name
   for service_name in "${SERVICE_NAME}" "${SHIPPER_SERVICE_NAME}"; do
-    if [[ -f "${SYSTEMD_DIR}/${service_name}" ]]; then
+    if [[ -e "${SYSTEMD_DIR}/${service_name}" || -L "${SYSTEMD_DIR}/${service_name}" || -d "${SYSTEMD_DIR}/${service_name}.d" ]]; then
       echo "true"
       return
     fi
-    if need_cmd systemctl && systemctl list-unit-files "${service_name}" >/dev/null 2>&1; then
+    if need_cmd systemctl && systemctl cat "${service_name}" >/dev/null 2>&1; then
       echo "true"
       return
     fi
@@ -306,7 +439,12 @@ remaining_audit_rule_count() {
     echo "-1"
     return
   fi
-  auditctl -l 2>/dev/null | grep -E 'tb_external_listener|tb_port_|tb_host_persistence' | wc -l | tr -d ' '
+  local listing
+  if ! listing="$(auditctl -l 2>/dev/null)"; then
+    echo '-2' # Unreadable audit state is distinct from zero rules or no auditctl.
+    return
+  fi
+  awk '/tb_external_listener|tb_port_|tb_host_persistence/ { count++ } END { print count+0 }' <<<"${listing}"
 }
 
 known_logs_exist_bool() {
@@ -314,6 +452,7 @@ known_logs_exist_bool() {
     "${LOG_DIR}/audit-port-execmon.log"
     "${LOG_DIR}/syslog-risk-json.log"
     "${LOG_DIR}/host-persistence.log"
+    "${LOG_DIR}/host-behavior-summary.log"
 	"${LOG_DIR}/host-process-snapshot.log"
 	"${LOG_DIR}/host-state-snapshot.log"
     "${LOG_DIR}/secweaver-agent-update.log"
@@ -329,6 +468,29 @@ known_logs_exist_bool() {
   echo "false"
 }
 
+# Verify requested external removals separately. A successful rm is not proof
+# that a custom unit or a surviving process has disappeared from the host.
+standalone_remaining_bool() {
+  local kind="$1" root service path
+  local services paths
+  if [[ "${kind}" == logtail ]]; then
+    root="${LOGTAIL_ROOT}"; services=(ilogtaild loongcollectord)
+    paths=("${LOGTAIL_ROOT}" "${LOGTAIL_ETC}")
+  else
+    root="${FILEBEAT_ROOT}"; services=(filebeat)
+    paths=("${FILEBEAT_ROOT}" "${FILEBEAT_ETC}" "${FILEBEAT_STATE}" "${FILEBEAT_LOGS}" "${FILEBEAT_COMMAND}" "${FILEBEAT_LOCAL_COMMAND}")
+  fi
+  for path in "${paths[@]}"; do
+    if [[ -e "${path}" || -L "${path}" ]]; then echo true; return; fi
+  done
+  for service in "${services[@]}"; do
+    if [[ -e "${INIT_DIR}/${service}" || -e "${SYSTEMD_DIR}/${service}.service" || -e "${VENDOR_SYSTEMD_DIR}/${service}.service" || -e "${LEGACY_SYSTEMD_DIR}/${service}.service" ]] || { need_cmd systemctl && systemctl cat "${service}.service" >/dev/null 2>&1; }; then
+      echo true; return
+    fi
+  done
+  if [[ -n "$(collector_pids "${root}")" ]]; then echo true; else echo false; fi
+}
+
 print_verification_json() {
   local audit_count process_count binary_path unit_exists config_exists state_exists logs_exist
   audit_count="$(remaining_audit_rule_count)"
@@ -340,6 +502,15 @@ print_verification_json() {
   logs_exist="$(known_logs_exist_bool)"
 
   local ok=1
+  local logtail_remaining=null filebeat_remaining=null
+  if [[ "${REMOVE_LOGTAIL}" == 1 ]]; then
+    logtail_remaining="$(standalone_remaining_bool logtail)"
+    [[ "${logtail_remaining}" == false ]] || ok=0
+  fi
+  if [[ "${REMOVE_FILEBEAT}" == 1 ]]; then
+    filebeat_remaining="$(standalone_remaining_bool filebeat)"
+    [[ "${filebeat_remaining}" == false ]] || ok=0
+  fi
   [[ "${unit_exists}" == "false" ]] || ok=0
   [[ "${process_count}" == "0" ]] || ok=0
   [[ "${audit_count}" == "0" || "${audit_count}" == "-1" || "${CLEAN_AUDIT_RULES}" -eq 0 ]] || ok=0
@@ -349,12 +520,24 @@ print_verification_json() {
   if [[ "${REMOVE_LOGS}" -eq 1 && "${logs_exist}" == "true" ]]; then ok=0; fi
 
   cat <<EOF
-{"ok":$(json_bool "${ok}"),"service":{"name":"$(json_escape "${SERVICE_NAME}")","additional_names":["$(json_escape "${SHIPPER_SERVICE_NAME}")"],"unit_exists":${unit_exists}},"processes":{"matching_count":${process_count}},"audit":{"cleanup_requested":$(json_bool "${CLEAN_AUDIT_RULES}"),"remaining_rule_count":${audit_count}},"files":{"binary":"$(json_escape "${binary_path}")","binary_exists":$(path_exists_bool "${binary_path}"),"config_dir":"$(json_escape "${CONFIG_DIR}")","config_exists":${config_exists},"state_dir":"$(json_escape "${STATE_DIR}")","state_exists":${state_exists},"logs_dir":"$(json_escape "${LOG_DIR}")","known_logs_exist":${logs_exist}}}
+{"ok":$(json_bool "${ok}"),"standalone_collectors":{"logtail":{"removal_requested":$(json_bool "${REMOVE_LOGTAIL}"),"remaining":${logtail_remaining}},"filebeat":{"removal_requested":$(json_bool "${REMOVE_FILEBEAT}"),"remaining":${filebeat_remaining}}},"service":{"name":"$(json_escape "${SERVICE_NAME}")","additional_names":["$(json_escape "${SHIPPER_SERVICE_NAME}")"],"unit_exists":${unit_exists}},"processes":{"matching_count":${process_count}},"audit":{"cleanup_requested":$(json_bool "${CLEAN_AUDIT_RULES}"),"remaining_rule_count":${audit_count}},"files":{"binary":"$(json_escape "${binary_path}")","binary_exists":$(path_exists_bool "${binary_path}"),"config_dir":"$(json_escape "${CONFIG_DIR}")","config_exists":${config_exists},"state_dir":"$(json_escape "${STATE_DIR}")","state_exists":${state_exists},"logs_dir":"$(json_escape "${LOG_DIR}")","known_logs_exist":${logs_exist}}}
 EOF
+  [[ "${ok}" == 1 ]]
 }
 
 require_root
+validate_removal_paths
+# Read before deleting the binary/config. Mode describes ownership, but does
+# not authorize removing machine-wide collectors used by other applications.
+if [[ -x "${BIN_DIR}/secweaver-agent" && -f "${CONFIG_DIR}/config.json" ]]; then
+  if deployment_mode="$("${BIN_DIR}/secweaver-agent" config set-deployment-mode -config "${CONFIG_DIR}/config.json" -check-only 2>/dev/null)"; then
+    log "deployment mode: ${deployment_mode}; standalone collector removal remains opt-in"
+  fi
+fi
+command -v timeout >/dev/null
 stop_systemd_service
+if [[ "${REMOVE_LOGTAIL}" == 1 ]]; then remove_standalone_collector logtail "${LOGTAIL_ROOT}"; fi
+if [[ "${REMOVE_FILEBEAT}" == 1 ]]; then remove_standalone_collector filebeat "${FILEBEAT_ROOT}"; fi
 cleanup_audit_rules
 remove_binary
 remove_optional_data
@@ -368,5 +551,9 @@ fi
 
 log "uninstall complete"
 if [[ "${JSON_OUTPUT}" -eq 1 ]]; then
+  trap - ERR
   print_verification_json
+else
+  trap - ERR
+  print_verification_json >/dev/null
 fi

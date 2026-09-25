@@ -1,5 +1,37 @@
 # secweaver-agent
 
+Source 0.3.60 fixes localized Windows `cmd ver` fallback labels by reporting only
+the complete numeric build; CIM still supplies the preferred product caption.
+
+Source 0.3.59 adds the Windows product name and system version to registration
+and heartbeat metadata; Linux already reports its distribution/version. See
+[operating-system inventory](#operating-system-inventory) for prerequisites and fallback behavior.
+
+Source 0.3.58 clarifies Windows installation warnings and retains PowerShell 5.1 native architecture detection, persistent offline Windows uninstall/purge with reliable CMD self-removal, Bootstrap cleanup, native Logtail cache compatibility, explicit Windows learning migration, compact PowerShell risk
+records and staged installation results. See [Windows installation](docs/windows-installation.md).
+It requires an operator-signed Windows SLS collection contract, checks
+delivered rules before installation succeeds, and reports missing/wrong routes in
+doctor and health logs. See [Windows collection readiness](docs/windows-installation.md#windows-sls-collection-readiness).
+
+Source 0.3.49 completes the Windows 0.3.22 regression fixes: validated Bootstrap
+responses, pre-activation installation rollback, redacted HTTP/SCM diagnostics and
+explicit automatic-update defaults. See [Windows installation](docs/windows-installation.md).
+
+ES and SLS SaaS share one Agent binary and version. Installation channels persist
+their ownership; see [deployment modes](docs/deployment-modes.md).
+
+Source 0.3.46 repairs Windows enrollment/update identity and service diagnostics, verifies
+startup readiness, and installs a pinned Windows Logtail collector. See
+[Windows installation and cloud acceptance](docs/windows-installation.md).
+
+Source 0.3.42 defaults Linux SaaS Logtail to the Hangzhou public-network selector and
+bounds downloads/vendor installation. Explicit intranet settings remain unchanged; see
+[network policy and migration](docs/collector-lifecycle.md#network-policy).
+
+Source 0.3.41 fixes Logtail service handoff, adds explicit standalone collector cleanup,
+and separates local shipper health from unverified cloud delivery. See
+[collector lifecycle and diagnostics](docs/collector-lifecycle.md).
+
 Source 0.3.40 fixes Linux supervisor shutdown ordering: audit pipes remain open until
 child modules exit, preventing normal restarts from invalidating behavior learning.
 Already degraded generations still require explicit relearning; see the recovery guide.
@@ -49,6 +81,44 @@ historical events are not rewritten. Windows collection is unchanged. Verify wit
 from this directory. This source change does not publish or deploy a package.
 
 Versions in archive-name examples refer to the archive you downloaded. Use its actual version when installing. `VERSION` defines the next source build; changing it does not mean a package has been published.
+
+## Operating-system inventory
+
+Managed registration and heartbeats report `os` (`linux`/`windows`) and optional
+`os_version`. These describe the Agent host, not the service receiving its logs.
+Standalone logging without registration does not require this metadata.
+
+- Linux reads `/etc/os-release`, then `/usr/lib/os-release`: `PRETTY_NAME` takes
+  precedence, otherwise `NAME` plus `VERSION_ID`. For example, `Ubuntu 22.04.5 LTS`
+  or `CentOS Stream 9`. Without distribution metadata, a bounded `uname -sr`
+  fallback supplies only the kernel; it does not identify a distribution.
+- Windows 0.3.59 uses local Windows PowerShell 5.1+ and CIM `Win32_OperatingSystem`
+  (`Caption` and `Version`), for example
+  `Microsoft Windows Server 2019 Standard (10.0.17763)`. The read-only probe has a
+  three-second timeout. If blocked, malformed or unavailable, it falls back to
+  `cmd /d /c ver` with a two-second timeout. Since 0.3.60, that fallback extracts
+  only the ASCII build, e.g. `Windows (10.0.17763.9245)`, instead of forwarding
+  local code-page bytes as UTF-8. No patch digits are dropped and no edition is
+  guessed. CIM output with invalid UTF-8 or replacement characters is rejected.
+  Failed/unrecognized probes omit this optional field;
+  they do not stop enrollment. Labels must fit the existing 128-byte UTF-8 limit.
+  The exact fixed PowerShell script is marked as internal collector activity.
+
+Existing managed Windows hosts require the new Agent build and a successful
+heartbeat to replace old numeric-only labels. Offline hosts keep their last report;
+updating source alone does not publish a package or change stored inventory.
+No new protocol field or database migration is required.
+
+Older raw command labels may already contain irreversible replacement characters
+in stored metadata. Upgrading to 0.3.60 corrects future registration/heartbeats;
+it does not rewrite historical records or upgrade other hosts automatically.
+
+Verify Linux against `/etc/os-release`, and Windows against
+`Get-CimInstance Win32_OperatingSystem | Select-Object Caption,Version`, then inspect
+the host's next registered/heartbeat metadata. From this directory,
+`go test ./pkg/agentlicense -run OSVersion` covers formatting, distribution names
+and probe failures on any development OS. Cross-compilation and mocked tests do
+not replace checking an actual Windows host after installation.
 
 ## Choose Your Workflow
 
@@ -102,7 +172,7 @@ workload container; it is not a substitute for a host security sensor.
 | Platform | Status | Notes |
 |---|---|---|
 | Linux systemd, amd64/arm64/loong64 | Supported | Default Linux packages, `install.sh`, auditd, syslog, and host-persistence target this environment |
-| Windows, amd64/arm64 | Pilot supported | Installs as the `SecWeaverAgent` service; depends on Windows Event Log, Security audit policy, optional Sysmon, and file-based host-persistence polling |
+| Windows, amd64/arm64 | Pilot supported | Installs as the `SecWeaverAgent` service; depends on Windows Event Log, Security audit policy, optional Sysmon, and file-based host-persistence polling; managed Logtail requires amd64, ARM64 needs a separate shipper |
 | WSL2 Linux environment | Client/development only | Can run Community Python tools as Linux, but is not a Windows host sensor and does not collect the host's Event Log, Security 4688, Sysmon, or Windows services |
 | Non-systemd Linux | Not a default install target | The binary can be run manually, but the release installer rejects service installation by default |
 | Linux containers | Supported workload profile | Non-root Docker deployment collects its own process, socket, identity, and cgroup/container state; it never claims host audit or persistence coverage |
@@ -119,7 +189,7 @@ secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json -json
 
 `preflight` checks OS/module compatibility, systemd, root privileges, container hints, `auditctl`/audit log, `netstat`/`/proc`, traditional syslog files, `host-persistence` config readability, Windows `wevtutil`/Event Log channels, 4688 command-line audit policy, and scheduled update settings. `-strict` returns non-zero when an `ERROR` check is reported.
 
-`doctor` is the one-command production diagnostic. It includes preflight checks and additionally verifies the Agent service state, authorization connectivity, local `status.json`, recent module JSON output, and SLS Logtail identity when an SLS collector is installed. Agent diagnostics do not validate ES/Filebeat/Fluent Bit or other log-shipper configuration. Community users with self-managed ES should run the Filebeat configuration, output, and ingestion checks in the [public ES guide](elasticsearch/README.md); use each shipper's standard diagnostics for other delivery paths. When no Logtail directory is present, the Agent reports that SLS identity checks were skipped rather than requiring Alibaba Cloud identity files. Use `-json` for a machine-readable report that the enterprise workspace, monitoring jobs, or support tickets can ingest. `secweaver-agent run -dry-run` prints the preflight report. Normal `run` prints warning/error summaries to stderr. Windows service mode does not create a dedicated service log file; use Windows service status, Event Viewer/SCM diagnostics, and the module JSONL outputs for troubleshooting.
+`doctor` includes preflight, Agent service state, authorization connectivity, local `status.json`, recent module output, and Logtail service/process/identity checks. Bootstrap records SLS intent before installing Logtail: a missing expected collector is an error, not a skipped success. With no SLS intent or installation, doctor warns that delivery is unverified; it does not require Alibaba Cloud identity for an ES deployment. Local checks never prove cloud ingestion. Use server-side machine-group and Logstore checks for SLS, and the [public ES guide](elasticsearch/README.md) for Filebeat output/ingestion checks. `-json` emits a machine-readable report. `run -dry-run` prints preflight; normal `run` prints warning/error summaries to stderr. Windows service mode records its latest failure in `<config-path>.service-error.txt` (bounded to 16 KiB); also use SCM/Event Viewer and module JSONL outputs.
 
 Known boundaries:
 
@@ -256,7 +326,7 @@ generated release environment:
 ```bash
 OUTPUT_DIR=/srv/secweaver-sls-proxy/releases/logtail \
 PUBLIC_BASE_URL=https://agent-gateway.id-net.cn:30443 \
-LOGTAIL_REGION=cn-hangzhou \
+LOGTAIL_REGION=cn-hangzhou-internet \
 src/tools/secweaver-agent/scripts/publish-logtail-installer.sh
 source /srv/secweaver-sls-proxy/releases/logtail/release.env
 ```
@@ -286,8 +356,11 @@ variables must not replace it.
 
 For the managed SaaS deployment, the authorization origin defaults to
 `https://agent-gateway.id-net.cn:30443`; `endpoint` and `BOOTSTRAP_LICENSE_SERVER_URL` are optional
-overrides for private deployments. Use the Alibaba Cloud Region ID `cn-hangzhou`; the release
-scripts normalize the operator alias `hangzhou` to that canonical value.
+overrides for private deployments. The Logtail installer selector defaults to
+`cn-hangzhou-internet`. Explicit `cn-hangzhou` (or legacy alias `hangzhou`) selects
+intranet; it is not silently rewritten. Set another supported region/network selector
+for a SaaS instance outside Hangzhou. SLS API connector geography remains `cn-hangzhou`,
+without the installer-specific `-internet` suffix.
 
 The release script embeds these shared values into `dist/packages/install.sh`. Do not edit
 `packaging/bootstrap-install.sh` or a generated public `install.sh` by hand; rebuild the release
@@ -336,7 +409,7 @@ Windows packages include:
 - `elasticsearch/index-template.json`
 - `elasticsearch/filebeat.yml`
 - `elasticsearch/README.md` and `elasticsearch/README.zh-CN.md`
-- `install-service.ps1`
+- `install-service.ps1` and `windows-install-common.ps1`
 - `uninstall-service.ps1`
 - `examples/update-server/`
 - READMEs
@@ -702,16 +775,23 @@ The systemd unit includes `ExecStopPost=/opt/secweaver-agent/bin/secweaver-agent
 sudo /usr/local/bin/secweaver-agent audit-cleanup
 ```
 
-Uninstall from a Linux release package:
+After installation, use the stable product-owned uninstaller path:
 
 ```bash
-sudo ./uninstall.sh
+sudo /opt/secweaver-agent/bin/uninstall.sh
 ```
 
-`uninstall.sh` stops the Agent and shipper services, removes systemd units,
+The archive-root `uninstall.sh` is only the package installer input. The Linux
+installer copies it to `/opt/secweaver-agent/bin/uninstall.sh`, so operations do
+not depend on the directory used to extract the archive or on a temporary test
+staging directory. This script stops the Agent and shipper services, removes systemd units,
 cleans stale audit rules, and removes `/opt/secweaver-agent/bin` plus the command
 symlink by default. Config, state, logs, and shipper data are retained;
-`sudo ./uninstall.sh --purge` removes the complete `/opt/secweaver-agent` root.
+`sudo /opt/secweaver-agent/bin/uninstall.sh --purge` removes the complete `/opt/secweaver-agent` root.
+Standalone collectors are retained unless explicitly selected. For a clean-host test:
+`sudo /opt/secweaver-agent/bin/uninstall.sh --purge --remove-logtail --remove-filebeat --json`.
+These flags remove each selected collector's configuration/state/logs, including shared
+collection jobs. See [supported paths and verification](docs/collector-lifecycle.md).
 The selective removal flags and machine-readable `--json` verification remain available.
 
 Run one module directly:
@@ -749,7 +829,9 @@ Set-Location ".\secweaver-agent_${AgentVersion}_windows_amd64"
 Set-ExecutionPolicy -Scope Process Bypass -Force
 .\install-service.ps1 `
   -EnterpriseEnrollmentToken 'swenr_TOKEN_ID.SECRET' `
-  -LicenseServerUrl 'https://agent-gateway.id-net.cn:30443'
+  -LicenseServerUrl 'https://agent-gateway.id-net.cn:30443' `
+  -LogtailAliUid '1234567890123456' `
+  -LogtailMachineGroup 'YOUR_WINDOWS_ONLY_GROUP'
 ```
 
 For delivery, prefer the one-click PowerShell command generated with
@@ -773,17 +855,21 @@ Defaults:
 - Config: `C:\ProgramData\SecWeaver\Agent\etc\config.json`
 - Host persistence config: `C:\ProgramData\SecWeaver\Agent\etc\host-persistence.json`
 - Service: `SecWeaverAgent`
-- Service wrapper log: none; inspect service status/Event Viewer and module JSONL outputs
+- Latest service failure: `<config-path>.service-error.txt` (16 KiB maximum); also inspect SCM and module JSONL outputs
 
 Service operations:
 
 ```powershell
 Get-Service SecWeaverAgent
 Restart-Service SecWeaverAgent
-.\uninstall-service.ps1
+& 'C:\ProgramData\SecWeaver\Agent\bin\uninstall.cmd'
+# Remove Agent, Logtail and local data (administrator terminal):
+& 'C:\ProgramData\SecWeaver\Agent\bin\uninstall.cmd' -Purge
 ```
 
 Windows notes:
+
+- `-Purge` deletes local configuration, device identity, learning state, logs and standard-layout Logtail data, including all Logtail collection identities/checkpoints on the host. Add `-KeepLogtail` to retain a shared collector. Cloud history, device records, Sysmon and Windows audit policy are unchanged. `-Json` returns one result object. See [uninstall limits and verification](docs/windows-installation.md#windows-uninstall).
 
 - By default, `windows-eventlog-risk-json` is the single `wevtutil` reader for Security, System, PowerShell, and Sysmon. It writes risks to `windows-eventlog-risk-json.log` and maps Security 4688 plus Sysmon 1/3/11/23 into `host_exec`, `host_connect`, and `host_file_op` records in `windows-process-execmon.log` through `-evidence-output`.
 - The standalone `windows-process-execmon` module remains available when unified evidence output is disabled. It polls every five minutes and is disabled by default. If both modules are enabled, pass `-evidence-output=` explicitly to `windows-eventlog-risk-json` to transfer evidence ownership to the standalone reader; otherwise preflight and startup reject the configuration to prevent duplicate queries, duplicate records, and competing writers.

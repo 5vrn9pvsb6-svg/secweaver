@@ -116,7 +116,7 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                     "PATH": f"{fake_bin}:{env['PATH']}",
                     "OUTPUT_DIR": str(output_dir),
                     "PUBLIC_BASE_URL": "https://sls-proxy.example.com",
-                    "LOGTAIL_REGION": "hangzhou",
+                    "LOGTAIL_REGION": "cn-hangzhou-internet",
                     "FAKE_LOGTAIL_SOURCE": str(vendor_installer),
                     "CURL_ARGS_LOG": str(root / "curl-args.log"),
                 }
@@ -138,6 +138,8 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                 (root / "curl-args.log").read_text(encoding="utf-8"),
             )
             published = output_dir / "install.sh"
+            self.assertIn("BOOTSTRAP_LOGTAIL_REGION=cn-hangzhou-internet", (output_dir / "release.env").read_text())
+            self.assertNotIn("oss-cn-hangzhou-internet", (root / "curl-args.log").read_text())
             expected_digest = hashlib.sha256(vendor_installer.read_bytes()).hexdigest()
             self.assertEqual(published.read_bytes(), vendor_installer.read_bytes())
             self.assertEqual(
@@ -194,6 +196,34 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             self.assertIn("64 hexadecimal characters", result.stderr)
             self.assertNotIn("building secweaver-agent", result.stdout)
 
+    def test_bootstrap_release_preserves_explicit_network_selection(self) -> None:
+        # Render only installers into a temporary directory. This exercises the
+        # production release config without compiling/publishing delivery archives.
+        release_script = REPO_ROOT / "src/tools/secweaver-agent/scripts/package-release.sh"
+        for supplied, expected in (
+            ("", "cn-hangzhou-internet"),
+            ("cn-hangzhou", "cn-hangzhou"),
+            ("hangzhou", "cn-hangzhou"),
+            ("eu-central-1-internet", "eu-central-1-internet"),
+        ):
+            with self.subTest(region=supplied), TemporaryDirectory(dir="/tmp") as temp_dir:
+                env = os.environ.copy()
+                env.update({
+                    "OUT_DIR": temp_dir,
+                    "BOOTSTRAP_ONLY": "1",
+                    "ALLOW_DIRTY_RELEASE": "1",
+                    "BOOTSTRAP_ENROLLMENT_ID": "machine-group-test",
+                    "BOOTSTRAP_LOGTAIL_INSTALL_SHA256": "0" * 64,
+                    "BOOTSTRAP_LOGTAIL_ALIUID": "1234567890123456",
+                    "BOOTSTRAP_LOGTAIL_REGION": supplied,
+                })
+                result = subprocess.run(["bash", str(release_script)], cwd=REPO_ROOT,
+                                        env=env, text=True, capture_output=True, timeout=30)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                generated = (Path(temp_dir) / "packages" / "install.sh").read_text()
+                self.assertIn(f"readonly EMBEDDED_LOGTAIL_REGION={expected}\n", generated)
+                self.assertIn("stage=logtail-install", generated)
+
     def test_release_package_allows_unsigned_updates_by_default(self) -> None:
         release_script = REPO_ROOT / "src/tools/secweaver-agent/scripts/package-release.sh"
         with TemporaryDirectory(dir="/tmp") as temp_dir:
@@ -232,6 +262,19 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             self.assertNotIn("signature", manifest_payload)
             self.assertFalse((manifest.parent / "update-signing-key.pub").exists())
             self.assertIn("wrote unsigned", result.stdout)
+            # Inspect the actual Windows archive: a bootstrap alone cannot repair
+            # a package that omitted its helper or offline acceptance guide.
+            import zipfile
+            archives = list((Path(temp_dir) / "packages").glob("*_windows_amd64.zip"))
+            self.assertEqual(len(archives), 1)
+            with zipfile.ZipFile(archives[0]) as archive:
+                names = archive.namelist()
+                for required in ("windows-install-common.ps1", "docs/windows-installation.md", "docs/windows-installation.zh-CN.md"):
+                    self.assertTrue(any(name.endswith("/" + required) for name in names), required)
+            windows_bootstrap = (Path(temp_dir) / "packages" / "install.ps1").read_text()
+            self.assertIn('$EmbeddedLogtailMachineGroup = "machine-group-01-windows"', windows_bootstrap)
+            self.assertIn('$EmbeddedLogtailAliUid = "1234567890123456"', windows_bootstrap)
+
 
     def test_bootstrap_downloads_verifies_and_invokes_package_installer(self) -> None:
         bootstrap = REPO_ROOT / "src/tools/secweaver-agent/packaging/bootstrap-install.sh"
@@ -252,14 +295,40 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             preflight_record = root / "preflight-record.txt"
             logtail_install_record = root / "logtail-install-record.txt"
 
+            # Relocate privileged paths in this integration fixture; production
+            # still uses the standard layout and real systemd lifecycle checks.
+            isolated_bootstrap = root / "bootstrap.sh"
+            agent_root = root / "agent"
+            (agent_root / "etc").mkdir(parents=True)
+            init_dir = root / "init"
+            init_dir.mkdir()
+            isolated_bootstrap.write_text(
+                bootstrap.read_text().replace("/opt/secweaver-agent", str(agent_root))
+                .replace("/run/lock", str(root / "locks"))
+                .replace("/etc/init.d/", str(init_dir) + "/")
+                .replace("/usr/local/ilogtail/", str(root / "vendor") + "/"),
+                encoding="utf-8",
+            )
+            for name, text in {
+                "timeout": '[[ "$1" != --kill-after=* ]] || shift\nshift\nexec "$@"',
+                "flock": "exit 0",
+                "pgrep": "exit 1",
+                "systemctl": 'case "$1" in cat) [[ "$2" == ilogtaild.service ]];; show) echo ActiveState=inactive;; *) exit 0;; esac',
+            }.items():
+                path = fake_bin / name
+                path.write_text("#!/usr/bin/env bash\n" + text + "\n")
+                path.chmod(0o755)
+
             fake_install = package_root / "install.sh"
             fake_install.write_text(
                 "#!/usr/bin/env bash\n"
                 "set -euo pipefail\n"
                 'printf "%s\\n" "$*" >"${BOOTSTRAP_INSTALL_RECORD}"\n',
+                # Raw child output belongs only in the private installation log.
                 encoding="utf-8",
             )
             fake_install.chmod(0o755)
+            fake_install.write_text(fake_install.read_text() + 'echo child-config-noise\nexit "${TEST_INSTALL_EXIT:-0}"\n')
 
             fake_agent = fake_bin / "secweaver-agent"
             fake_agent.write_text(
@@ -269,6 +338,12 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                 encoding="utf-8",
             )
             fake_agent.chmod(0o755)
+            fake_agent.write_text(fake_agent.read_text() +
+                'echo "[WARN] ebpf/btf: kernel BTF is unavailable (backend=auto falls back to audit)"\n'
+                'echo "[WARN] logs/host-persistence: output log exists but has no recent lines"\n'
+                'echo "[WARN] disk: low free space"\n'
+                'if [[ "$1" == preflight ]]; then exit "${TEST_PREFLIGHT_EXIT:-0}"; fi\n'
+                'exit "${TEST_DOCTOR_EXIT:-0}"\n')
 
             fake_uname = fake_bin / "uname"
             fake_uname.write_text(
@@ -288,6 +363,11 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                 encoding="utf-8",
             )
             fake_logtail_installer.chmod(0o755)
+            fake_logtail_installer.write_text(
+                fake_logtail_installer.read_text()
+                + 'cp "${BOOTSTRAP_FAKE_BIN}/ilogtaild" "${BOOTSTRAP_INIT_DIR}/ilogtaild"\n',
+                encoding="utf-8",
+            )
             logtail_installer_sha256 = hashlib.sha256(fake_logtail_installer.read_bytes()).hexdigest()
 
             archive = release_dir / f"{package_name}.tar.gz"
@@ -313,18 +393,19 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                     "SECWEAVER_LOGTAIL_EMBEDDED_INSTALL_URL": f"file://{fake_logtail_installer}",
                     "SECWEAVER_LOGTAIL_EMBEDDED_INSTALL_SHA256": logtail_installer_sha256,
                     "SECWEAVER_LOGTAIL_EMBEDDED_ALIUID": "1234567890123456",
-                    "SECWEAVER_LOGTAIL_EMBEDDED_REGION": "cn-hangzhou",
+                    "SECWEAVER_LOGTAIL_EMBEDDED_REGION": "",
                     "SECWEAVER_LOGTAIL_CONFIG_DIR": str(root / "etc" / "ilogtail"),
                     "BOOTSTRAP_INSTALL_RECORD": str(install_record),
                     "BOOTSTRAP_PREFLIGHT_RECORD": str(preflight_record),
                     "BOOTSTRAP_LOGTAIL_INSTALL_RECORD": str(logtail_install_record),
                     "BOOTSTRAP_FAKE_BIN": str(fake_bin),
+                    "BOOTSTRAP_INIT_DIR": str(init_dir),
                 }
             )
             result = subprocess.run(
                 [
                     "bash",
-                    str(bootstrap),
+                    str(isolated_bootstrap),
                     "--enterprise-id",
                     enterprise_id.lower(),
                     "--license-server-url",
@@ -349,18 +430,42 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             self.assertIn("--license-heartbeat-interval-seconds 180", install_args)
             self.assertNotIn("--update-public-key", install_args)
             self.assertIn(
-                "preflight -config /opt/secweaver-agent/etc/config.json -strict",
+                f"preflight -config {agent_root}/etc/config.json -strict",
                 preflight_record.read_text(encoding="utf-8"),
             )
-            self.assertIn("package checksum verified", result.stdout)
-            self.assertEqual(logtail_install_record.read_text(encoding="utf-8").strip(), "install cn-hangzhou")
-            self.assertIn("Logtail installer checksum verified", result.stdout)
+            details = list((agent_root / "install-logs").glob("install.log.*"))
+            self.assertEqual(len(details), 1)
+            detail = details[0].read_text()
+            self.assertEqual(details[0].stat().st_mode & 0o777, 0o600)
+            self.assertIn("package checksum verified", detail)
+            self.assertIn("child-config-noise", detail)
+            self.assertNotIn("child-config-noise", result.stdout + result.stderr)
+            self.assertEqual(result.stdout, "")
+            self.assertIn("[OK  ] [6/8]", result.stderr)
+            self.assertIn("[SKIP] [8/8]", result.stderr)
+            self.assertIn("[INFO] Kernel BTF unavailable", result.stderr)
+            self.assertIn("[WARN] disk: low free space", result.stderr)
+            self.assertNotIn("\x1b[", result.stderr)
+            self.assertEqual(logtail_install_record.read_text(encoding="utf-8").strip(), "install cn-hangzhou-internet")
+            self.assertIn("Logtail installer checksum verified", detail)
             logtail_dir = root / "etc" / "ilogtail"
             self.assertTrue((logtail_dir / "users" / "1234567890123456").is_file())
             self.assertEqual(
                 (logtail_dir / "user_defined_id").read_text(encoding="utf-8").strip(),
                 enrollment_id,
             )
+
+            # Exercise actual top-level errexit/reporting, not only formatters.
+            # Neither child failure nor a diagnostic error may print stage OK
+            # or execute a subsequent installation step.
+            for variable, code, stage in (("TEST_INSTALL_EXIT", 17, 3), ("TEST_PREFLIGHT_EXIT", 19, 4), ("TEST_DOCTOR_EXIT", 23, 8)):
+                args = [arg for arg in result.args if arg != "--no-start"]
+                failed = subprocess.run(args, cwd=REPO_ROOT, env={**env, variable: str(code)}, text=True, capture_output=True, timeout=30)
+                self.assertEqual(failed.returncode, code, failed.stderr)
+                self.assertIn("[FAIL]", failed.stderr)
+                self.assertNotIn(f"[OK  ] [{stage}/8]", failed.stderr)
+                self.assertNotIn("and Logtail are running", failed.stderr)
+                self.assertIn("Details:", failed.stderr)
 
             # A malformed or missing mutable pointer must not execute even the
             # synthetic installer again or silently choose an embedded version.

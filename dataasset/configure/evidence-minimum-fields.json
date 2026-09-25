@@ -186,6 +186,9 @@
       "recommended": [
         "user",
         "message",
+        "command",
+        "script_sha256",
+        "script_bytes",
         "src_ip",
         "process",
         "action",

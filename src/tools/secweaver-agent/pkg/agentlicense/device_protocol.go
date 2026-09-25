@@ -123,8 +123,11 @@ func (c Client) Enroll(ctx context.Context, cfg Config, token, agentVersion stri
 	if status < 200 || status >= 300 {
 		return Result{Response: enrollment, State: state}, &HTTPStatusError{Operation: "enrollment server", StatusCode: status, Reason: responseReason(enrollment)}
 	}
-	if decodeErr != nil {
-		return Result{State: state}, fmt.Errorf("decode enrollment response: %w", decodeErr)
+	if len(bytes.TrimSpace(resp)) == 0 {
+		return Result{State: state}, &ResponseValidationError{StatusCode: status, Check: "empty-json-response"}
+	}
+	if decodeErr != nil || bytes.Equal(bytes.TrimSpace(resp), []byte("null")) {
+		return Result{State: state}, &ResponseValidationError{StatusCode: status, Check: "invalid-json-response"}
 	}
 	if !enrollment.Allowed {
 		return Result{Response: enrollment, State: state}, DeniedError{Response: enrollment}

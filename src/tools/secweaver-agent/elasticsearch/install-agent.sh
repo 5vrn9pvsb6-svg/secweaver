@@ -44,6 +44,7 @@ import sys
 from pathlib import Path
 config = json.loads(Path(sys.argv[1]).read_text())
 config['enterprise_id'] = sys.argv[3]
+config['deployment_mode'] = 'es_private'
 for key in ('license', 'remote_config', 'update'):
     config[key] = {'enabled': False}
 with Path(sys.argv[2]).open('x') as stream:

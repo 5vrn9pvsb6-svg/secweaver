@@ -6,6 +6,7 @@
   "additionalProperties": false,
   "required": ["enterprise_id", "modules"],
   "properties": {
+    "deployment_mode": {"type": "string", "enum": ["sls_saas", "es_private"], "description": "Local installation channel; ordinary upgrades preserve it."},
     "enterprise_id": {
       "type": "string",
       "pattern": "^[A-Za-z0-9]{16}$"
