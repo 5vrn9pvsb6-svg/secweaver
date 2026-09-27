@@ -133,6 +133,20 @@ def apply_time_correction(iso_ts: str | None, correction: dict[str, Any] | None)
     return (dt + timedelta(minutes=offset)).isoformat()
 
 
+def _format_epoch_timestamp(value: float, assume_timezone: str | None) -> str:
+    """Render epoch seconds in the declared source timezone when available.
+
+    Epoch seconds identify an absolute instant, but the normalized JSON contract
+    still carries an offset for analysts and query templates. Using the asset
+    declaration instead of the worker's local timezone keeps SLS samples stable
+    on UTC CI runners and portable deployments.
+    """
+    dt = datetime.fromtimestamp(value, tz=timezone.utc)
+    if assume_timezone:
+        return dt.astimezone(parse_timezone(assume_timezone)).isoformat()
+    return dt.astimezone().isoformat()
+
+
 def normalize_timestamp(value: Any, *, assume_timezone: str | None = None) -> str | None:
     """Normalize timestamps without rewriting an explicit source offset.
 
@@ -146,7 +160,7 @@ def normalize_timestamp(value: Any, *, assume_timezone: str | None = None) -> st
         return None
     if isinstance(value, (int, float)):
         try:
-            return datetime.fromtimestamp(float(value), tz=timezone.utc).astimezone().isoformat()
+            return _format_epoch_timestamp(float(value), assume_timezone)
         except (OSError, OverflowError, ValueError):
             return None
     text = str(value).strip()
@@ -157,7 +171,7 @@ def normalize_timestamp(value: Any, *, assume_timezone: str | None = None) -> st
             ts = int(text)
             if ts > 1_000_000_000_000:
                 ts /= 1000.0
-            return datetime.fromtimestamp(ts, tz=timezone.utc).astimezone().isoformat()
+            return _format_epoch_timestamp(ts, assume_timezone)
         except (OSError, OverflowError, ValueError):
             pass
     m = SYSLOG_TS.match(text)

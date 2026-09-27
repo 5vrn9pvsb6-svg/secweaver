@@ -1,5 +1,15 @@
 # Changelog
 
+## Agent 0.3.63
+
+- Honor an asset's declared source timezone for epoch timestamps, keeping SLS
+  normalized evidence stable on UTC CI runners and portable deployments.
+- Make Windows SCM update activation deterministic: the detached replacement
+  helper starts the named service after replacing the executable, while console
+  mode remains unable to mutate SCM state.
+- Fix Windows service restart exit reporting and cover the replacement script's
+  encoded service identity.
+
 ## Agent 0.3.62
 
 - Fix service-upgrade integration manifests by adding UTC RFC3339 `generated_at`

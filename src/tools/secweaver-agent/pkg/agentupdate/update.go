@@ -25,17 +25,21 @@ import (
 const appName = "secweaver-agent"
 
 type Options struct {
-	Context              context.Context
-	CommitGuard          func(context.Context) error
-	ManifestURL          string
-	CAFile               string
-	Channel              string
-	CurrentVersion       string
-	DesiredVersion       string
-	StateDir             string
-	SelfPath             string
-	DeviceID             string
-	HostID               string // Deprecated: explicit legacy alias for DeviceID.
+	Context        context.Context
+	CommitGuard    func(context.Context) error
+	ManifestURL    string
+	CAFile         string
+	Channel        string
+	CurrentVersion string
+	DesiredVersion string
+	StateDir       string
+	SelfPath       string
+	DeviceID       string
+	HostID         string // Deprecated: explicit legacy alias for DeviceID.
+	// ServiceName is set only by the Windows SCM entry point. The detached
+	// replacement helper uses it to start the service after unlocking and
+	// replacing the running executable; console mode leaves it empty.
+	ServiceName          string
 	PublicKey            ed25519.PublicKey
 	TrustedPublicKeys    map[string]ed25519.PublicKey
 	RevokedKeyIDs        []string
@@ -289,7 +293,7 @@ func Install(opts Options) (status Status, resultErr error) {
 			status.Reason = "state_write_failed_before_commit"
 			return status, err
 		}
-		if err := scheduleWindowsReplace(selfPath, pendingPath, opts.StateDir); err != nil {
+		if err := scheduleWindowsReplace(selfPath, pendingPath, opts.StateDir, opts.ServiceName); err != nil {
 			status.CommitStarted = false
 			status.Phase = "failed"
 			clearRecoveryFiles(opts.StateDir)
@@ -426,7 +430,7 @@ func RollbackForReason(opts Options, reason string) (Status, error) {
 			return status, err
 		}
 		status.PendingPath = pendingPath
-		if err := scheduleWindowsReplace(selfPath, pendingPath, opts.StateDir); err != nil {
+		if err := scheduleWindowsReplace(selfPath, pendingPath, opts.StateDir, opts.ServiceName); err != nil {
 			status.Reason = "windows_replace_schedule_failed"
 			return status, err
 		}
@@ -1066,9 +1070,9 @@ func stageWindowsBinary(selfPath, stateDir string, payload []byte) (string, erro
 	return pendingPath, nil
 }
 
-func scheduleWindowsReplace(selfPath, pendingPath, stateDir string) error {
+func scheduleWindowsReplace(selfPath, pendingPath, stateDir, serviceName string) error {
 	scriptPath := filepath.Join(stateDir, fmt.Sprintf("replace-%d.ps1", os.Getpid()))
-	script := windowsAtomicReplaceScript(pendingPath, selfPath)
+	script := windowsAtomicReplaceScript(pendingPath, selfPath, serviceName)
 	if err := os.WriteFile(scriptPath, []byte(script), 0600); err != nil {
 		return err
 	}
@@ -1080,12 +1084,14 @@ func scheduleWindowsReplace(selfPath, pendingPath, stateDir string) error {
 	return cmd.Start()
 }
 
-func windowsAtomicReplaceScript(sourcePath, destinationPath string) string {
+func windowsAtomicReplaceScript(sourcePath, destinationPath, serviceName string) string {
 	encodedSource := base64.StdEncoding.EncodeToString([]byte(sourcePath))
 	encodedDestination := base64.StdEncoding.EncodeToString([]byte(destinationPath))
+	encodedService := base64.StdEncoding.EncodeToString([]byte(serviceName))
 	return fmt.Sprintf(`$ErrorActionPreference = "Stop"
 $Source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
 $Destination = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
+$ServiceName = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
 for ($Attempt = 1; $Attempt -le 60; $Attempt++) {
   try {
     if ([IO.File]::Exists($Destination)) {
@@ -1093,13 +1099,38 @@ for ($Attempt = 1; $Attempt -le 60; $Attempt++) {
     } else {
       [IO.File]::Move($Source, $Destination)
     }
+    if ($ServiceName) {
+      # Do not rely only on SCM failure actions: service hosts may report a
+      # clean dispatcher return while the replacement is still pending.
+      for ($ServiceAttempt = 1; $ServiceAttempt -le 30; $ServiceAttempt++) {
+        try {
+          $Service = Get-Service -Name $ServiceName -ErrorAction Stop
+          if ($Service.Status -eq "Stopped") {
+            Start-Service -Name $ServiceName -ErrorAction Stop
+            exit 0
+          }
+          # The old service process can still be unwinding after releasing
+          # the executable. Waiting for Stopped avoids racing SCM's state
+          # transition and losing the restart immediately after exit.
+          Start-Sleep -Seconds 1
+        } catch {
+          Start-Sleep -Seconds 1
+        }
+      }
+      # SCM failure actions may have started the replacement during the wait.
+      # Treat an already-running service as success; otherwise report a
+      # failed activation so the health monitor can roll back deterministically.
+      $Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+      if ($Service -and $Service.Status -eq "Running") { exit 0 }
+      exit 1
+    }
     exit 0
   } catch {
     Start-Sleep -Seconds 1
   }
 }
 exit 1
-`, encodedSource, encodedDestination)
+`, encodedSource, encodedDestination, encodedService)
 }
 
 func copyFile(src, dst string) error {

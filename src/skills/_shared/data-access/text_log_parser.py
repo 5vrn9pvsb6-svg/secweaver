@@ -76,7 +76,14 @@ def _parse_custom_regex(line: str, spec: dict[str, Any], *, host: str) -> dict[s
     if ts_field and ts_field in event:
         for fmt in spec.get("timestamp_formats") or []:
             try:
-                event[ts_field] = datetime.strptime(str(event[ts_field]), fmt).astimezone().isoformat()
+                parsed = datetime.strptime(str(event[ts_field]), fmt)
+                # An offset embedded in a source line is authoritative; only
+                # naive parser formats fall back to the worker's local zone.
+                event[ts_field] = (
+                    parsed.isoformat()
+                    if parsed.tzinfo is not None
+                    else parsed.astimezone().isoformat()
+                )
                 break
             except ValueError:
                 continue

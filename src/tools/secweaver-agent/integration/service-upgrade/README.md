@@ -23,4 +23,10 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\integration\service-upgrade\windows-scm.ps1
 ```
 
+For a real SCM service, the updater passes the registered service name to a
+detached replacement helper. The helper waits for the old process to release the
+executable, performs the atomic replacement, and starts that service again. A
+console-mode `service` command deliberately leaves the service name empty and
+does not start or modify SCM services.
+
 Set `KEEP_INTEGRATION_ARTIFACTS=1` to retain the temporary state after a run.

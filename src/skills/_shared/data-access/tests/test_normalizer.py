@@ -91,6 +91,12 @@ class TestNormalizer(unittest.TestCase):
         self.assertEqual(ev["src_ip"], "1.2.3.4")
         self.assertTrue(ev["evidence_id"].startswith("waf-alert-"))
 
+    def test_epoch_timestamp_uses_declared_source_timezone(self) -> None:
+        self.assertEqual(
+            normalize_timestamp(1782000902, assume_timezone="Asia/Shanghai"),
+            "2026-06-21T08:15:02+08:00",
+        )
+
     def test_normalize_event_canonicalizes_source_ip_aliases(self) -> None:
         asset = {**ASSET, "field_aliases": {"ip": "src_ip"}}
         ev = normalize_event(

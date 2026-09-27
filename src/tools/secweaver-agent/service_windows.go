@@ -123,7 +123,7 @@ func runWindowsServiceConsole(configPath string) error {
 	serviceLogf("service command started outside SCM; running in console mode config=%s", configPath)
 	ctx, stop := context.WithCancel(context.Background())
 	defer stop()
-	return runWindowsServiceSupervisor(ctx, configPath)
+	return runWindowsServiceSupervisor(ctx, configPath, false)
 }
 
 // windowsServiceMainCallback adapts the Windows SCM callback ABI to the
@@ -158,10 +158,16 @@ func windowsServiceMain(argc uint32, argv uintptr) {
 	defer cancel()
 
 	setWindowsServiceStatus(serviceRunning, serviceAcceptStop|serviceAcceptShutdown, 0, 0)
-	err = runWindowsServiceSupervisor(ctx, serviceConfigPath)
+	err = runWindowsServiceSupervisor(ctx, serviceConfigPath, true)
 	exitCode := uint32(0)
 	if err != nil && !errors.Is(err, context.Canceled) {
-		exitCode = 1
+		if errors.Is(err, errRestartAfterUpdate) {
+			// Keep the restart reason visible to SCM while the detached updater
+			// also starts the service after the executable is replaced.
+			exitCode = uint32(serviceRestartExitCode())
+		} else {
+			exitCode = 1
+		}
 		writeWindowsServiceFailure(serviceConfigPath, err)
 		serviceLogf("service stopped with error: %v", err)
 	} else {
@@ -242,7 +248,7 @@ func setWindowsServiceStatus(state, accepted, exitCode, waitHint uint32) {
 	_, _, _ = procSetServiceStatus.Call(handle, uintptr(unsafe.Pointer(&status)))
 }
 
-func runWindowsServiceSupervisor(ctx context.Context, configPath string) error {
+func runWindowsServiceSupervisor(ctx context.Context, configPath string, managedBySCM bool) error {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -254,6 +260,11 @@ func runWindowsServiceSupervisor(ctx context.Context, configPath string) error {
 	updateRuntime, err := scheduledUpdateFromConfig(cfg.Update)
 	if err != nil {
 		return fmt.Errorf("config validation: update: %w", err)
+	}
+	if managedBySCM && updateRuntime != nil {
+		// Only an SCM-owned process may ask the detached replacement helper to
+		// start a service. Direct console runs must never mutate SCM state.
+		updateRuntime.Options.ServiceName = windowsServiceName
 	}
 	licenseRuntime := cfg.License.Normalize()
 	if err := licenseRuntime.Validate(); err != nil {

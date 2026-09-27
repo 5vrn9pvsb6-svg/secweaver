@@ -1016,7 +1016,7 @@ func TestWriteBytesAtomicCreatesDirectoryAndReplacesExistingFile(t *testing.T) {
 func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) {
 	source := `C:\ProgramData\SecWeaver\pending\agent with spaces.new`
 	destination := `C:\Program Files\SecWeaver\secweaver-agent.exe`
-	script := windowsAtomicReplaceScript(source, destination)
+	script := windowsAtomicReplaceScript(source, destination, "SecWeaverAgent")
 	if strings.Contains(script, source) || strings.Contains(script, destination) {
 		t.Fatal("Windows replacement script embeds an unescaped filesystem path")
 	}
@@ -1024,6 +1024,8 @@ func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) 
 		"[IO.File]::Replace($Source, $Destination, $null, $true)",
 		base64.StdEncoding.EncodeToString([]byte(source)),
 		base64.StdEncoding.EncodeToString([]byte(destination)),
+		base64.StdEncoding.EncodeToString([]byte("SecWeaverAgent")),
+		"Start-Service -Name $ServiceName",
 	} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("Windows replacement script is missing %q", expected)

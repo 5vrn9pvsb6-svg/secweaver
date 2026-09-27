@@ -272,6 +272,8 @@ PowerShell regression tests and `make check` for Go, race and cross-build checks
 Windows SCM upgrade tests remain in `integration/service-upgrade/windows-scm.ps1`.
 These automated checks do not replace the real-machine marker and cloud query above.
 
+Windows SCM updates use a detached replacement helper that waits for the old executable to unlock, atomically replaces it, and starts the registered service again. Console-mode runs do not carry a service name and never mutate SCM state.
+
 ## Windows SLS Collection Readiness
 
 Agent 0.3.50 closes identity-only installation acceptance. The Data Cloud operator
