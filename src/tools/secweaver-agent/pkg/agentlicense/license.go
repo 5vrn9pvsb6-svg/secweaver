@@ -71,7 +71,6 @@ type Request struct {
 	HostName            string                  `json:"host_name"`
 	HostIP              string                  `json:"host_ip"`
 	InternalIP          string                  `json:"internal_ip,omitempty"`
-	ExternalIP          string                  `json:"external_ip,omitempty"`
 	OS                  string                  `json:"os"`
 	OSVersion           string                  `json:"os_version,omitempty"`
 	Arch                string                  `json:"arch"`
@@ -566,14 +565,12 @@ func (c Client) httpClient(cfg Config) (*http.Client, error) {
 
 func buildRequest(enterpriseID string, state State, agentVersion, status string) Request {
 	hostname, _ := os.Hostname()
-	networkIPs := hostNetworkIPs()
 	return Request{
 		EnterpriseID:        enterpriseID,
 		DeviceID:            state.DeviceID,
 		HostName:            hostname,
 		HostIP:              primaryHostIP(),
-		InternalIP:          networkIPs.internal,
-		ExternalIP:          networkIPs.external,
+		InternalIP:          hostInternalIP(),
 		OS:                  runtime.GOOS,
 		OSVersion:           detectOSVersion(),
 		Arch:                runtime.GOARCH,
@@ -586,13 +583,13 @@ func buildRequest(enterpriseID string, state State, agentVersion, status string)
 	}
 }
 
-// hostNetworkIPs classifies addresses assigned to local interfaces. It does
-// not guess a NAT/public address; external remains empty when no public local
-// interface exists, preventing the UI from displaying a false internet IP.
-func hostNetworkIPs() (result struct{ internal, external string }) {
+// hostInternalIP returns one private address assigned to an active interface.
+// Public/external IP is intentionally absent from the Agent wire document: the
+// Gateway owns that value from the socket peer or explicitly trusted WAF XFF.
+func hostInternalIP() string {
 	ifaces, err := net.Interfaces()
 	if err != nil {
-		return result
+		return ""
 	}
 	for _, iface := range ifaces {
 		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
@@ -601,19 +598,12 @@ func hostNetworkIPs() (result struct{ internal, external string }) {
 		addrs, _ := iface.Addrs()
 		for _, addr := range addrs {
 			ip := addrIP(addr)
-			if ip == nil || ip.IsLoopback() {
-				continue
-			}
-			value := ip.String()
-			if ip.IsPrivate() && result.internal == "" {
-				result.internal = value
-			}
-			if !ip.IsPrivate() && !ip.IsUnspecified() && result.external == "" {
-				result.external = value
+			if ip != nil && ip.IsGlobalUnicast() && ip.IsPrivate() {
+				return ip.String()
 			}
 		}
 	}
-	return
+	return ""
 }
 
 func LoadState(path string) (State, error) {

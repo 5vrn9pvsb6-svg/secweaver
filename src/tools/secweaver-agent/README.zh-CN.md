@@ -1,5 +1,9 @@
 # secweaver-agent
 
+源码 0.3.61 不再发送 `external_ip`，Agent 只把私有网卡地址作为 `internal_ip` 上报。
+外部地址由 Agent Gateway 根据 socket 对端或明确可信 WAF 的 `X-Forwarded-For` 链生成，
+因此已签名客户端也不能自行指定页面显示的来源 IP。
+
 源码 0.3.60 修复 Windows 本地化 `cmd ver` 备用路径，只上报完整数字构建号，
 仍优先使用 CIM 返回的产品名称。
 

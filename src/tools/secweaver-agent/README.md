@@ -1,5 +1,10 @@
 # secweaver-agent
 
+Source 0.3.61 no longer sends `external_ip`. The Agent reports only a private
+interface address as `internal_ip`; the Agent Gateway derives the external
+address from the socket peer or an explicitly trusted WAF `X-Forwarded-For`
+chain. This prevents a signed client from selecting its displayed source IP.
+
 Source 0.3.60 fixes localized Windows `cmd ver` fallback labels by reporting only
 the complete numeric build; CIM still supplies the preferred product caption.
 

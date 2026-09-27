@@ -36,7 +36,6 @@ type EnrollmentRequest struct {
 	HostName            string            `json:"host_name,omitempty"`
 	HostIP              string            `json:"host_ip,omitempty"`
 	InternalIP          string            `json:"internal_ip,omitempty"`
-	ExternalIP          string            `json:"external_ip,omitempty"`
 	OS                  string            `json:"os"`
 	OSVersion           string            `json:"os_version,omitempty"`
 	Arch                string            `json:"arch"`
@@ -73,7 +72,6 @@ func (c Client) Enroll(ctx context.Context, cfg Config, token, agentVersion stri
 		return Result{State: state}, err
 	}
 	hostname, _ := osHostname()
-	networkIPs := hostNetworkIPs()
 	payload := EnrollmentRequest{
 		ProtocolVersion:     "2",
 		RequestID:           requestID,
@@ -87,8 +85,7 @@ func (c Client) Enroll(ctx context.Context, cfg Config, token, agentVersion stri
 		HardwareComponents:  state.HardwareComponents,
 		HostName:            hostname,
 		HostIP:              primaryHostIP(),
-		InternalIP:          networkIPs.internal,
-		ExternalIP:          networkIPs.external,
+		InternalIP:          hostInternalIP(),
 		OS:                  runtime.GOOS,
 		OSVersion:           detectOSVersion(),
 		Arch:                runtime.GOARCH,
