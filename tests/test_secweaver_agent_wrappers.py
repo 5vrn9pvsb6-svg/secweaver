@@ -13,6 +13,12 @@ from tempfile import TemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEST_UPDATE_PUBLIC_KEY = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+TEST_WINDOWS_COLLECTION_PUBLIC_KEY = "GJztidpBrVLpRBRjexe/CidTLJ2n+bBaT91S3ESea9Y="
+TEST_WINDOWS_COLLECTION_FILE = REPO_ROOT / "tests/fixtures/windows-collection.json"
+TEST_WINDOWS_COLLECTION_EU_PUBLIC_KEY = "98AhtzO3QN+c/OMLvBOfhqqrHWrKcu8DmSN6SmEBQG0="
+TEST_WINDOWS_COLLECTION_EU_FILE = REPO_ROOT / "tests/fixtures/windows-collection-eu-central-1.json"
+TEST_WINDOWS_COLLECTION_MACHINE_PUBLIC_KEY = "yK8kfzj+UM4W2PlbmVSfABQCJ9h30ozutEnPrhaFn9s="
+TEST_WINDOWS_COLLECTION_MACHINE_FILE = REPO_ROOT / "tests/fixtures/windows-collection-machine-group-01.json"
 
 
 class TestSecWeaverAgentModules(unittest.TestCase):
@@ -199,6 +205,9 @@ class TestSecWeaverAgentModules(unittest.TestCase):
     def test_bootstrap_release_preserves_explicit_network_selection(self) -> None:
         # Render only installers into a temporary directory. This exercises the
         # production release config without compiling/publishing delivery archives.
+        # The release script intentionally requires a signed Windows collection
+        # envelope even for bootstrap-only output; keeping the same fixture here
+        # prevents this test from weakening the production trust boundary.
         release_script = REPO_ROOT / "src/tools/secweaver-agent/scripts/package-release.sh"
         for supplied, expected in (
             ("", "cn-hangzhou-internet"),
@@ -208,6 +217,8 @@ class TestSecWeaverAgentModules(unittest.TestCase):
         ):
             with self.subTest(region=supplied), TemporaryDirectory(dir="/tmp") as temp_dir:
                 env = os.environ.copy()
+                collection_file = TEST_WINDOWS_COLLECTION_EU_FILE if supplied == "eu-central-1-internet" else TEST_WINDOWS_COLLECTION_FILE
+                collection_key = TEST_WINDOWS_COLLECTION_EU_PUBLIC_KEY if supplied == "eu-central-1-internet" else TEST_WINDOWS_COLLECTION_PUBLIC_KEY
                 env.update({
                     "OUT_DIR": temp_dir,
                     "BOOTSTRAP_ONLY": "1",
@@ -216,6 +227,8 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                     "BOOTSTRAP_LOGTAIL_INSTALL_SHA256": "0" * 64,
                     "BOOTSTRAP_LOGTAIL_ALIUID": "1234567890123456",
                     "BOOTSTRAP_LOGTAIL_REGION": supplied,
+                    "BOOTSTRAP_WINDOWS_COLLECTION_FILE": str(collection_file),
+                    "BOOTSTRAP_WINDOWS_COLLECTION_PUBLIC_KEY": collection_key,
                 })
                 result = subprocess.run(["bash", str(release_script)], cwd=REPO_ROOT,
                                         env=env, text=True, capture_output=True, timeout=30)
@@ -238,6 +251,8 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                     "BOOTSTRAP_LOGTAIL_INSTALL_SHA256": "0" * 64,
                     "BOOTSTRAP_LOGTAIL_ALIUID": "1234567890123456",
                     "BOOTSTRAP_LOGTAIL_REGION": "cn-hangzhou",
+                    "BOOTSTRAP_WINDOWS_COLLECTION_FILE": str(TEST_WINDOWS_COLLECTION_MACHINE_FILE),
+                    "BOOTSTRAP_WINDOWS_COLLECTION_PUBLIC_KEY": TEST_WINDOWS_COLLECTION_MACHINE_PUBLIC_KEY,
                     "UPDATE_SIGNING_PRIVATE_KEY_FILE": "",
                     "ALLOW_DIRTY_RELEASE": "1",
                 }

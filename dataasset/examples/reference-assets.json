@@ -18,7 +18,7 @@
     "environment": "development",
     "status": "draft",
     "connector_id": "conn-example-reference",
-    "description": "覆盖 Schema 中 24 种 asset_type 的参考字段并集（自动生成，勿用于生产 bundle）。asset_type=linux_syslog 仅为满足 JSON Schema；接入真实源时请改为对应类型并删减无关字段。字段来源：evidence-minimum-fields.json 与生成器常见源字段；关联键由 correlation-matrix 推导。",
+    "description": "覆盖 Schema 中 25 种 asset_type 的参考字段并集（自动生成，勿用于生产 bundle）。asset_type=linux_syslog 仅为满足 JSON Schema；接入真实源时请改为对应类型并删减无关字段。字段来源：evidence-minimum-fields.json 与生成器常见源字段；关联键由 correlation-matrix 推导。",
     "coverage": {
       "zones": [
         "example"
@@ -157,6 +157,8 @@
         "resolved_ip",
         "risk_level",
         "rss_bytes",
+        "script_bytes",
+        "script_sha256",
         "sensor_id",
         "service_name",
         "services",
@@ -273,7 +275,7 @@
     }
   },
   "_derived": {
-    "field_count": 154,
+    "field_count": 156,
     "alias_count": 74,
     "asset_types_covered": [
       "app_api_log",
@@ -282,6 +284,7 @@
       "dns_log",
       "edr_event",
       "firewall_log",
+      "host_behavior_summary",
       "host_connect",
       "host_exec",
       "host_file_op",
@@ -375,6 +378,12 @@
         "dip",
         "sip",
         "proto"
+      ],
+      "host_behavior_summary": [
+        "evidence_id",
+        "timestamp",
+        "host",
+        "src_ip"
       ],
       "host_connect": [
         "host",
@@ -687,6 +696,9 @@
         "provider",
         "user",
         "message",
+        "command",
+        "script_sha256",
+        "script_bytes",
         "src_ip",
         "process",
         "action",
@@ -724,6 +736,9 @@
         "timestamp",
         "src_ip",
         "dst_ip"
+      ],
+      "host_behavior_summary": [
+        "timestamp"
       ],
       "host_connect": [
         "timestamp",

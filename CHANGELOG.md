@@ -1,5 +1,17 @@
 # Changelog
 
+## Agent 0.3.62
+
+- Fix service-upgrade integration manifests by adding UTC RFC3339 `generated_at`
+  and `expires_at` fields. The Windows script now passes Go flags as an argument
+  array, avoiding PowerShell 5.1 binding `-o` as an ambiguous common parameter.
+- Preserve explicit source timestamp offsets during DataAsset normalization so
+  CI and portable workers cannot shift evidence based on their local timezone.
+- Make syslog source-discovery tests independent of host `/var/log` contents by
+  injecting isolated candidate paths; production Linux/macOS candidate fallback
+  behavior is unchanged.
+
+
 ## Agent 0.3.60
 
 - Fix Windows OS-version fallback reporting: extract the full ASCII build from

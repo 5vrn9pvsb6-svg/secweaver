@@ -8,7 +8,7 @@ These tests exercise the actual service manager and Agent executable:
 4. Publish a signed `0.3.2` (N+1) built with the `integrationhealthfail` tag.
 5. Verify systemd or Windows SCM restores N and returns the service to a running state.
 
-The failure build tag is never enabled by release scripts. Both tests use an isolated service name and temporary directories. CI runs both scripts on native Ubuntu systemd and Windows SCM runners.
+The failure build tag is never enabled by release scripts. Both tests use an isolated service name and temporary directories. CI runs both scripts on native Ubuntu systemd and Windows SCM runners. Test manifests must include UTC RFC3339 `generated_at` and `expires_at` fields; the signer deliberately rejects timezone-free or missing timestamps so integration tests exercise the same contract as production publishing.
 
 Linux with systemd:
 

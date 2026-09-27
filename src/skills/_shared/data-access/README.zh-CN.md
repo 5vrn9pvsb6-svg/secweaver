@@ -219,3 +219,4 @@ SLS 和 SLS Proxy 将 SDK 时间保留为 `_sls_timestamp`；`timestamp` 优先�
 显式截断标志，不将多时间窗、分页合并总数与单页 limit 比较；缺少标志的旧输入仍
 使用 limit 启发式判断。实际查询成功后仅清除派生的 `query_results_incomplete`
 预检缺口；未知、失败、部分返回或未查询的数据不能视为完整覆盖。
+时间兼容性：带有明确 `+08:00` 或 `Z` 的源时间会保留原始时区偏移，不再被执行机器的本地时区改写；无时区源时间在已知源时区时应通过 `schema.time_correction.assume_timezone` 声明。

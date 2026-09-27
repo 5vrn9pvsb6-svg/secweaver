@@ -227,3 +227,4 @@ window/page totals are not compared against one page's limit. Legacy payloads
 without flags retain the limit heuristic. Successful observed queries clear only
 the derived `query_results_incomplete` precheck gap; unknown/failed/partial or
 unqueried data never becomes a completeness guarantee.
+Timestamp compatibility: explicit source offsets such as `+08:00` or `Z` are preserved during normalization and are not rewritten through the worker's local timezone. For naive source timestamps, declare `schema.time_correction.assume_timezone` whenever the source timezone is known.

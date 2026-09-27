@@ -86,7 +86,10 @@ func TestResolveLogPathDoesNotFallbackForCustomMissingPath(t *testing.T) {
 }
 
 func TestResolveLogSourcesRequiresBothDefaultLogs(t *testing.T) {
-	if _, err := resolveLogSources("auto", "auto"); err == nil {
+	dir := t.TempDir()
+	missingAuth := filepath.Join(dir, "secure")
+	missingMessages := filepath.Join(dir, "messages")
+	if _, err := resolveLogSourcesWithCandidates("auto", "auto", []string{missingAuth}, []string{missingMessages}); err == nil {
 		t.Fatal("expected error when both default log files are missing")
 	}
 }

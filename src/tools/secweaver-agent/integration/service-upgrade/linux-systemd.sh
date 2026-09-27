@@ -45,11 +45,20 @@ go run ./cmd/update-sign -generate-key "${ROOT}/update-signing.key"
 write_manifest() {
   local version="$1"
   local artifact="$2"
+  # The signer validates these fields before it hashes the payload. Keep test
+  # manifests identical to production manifests and use UTC RFC3339 values so
+  # the integration result does not depend on the runner's local timezone.
+  local generated_at
+  local expires_at
+  generated_at="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  expires_at="$(date -u -d "+14 days" +"%Y-%m-%dT%H:%M:%SZ")"
   cat >"${ROOT}/unsigned-manifest.json" <<JSON
 {
   "schema_version": "1",
   "app": "secweaver-agent",
   "channel": "stable",
+  "generated_at": "${generated_at}",
+  "expires_at": "${expires_at}",
   "latest": {"version": "${version}"},
   "binaries": {
     "linux_$(go env GOARCH)": {

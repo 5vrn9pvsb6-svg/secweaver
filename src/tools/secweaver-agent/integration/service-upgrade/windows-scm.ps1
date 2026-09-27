@@ -18,7 +18,9 @@ $ConfigPath = Join-Path $Root "config.json"
 $RollbackScript = Join-Path $Root "rollback-agent.cmd"
 
 function Invoke-Go {
-  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+  # Pass Go's flags as one positional array. PowerShell otherwise treats short
+  # flags such as -o as abbreviations of this function's common parameters.
+  param([Parameter(Mandatory = $true, Position = 0)][string[]]$Arguments)
   & go @Arguments
   if ($LASTEXITCODE -ne 0) {
     throw "go $($Arguments -join ' ') failed with exit code $LASTEXITCODE"
@@ -45,6 +47,8 @@ function Write-SignedManifest {
     schema_version = "1"
     app = "secweaver-agent"
     channel = "stable"
+    generated_at = [DateTime]::UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    expires_at = [DateTime]::UtcNow.AddDays(14).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
     latest = @{ version = $Version }
     binaries = @{
       ("windows_" + $Arch) = @{ url = $TargetName; sha256 = "pending" }
@@ -58,11 +62,13 @@ function Write-SignedManifest {
   )
   Push-Location $AgentRoot
   try {
-    Invoke-Go run ./cmd/update-sign `
-      -manifest $UnsignedPath `
-      -artifact-dir $ArtifactDir `
-      -private-key-file (Join-Path $Root "update-signing.key") `
-      -out (Join-Path $ArtifactDir "update-manifest.json")
+    Invoke-Go @(
+      "run", "./cmd/update-sign",
+      "-manifest", $UnsignedPath,
+      "-artifact-dir", $ArtifactDir,
+      "-private-key-file", (Join-Path $Root "update-signing.key"),
+      "-out", (Join-Path $ArtifactDir "update-manifest.json")
+    )
   } finally {
     Pop-Location
   }
@@ -73,15 +79,15 @@ try {
   New-Item -ItemType Directory -Force $ArtifactDir, $StateDir | Out-Null
   Push-Location $AgentRoot
   try {
-    Invoke-Go build -trimpath -ldflags "-X main.version=0.3.0" -o $Binary .
+    Invoke-Go @("build", "-trimpath", "-ldflags", "-X main.version=0.3.0", "-o", $Binary, ".")
     $Arch = (& go env GOARCH).Trim()
     $GoodTargetName = "secweaver-agent_0.3.1_windows_$Arch.exe"
     $GoodTargetBinary = Join-Path $ArtifactDir $GoodTargetName
     $FailedTargetName = "secweaver-agent_0.3.2_windows_$Arch.exe"
     $FailedTargetBinary = Join-Path $ArtifactDir $FailedTargetName
-    Invoke-Go build -trimpath -ldflags "-X main.version=0.3.1" -o $GoodTargetBinary .
-    Invoke-Go build -trimpath -tags integrationhealthfail -ldflags "-X main.version=0.3.2" -o $FailedTargetBinary .
-    Invoke-Go run ./cmd/update-sign -generate-key (Join-Path $Root "update-signing.key")
+    Invoke-Go @("build", "-trimpath", "-ldflags", "-X main.version=0.3.1", "-o", $GoodTargetBinary, ".")
+    Invoke-Go @("build", "-trimpath", "-tags", "integrationhealthfail", "-ldflags", "-X main.version=0.3.2", "-o", $FailedTargetBinary, ".")
+    Invoke-Go @("run", "./cmd/update-sign", "-generate-key", (Join-Path $Root "update-signing.key"))
   } finally {
     Pop-Location
   }

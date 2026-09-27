@@ -303,21 +303,28 @@ func Run(args []string) int {
 }
 
 func resolveLogSources(securePath, messagesPath string) ([]logSource, error) {
+	return resolveLogSourcesWithCandidates(securePath, messagesPath, authLogCandidates, systemLogCandidates)
+}
+
+// resolveLogSourcesWithCandidates keeps production discovery platform-aware
+// while allowing tests to provide isolated candidate paths. This prevents a
+// runner's host logs from changing the installer's deterministic error path.
+func resolveLogSourcesWithCandidates(securePath, messagesPath string, authCandidates, systemCandidates []string) ([]logSource, error) {
 	var sources []logSource
 	var missing []string
 
 	if strings.TrimSpace(securePath) != "" {
-		path, ok := resolveLogPath(securePath, authLogCandidates)
+		path, ok := resolveLogPath(securePath, authCandidates)
 		if !ok {
-			missing = append(missing, describeMissingLog("secure/auth", securePath, authLogCandidates))
+			missing = append(missing, describeMissingLog("secure/auth", securePath, authCandidates))
 		} else {
 			sources = append(sources, logSource{Path: path, Kind: "secure"})
 		}
 	}
 	if strings.TrimSpace(messagesPath) != "" {
-		path, ok := resolveLogPath(messagesPath, systemLogCandidates)
+		path, ok := resolveLogPath(messagesPath, systemCandidates)
 		if !ok {
-			missing = append(missing, describeMissingLog("messages/syslog", messagesPath, systemLogCandidates))
+			missing = append(missing, describeMissingLog("messages/syslog", messagesPath, systemCandidates))
 		} else {
 			sources = append(sources, logSource{Path: path, Kind: "messages"})
 		}

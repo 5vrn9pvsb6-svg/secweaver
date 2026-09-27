@@ -134,6 +134,14 @@ def apply_time_correction(iso_ts: str | None, correction: dict[str, Any] | None)
 
 
 def normalize_timestamp(value: Any, *, assume_timezone: str | None = None) -> str | None:
+    """Normalize timestamps without rewriting an explicit source offset.
+
+    A timestamp that already carries ``+08:00`` or ``Z`` is authoritative. It
+    must not be converted through the worker's local timezone, because CI,
+    portable deployments, and analyst workstations commonly use different
+    local zones. Naive source timestamps still use the declared asset timezone
+    and retain the historical local-time fallback when no declaration exists.
+    """
     if value is None or value == "":
         return None
     if isinstance(value, (int, float)):
@@ -179,14 +187,14 @@ def normalize_timestamp(value: Any, *, assume_timezone: str | None = None) -> st
             dt = datetime.strptime(text, fmt)
             if dt.tzinfo is None and assume_timezone:
                 return dt.replace(tzinfo=parse_timezone(assume_timezone)).isoformat()
-            return dt.astimezone().isoformat()
+            return dt.isoformat() if dt.tzinfo is not None else dt.astimezone().isoformat()
         except ValueError:
             continue
     try:
         dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
         if dt.tzinfo is None and assume_timezone:
             return dt.replace(tzinfo=parse_timezone(assume_timezone)).isoformat()
-        return dt.astimezone().isoformat()
+        return dt.isoformat() if dt.tzinfo is not None else dt.astimezone().isoformat()
     except ValueError:
         return text
 
