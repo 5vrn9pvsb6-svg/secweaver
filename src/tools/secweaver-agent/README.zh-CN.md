@@ -719,6 +719,10 @@ sudo /opt/secweaver-agent/bin/uninstall.sh
 该脚本会停止 Agent/shipper 服务、删除 systemd unit、清理 audit 规则，并默认删除
 `/opt/secweaver-agent/bin` 与命令软链接。配置、状态、日志和 shipper 默认保留；
 `sudo /opt/secweaver-agent/bin/uninstall.sh --purge` 删除整个 `/opt/secweaver-agent`。其他卸载开关和 `--json` 验证输出保持不变。
+Agent 0.3.65 还会删除旧 `swl-agent` 和独立模块的 unit/命令；配合 `--purge`
+会删除旧 `/etc/secweaver-agent`、`/var/lib/secweaver-agent`、
+`/var/log/secweaver-filebeat`，以及 `/var/log` 下白名单内的 SecWeaver 日志，
+但不会递归删除 `/var/log`。机器可读验收同时检查当前和旧布局，清理不完整会返回非零。
 独立采集器默认保留。清空测试机使用：
 `sudo /opt/secweaver-agent/bin/uninstall.sh --purge --remove-logtail --remove-filebeat --json`。
 这两个显式开关会删除选中采集器的配置、状态和日志，包括其中共用的采集任务。

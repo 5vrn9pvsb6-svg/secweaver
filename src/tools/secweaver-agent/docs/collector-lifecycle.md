@@ -128,6 +128,24 @@ Plain `--purge` removes Agent-owned files only. Both collector flags are explici
 remove the selected collector's configuration/state/logs even without `--purge`.
 Do not select a collector that must continue serving unrelated applications.
 
+Agent 0.3.65 also closes the split-layout uninstall gap. Before deleting files,
+the uninstaller stops and removes `secweaver-agent.service`,
+`secweaver-agent-shipper.service`, `swl-agent.service` and the historical
+standalone module units. A bounded TERM/KILL fallback handles a missing or
+damaged unit; surviving known Agent processes make uninstall fail before data
+deletion. Process matching uses product paths and legacy collector names and
+does not match `secweaver-agent-gateway`.
+
+Default binary removal includes the legacy `swl-agent`,
+`audit-port-execmon`, `syslog-risk-json` and `host-persistence` commands.
+`--purge` additionally removes `/etc/secweaver-agent`,
+`/var/lib/secweaver-agent`, `/var/log/secweaver-filebeat`, and known
+SecWeaver log families plus their rotations under `/var/log`. The script
+never recursively removes `/var/log`; unrelated logs and custom legacy output
+names remain. `--remove-config`, `--remove-state`, and `--remove-logs`
+apply the same current-plus-legacy ownership rules independently. Logtail and
+Filebeat programs remain opt-in removals.
+
 - Logtail: `/usr/local/ilogtail`, `/etc/ilogtail`, `ilogtaild`/`loongcollectord` init scripts
   and systemd units/drop-ins.
 - Filebeat: RPM/DEB package (through `rpm -e`/`dpkg --purge`), `/usr/share/filebeat`,
@@ -147,6 +165,11 @@ explicitly skipped. Remaining units/processes/requested files cause a nonzero ex
 `standalone_collectors.<name>.remaining=null` means removal was not requested, not absent.
 An interrupted operation emits `ok:false,error:uninstall_incomplete` and exits nonzero.
 The same verification controls exit status without `--json`.
+
+The `files` result includes `known_binaries_exist`,
+`legacy_config_exists`, `legacy_state_exists`,
+`legacy_known_logs_exist`, and `legacy_filebeat_logs_exist`. Any requested
+legacy residue changes `ok` to `false`.
 
 ## Local And Cloud Verification
 

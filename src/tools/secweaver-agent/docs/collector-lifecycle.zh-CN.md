@@ -109,6 +109,20 @@ sudo /opt/secweaver-agent/bin/uninstall.sh --purge --remove-logtail --remove-fil
 `--purge`，也会删除选中采集器的全部配置、状态和日志。需要继续承载其他业务采集任务
 的采集器不要选择。
 
+Agent 0.3.65 同时补齐旧分散布局的卸载。删除文件前，卸载器会停止并移除
+`secweaver-agent.service`、`secweaver-agent-shipper.service`、
+`swl-agent.service` 及历史独立模块 unit。unit 缺失或损坏时，会在限定时间内依次
+发送 TERM/KILL；已知 Agent 进程仍存活则在删除数据前返回失败。进程识别依据产品路径
+和旧采集器名称，不会误匹配 `secweaver-agent-gateway`。
+
+默认二进制清理还包括旧 `swl-agent`、`audit-port-execmon`、
+`syslog-risk-json`、`host-persistence` 命令。`--purge` 额外删除
+`/etc/secweaver-agent`、`/var/lib/secweaver-agent`、
+`/var/log/secweaver-filebeat`，以及 `/var/log` 下已知 SecWeaver 日志及其
+轮转文件。脚本绝不递归删除 `/var/log`；无关日志和自定义的旧输出文件名会保留。
+`--remove-config`、`--remove-state`、`--remove-logs` 分别采用相同的
+当前布局加旧布局所有权范围。Logtail/Filebeat 程序仍需显式选择才会卸载。
+
 - Logtail：`/usr/local/ilogtail`、`/etc/ilogtail`、`ilogtaild`/`loongcollectord`
   的 init 脚本、systemd unit 和 drop-in。
 - Filebeat：RPM/DEB 包通过 `rpm -e`/`dpkg --purge` 卸载；删除 `/usr/share/filebeat`、
@@ -126,6 +140,10 @@ sudo /opt/secweaver-agent/bin/uninstall.sh --purge --remove-logtail --remove-fil
 `standalone_collectors.<name>.remaining=null` 表示没有要求卸载，不代表不存在。
 中途异常输出 `ok:false,error:uninstall_incomplete` 并返回非零。未指定 `--json` 时，
 同样通过这些验证决定退出状态。
+
+`files` 结果新增 `known_binaries_exist`、`legacy_config_exists`、
+`legacy_state_exists`、`legacy_known_logs_exist`、
+`legacy_filebeat_logs_exist`。要求清理的任一旧资产残留都会令 `ok=false`。
 
 ## 本地与云端验收
 

@@ -1,5 +1,18 @@
 # Changelog
 
+## Agent 0.3.65
+
+- Make Linux uninstall cover split-layout releases: stop and remove
+  `swl-agent.service` and historical standalone module units, terminate known
+  residual Agent processes with bounded waits, and remove exact legacy command
+  paths without matching `secweaver-agent-gateway`.
+- Extend `--purge` to remove legacy `/etc/secweaver-agent`,
+  `/var/lib/secweaver-agent`, `/var/log/secweaver-filebeat`, and allowlisted
+  SecWeaver logs/rotations under `/var/log` without recursively deleting that
+  shared directory. Logtail and Filebeat program removal remains explicit.
+- Extend machine-readable verification and isolated regression coverage so
+  legacy units, processes, binaries, data, or logs cannot produce false success.
+
 ## Agent 0.3.64
 
 - Fix Windows Event Log collection on localized hosts by forcing Unicode

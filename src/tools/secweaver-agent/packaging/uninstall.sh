@@ -11,6 +11,19 @@ SHIPPER_DIR="${SHIPPER_DIR:-${INSTALL_ROOT}/shipper}"
 COMMAND_LINK="${COMMAND_LINK:-/usr/local/bin/secweaver-agent}"
 SERVICE_NAME="${SERVICE_NAME:-secweaver-agent.service}"
 SHIPPER_SERVICE_NAME="${SHIPPER_SERVICE_NAME:-secweaver-agent-shipper.service}"
+# Split-layout releases used these host paths and standalone services before the
+# unified /opt layout. Keep every legacy location overrideable so regression
+# tests and nonstandard migrations never have to touch the host filesystem.
+LEGACY_CONFIG_DIR="${LEGACY_CONFIG_DIR:-/etc/secweaver-agent}"
+LEGACY_STATE_DIR="${LEGACY_STATE_DIR:-/var/lib/secweaver-agent}"
+LEGACY_LOG_DIR="${LEGACY_LOG_DIR:-/var/log}"
+LEGACY_FILEBEAT_LOG_DIR="${LEGACY_FILEBEAT_LOG_DIR:-/var/log/secweaver-filebeat}"
+LEGACY_COMMAND_DIR="${LEGACY_COMMAND_DIR:-/usr/local/bin}"
+LEGACY_SWL_SERVICE_NAME="${LEGACY_SWL_SERVICE_NAME:-swl-agent.service}"
+LEGACY_AUDIT_SERVICE_NAME="${LEGACY_AUDIT_SERVICE_NAME:-audit-port-execmon.service}"
+LEGACY_SYSLOG_SERVICE_NAME="${LEGACY_SYSLOG_SERVICE_NAME:-syslog-risk-json.service}"
+LEGACY_PERSISTENCE_SERVICE_NAME="${LEGACY_PERSISTENCE_SERVICE_NAME:-host-persistence.service}"
+PROC_ROOT="${PROC_ROOT:-/proc}"
 REMOVE_BINARY=1
 REMOVE_CONFIG=0
 REMOVE_STATE=0
@@ -70,6 +83,12 @@ Environment:
   STATE_DIR=/opt/secweaver-agent/data
   LOG_DIR=/opt/secweaver-agent/logs
   COMMAND_LINK=/usr/local/bin/secweaver-agent
+
+Compatibility cleanup:
+  --purge also removes legacy /etc/secweaver-agent, /var/lib/secweaver-agent,
+  /var/log/secweaver-filebeat and exact SecWeaver log files under /var/log.
+  Legacy swl-agent and standalone module services/binaries are always removed
+  with the current service/binary unless --keep-binary is selected.
 EOF
 }
 
@@ -129,7 +148,7 @@ trap 'uninstall_failed "$?"' ERR
 validate_removal_paths() {
   normalize_service_directories || return 1
   local path
-  for path in "${INSTALL_ROOT}" "${BIN_DIR}" "${CONFIG_DIR}" "${STATE_DIR}" "${LOG_DIR}" "${SHIPPER_DIR}" "${SYSTEMD_DIR}" "${VENDOR_SYSTEMD_DIR}" "${LEGACY_SYSTEMD_DIR}" "${INIT_DIR}" "${LOGTAIL_ROOT}" "${LOGTAIL_ETC}" "${FILEBEAT_ROOT}" "${FILEBEAT_ETC}" "${FILEBEAT_STATE}" "${FILEBEAT_LOGS}"; do
+  for path in "${INSTALL_ROOT}" "${BIN_DIR}" "${CONFIG_DIR}" "${STATE_DIR}" "${LOG_DIR}" "${SHIPPER_DIR}" "${LEGACY_CONFIG_DIR}" "${LEGACY_STATE_DIR}" "${LEGACY_FILEBEAT_LOG_DIR}" "${SYSTEMD_DIR}" "${VENDOR_SYSTEMD_DIR}" "${LEGACY_SYSTEMD_DIR}" "${INIT_DIR}" "${LOGTAIL_ROOT}" "${LOGTAIL_ETC}" "${FILEBEAT_ROOT}" "${FILEBEAT_ETC}" "${FILEBEAT_STATE}" "${FILEBEAT_LOGS}"; do
     case "${path}" in
       /*/*) ;;
       *) warn "unsafe removal path: ${path}"; return 1 ;;
@@ -138,6 +157,19 @@ validate_removal_paths() {
       /usr/local|/usr/share|/usr/lib|/var/log|/var/lib|*/../*|*/..|*/./*|*/.|*//*|*/) warn "unsafe removal path: ${path}"; return 1 ;;
     esac
     [[ ! -L "${path}" ]] || { warn "symlink removal root: ${path}"; return 1; }
+  done
+
+  # These broad parent directories are never removed recursively. They are
+  # validated separately because only exact allowlisted children are deleted.
+  for path in "${LEGACY_LOG_DIR}" "${LEGACY_COMMAND_DIR}"; do
+    case "${path}" in
+      /*/*) ;;
+      *) warn "unsafe exact-removal parent: ${path}"; return 1 ;;
+    esac
+    case "${path}" in
+      */../*|*/..|*/./*|*/.|*//*|*/) warn "unsafe exact-removal parent: ${path}"; return 1 ;;
+    esac
+    [[ ! -L "${path}" ]] || { warn "symlink exact-removal parent: ${path}"; return 1; }
   done
 }
 
@@ -171,28 +203,136 @@ require_root() {
   fi
 }
 
+# Stop/removal and post-uninstall verification consume the same allowlist so a
+# newly added compatibility unit cannot be cleaned but omitted from the result.
+known_agent_service_names() {
+  printf '%s\n' \
+    "${SERVICE_NAME}" \
+    "${SHIPPER_SERVICE_NAME}" \
+    "${LEGACY_SWL_SERVICE_NAME}" \
+    "${LEGACY_AUDIT_SERVICE_NAME}" \
+    "${LEGACY_SYSLOG_SERVICE_NAME}" \
+    "${LEGACY_PERSISTENCE_SERVICE_NAME}"
+}
+
 stop_systemd_service() {
-  if ! need_cmd systemctl; then
-    warn "systemctl not found; skip systemd service removal"
-    return 0
+  local has_systemctl=0 service_name unit_dir wants_dir
+  if need_cmd systemctl; then
+    has_systemctl=1
+  else
+    warn "systemctl not found; remove known unit files without service-manager operations"
   fi
 
-  local service_name
-  for service_name in "${SERVICE_NAME}" "${SHIPPER_SERVICE_NAME}"; do
-    if systemctl cat "${service_name}" >/dev/null 2>&1 || [[ -f "${SYSTEMD_DIR}/${service_name}" ]]; then
+  # Stop legacy units before deleting /opt. Otherwise a surviving swl-agent can
+  # continue from a deleted executable and make a purge appear successful.
+  while IFS= read -r service_name; do
+    if [[ "${has_systemctl}" -eq 1 ]] && { systemctl cat "${service_name}" >/dev/null 2>&1 || [[ -f "${SYSTEMD_DIR}/${service_name}" ]]; }; then
       timeout 90 systemctl stop "${service_name}" >/dev/null 2>&1 || true
       systemctl disable "${service_name}" >/dev/null 2>&1 || true
     fi
-    rm -rf -- "${SYSTEMD_DIR:?}/${service_name}.d"
 
-    if [[ -e "${SYSTEMD_DIR}/${service_name}" || -L "${SYSTEMD_DIR}/${service_name}" ]]; then
-      rm -f "${SYSTEMD_DIR:?}/${service_name}"
-      log "removed systemd unit: ${SYSTEMD_DIR}/${service_name}"
+    for unit_dir in "${SYSTEMD_DIR}" "${VENDOR_SYSTEMD_DIR}" "${LEGACY_SYSTEMD_DIR}"; do
+      rm -rf -- "${unit_dir:?}/${service_name}.d"
+      if [[ -e "${unit_dir}/${service_name}" || -L "${unit_dir}/${service_name}" ]]; then
+        rm -f -- "${unit_dir:?}/${service_name}"
+        log "removed systemd unit: ${unit_dir}/${service_name}"
+      fi
+    done
+    for wants_dir in multi-user.target.wants default.target.wants; do
+      rm -f -- "${SYSTEMD_DIR:?}/${wants_dir}/${service_name}"
+    done
+
+    if [[ "${has_systemctl}" -eq 1 ]]; then
+      systemctl reset-failed "${service_name}" >/dev/null 2>&1 || true
     fi
+  done < <(known_agent_service_names)
+  if [[ "${has_systemctl}" -eq 1 ]]; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
+}
 
-    systemctl reset-failed "${service_name}" >/dev/null 2>&1 || true
+# Verify a process through procfs before returning or signalling its PID. Deleted
+# executables retain a " (deleted)" suffix, so normalize that marker while
+# preserving the exact product path. PID namespace comparison excludes a
+# container process that happens to expose a matching path to the host.
+secweaver_pid_is_owned() {
+  local pid="$1" exe process_namespace host_namespace
+  [[ -d "${PROC_ROOT}/${pid}" ]] || return 1
+  exe="$(readlink "${PROC_ROOT}/${pid}/exe" 2>/dev/null || true)"
+  exe="${exe% (deleted)}"
+  case "${exe}" in
+    "${INSTALL_ROOT}/"*|"${COMMAND_LINK}"|"${LEGACY_COMMAND_DIR}/audit-port-execmon"|"${LEGACY_COMMAND_DIR}/syslog-risk-json"|"${LEGACY_COMMAND_DIR}/host-persistence"|"${LEGACY_COMMAND_DIR}/swl-agent")
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+  process_namespace="$(readlink "${PROC_ROOT}/${pid}/ns/pid" 2>/dev/null || true)"
+  host_namespace="$(readlink "${PROC_ROOT}/1/ns/pid" 2>/dev/null || true)"
+  [[ -n "${process_namespace}" && "${process_namespace}" == "${host_namespace}" ]]
+}
+
+# Procfs is authoritative on production Linux hosts. The ps fallback supports
+# non-procfs diagnostics and the isolated test harness; it avoids the truncated
+# "secweaver-agent" comm value shared by secweaver-agent-gateway.
+secweaver_process_pids() {
+  local process_dir pid
+  if [[ -d "${PROC_ROOT}/1" ]]; then
+    for process_dir in "${PROC_ROOT}"/[0-9]*; do
+      [[ -d "${process_dir}" ]] || continue
+      pid="${process_dir##*/}"
+      [[ "${pid}" != "$$" ]] || continue
+      secweaver_pid_is_owned "${pid}" && printf '%s\n' "${pid}"
+    done
+    return 0
+  fi
+
+  ps -eo pid=,comm=,args= 2>/dev/null | awk \
+    -v self="$$" \
+    -v install_root="${INSTALL_ROOT}" \
+    -v command_link="${COMMAND_LINK}" \
+    -v legacy_command_dir="${LEGACY_COMMAND_DIR}" '
+    $1 == self { next }
+    index($3, install_root "/") == 1 ||
+    $3 == command_link ||
+    $3 == legacy_command_dir "/audit-port-execmon" ||
+    $3 == legacy_command_dir "/syslog-risk-json" ||
+    $3 == legacy_command_dir "/host-persistence" ||
+    $3 == legacy_command_dir "/swl-agent" ||
+    $2 == "swl-agent" ||
+    $2 == "audit-port-exec" ||
+    $2 == "syslog-risk-js" ||
+    $2 == "host-persisten" { print $1 }
+  '
+}
+
+# Recheck procfs immediately before signalling to narrow the PID-reuse window.
+# In the ps fallback there is no procfs identity to recheck, so exact product
+# paths/names remain the only available compatibility boundary.
+signal_secweaver_pid() {
+  local signal="$1" pid="$2"
+  if [[ -d "${PROC_ROOT}/1" ]]; then
+    secweaver_pid_is_owned "${pid}" || return 0
+  fi
+  kill "-${signal}" "${pid}" 2>/dev/null || true
+}
+
+# systemd stop is best effort because stale or partially removed installations
+# may have no usable unit. Bound TERM/KILL fallback so uninstall cannot hang and
+# refuse file deletion if any known Agent process survives.
+stop_secweaver_processes() {
+  local pid attempt
+  for pid in $(secweaver_process_pids); do signal_secweaver_pid TERM "${pid}"; done
+  for ((attempt=0; attempt<10; attempt++)); do
+    [[ -z "$(secweaver_process_pids)" ]] && break
+    sleep 1
   done
-  systemctl daemon-reload >/dev/null 2>&1 || true
+  for pid in $(secweaver_process_pids); do signal_secweaver_pid KILL "${pid}"; done
+  for ((attempt=0; attempt<5; attempt++)); do
+    [[ -z "$(secweaver_process_pids)" ]] && break
+    sleep 1
+  done
+  [[ -z "$(secweaver_process_pids)" ]] || { warn "SecWeaver Agent processes are still running; files retained"; return 1; }
 }
 
 # Match the executable path and host PID namespace, never just the process name
@@ -330,55 +470,83 @@ cleanup_audit_rules() {
   log "audit rule cleanup attempted for SecWeaver keys"
 }
 
+# One source of truth prevents removal and verification from drifting apart as
+# layouts evolve. Every path is an exact SecWeaver product path.
+known_agent_binary_paths() {
+  printf '%s\n' \
+    "${BIN_DIR}/secweaver-agent" \
+    "${BIN_DIR}/secweaver-agent-launch" \
+    "${COMMAND_LINK}" \
+    "${INSTALL_ROOT}/swl-agent" \
+    "${LEGACY_COMMAND_DIR}/audit-port-execmon" \
+    "${LEGACY_COMMAND_DIR}/syslog-risk-json" \
+    "${LEGACY_COMMAND_DIR}/host-persistence" \
+    "${LEGACY_COMMAND_DIR}/swl-agent"
+}
+
+known_agent_log_names() {
+  printf '%s\n' \
+    audit-port-execmon.log \
+    syslog-risk-json.log \
+    syslog-risk-json-history.log \
+    host-persistence.log \
+    host-process-snapshot.log \
+    host-state-snapshot.log \
+    behavior-learning.log \
+    host-behavior-summary.log \
+    secweaver-agent-update.log \
+    secweaver-agent-health.log
+}
+
 remove_binary() {
-  local binary="${BIN_DIR}/secweaver-agent"
-	local launcher="${BIN_DIR}/secweaver-agent-launch"
+  local path
   if [[ "${REMOVE_BINARY}" -eq 0 ]]; then
-    log "binary kept: ${binary}"
+    log "binaries kept, including legacy Agent commands"
     return 0
   fi
-  if [[ -e "${binary}" ]]; then
-    rm -f "${binary}"
-    log "removed binary: ${binary}"
-  fi
-	if [[ -e "${launcher}" ]]; then
-	  rm -f "${launcher}"
-	  log "removed launcher: ${launcher}"
-	fi
-	if [[ -L "${COMMAND_LINK}" && "$(readlink "${COMMAND_LINK}")" == "${binary}" ]]; then
-	  rm -f "${COMMAND_LINK}"
-	  log "removed command link: ${COMMAND_LINK}"
-	fi
+
+  while IFS= read -r path; do
+    if [[ -e "${path}" || -L "${path}" ]]; then
+      rm -f -- "${path}"
+      log "removed Agent command: ${path}"
+    fi
+  done < <(known_agent_binary_paths)
+}
+
+# Remove one allowlisted Agent log family and its numbered/date-suffixed
+# rotations. The parent itself is never traversed or deleted by this helper.
+remove_known_logs_from_dir() {
+  local directory="$1" name path
+  [[ -d "${directory}" ]] || return 0
+  while IFS= read -r name; do
+    while IFS= read -r path; do
+      [[ -f "${path}" || -L "${path}" ]] && rm -f -- "${path}"
+    done < <(compgen -G "${directory}/${name}*" || true)
+  done < <(known_agent_log_names)
 }
 
 remove_optional_data() {
-  if [[ "${REMOVE_CONFIG}" -eq 1 && -d "${CONFIG_DIR}" ]]; then
-    rm -rf "${CONFIG_DIR}"
-    log "removed config directory: ${CONFIG_DIR}"
+  if [[ "${REMOVE_CONFIG}" -eq 1 ]]; then
+    rm -rf -- "${CONFIG_DIR}" "${LEGACY_CONFIG_DIR}"
+    log "removed current and legacy config directories: ${CONFIG_DIR}, ${LEGACY_CONFIG_DIR}"
   else
-    log "config kept: ${CONFIG_DIR}"
+    log "config kept: ${CONFIG_DIR}, ${LEGACY_CONFIG_DIR}"
   fi
 
-  if [[ "${REMOVE_STATE}" -eq 1 && -e "${STATE_DIR}" ]]; then
-    rm -rf "${STATE_DIR}"
-    log "removed state directory: ${STATE_DIR}"
+  if [[ "${REMOVE_STATE}" -eq 1 ]]; then
+    rm -rf -- "${STATE_DIR}" "${LEGACY_STATE_DIR}"
+    log "removed current and legacy state directories: ${STATE_DIR}, ${LEGACY_STATE_DIR}"
   else
-    log "state kept: ${STATE_DIR}"
+    log "state kept: ${STATE_DIR}, ${LEGACY_STATE_DIR}"
   fi
 
   if [[ "${REMOVE_LOGS}" -eq 1 ]]; then
-    rm -f \
-      "${LOG_DIR}/audit-port-execmon.log"* \
-      "${LOG_DIR}/syslog-risk-json.log"* \
-      "${LOG_DIR}/host-persistence.log"* \
-      "${LOG_DIR}/host-process-snapshot.log"* \
-      "${LOG_DIR}/host-state-snapshot.log"* \
-      "${LOG_DIR}/host-behavior-summary.log"* \
-      "${LOG_DIR}/secweaver-agent-update.log"* \
-      "${LOG_DIR}/secweaver-agent-health.log"*
-    log "removed known module logs under ${LOG_DIR}"
+    remove_known_logs_from_dir "${LOG_DIR}"
+    remove_known_logs_from_dir "${LEGACY_LOG_DIR}"
+    rm -rf -- "${LEGACY_FILEBEAT_LOG_DIR}"
+    log "removed current and legacy Agent logs under ${LOG_DIR} and ${LEGACY_LOG_DIR}"
   else
-    log "logs kept under ${LOG_DIR}"
+    log "logs kept under ${LOG_DIR} and ${LEGACY_LOG_DIR}"
   fi
 
   # Shipper credentials and binaries are installation-owned, but are retained
@@ -403,7 +571,7 @@ json_escape() {
 }
 
 path_exists_bool() {
-  if [[ -e "$1" ]]; then
+  if [[ -e "$1" || -L "$1" ]]; then
     echo "true"
   else
     echo "false"
@@ -411,27 +579,30 @@ path_exists_bool() {
 }
 
 service_unit_exists_bool() {
-  local service_name
-  for service_name in "${SERVICE_NAME}" "${SHIPPER_SERVICE_NAME}"; do
-    if [[ -e "${SYSTEMD_DIR}/${service_name}" || -L "${SYSTEMD_DIR}/${service_name}" || -d "${SYSTEMD_DIR}/${service_name}.d" ]]; then
-      echo "true"
-      return
-    fi
+  local service_name unit_dir wants_dir
+  while IFS= read -r service_name; do
+    for unit_dir in "${SYSTEMD_DIR}" "${VENDOR_SYSTEMD_DIR}" "${LEGACY_SYSTEMD_DIR}"; do
+      if [[ -e "${unit_dir}/${service_name}" || -L "${unit_dir}/${service_name}" || -d "${unit_dir}/${service_name}.d" ]]; then
+        echo "true"
+        return
+      fi
+    done
+    for wants_dir in multi-user.target.wants default.target.wants; do
+      if [[ -e "${SYSTEMD_DIR}/${wants_dir}/${service_name}" || -L "${SYSTEMD_DIR}/${wants_dir}/${service_name}" ]]; then
+        echo "true"
+        return
+      fi
+    done
     if need_cmd systemctl && systemctl cat "${service_name}" >/dev/null 2>&1; then
       echo "true"
       return
     fi
-  done
+  done < <(known_agent_service_names)
   echo "false"
 }
 
 secweaver_process_count() {
-  ps -eo pid=,comm=,args= 2>/dev/null | awk -v self="$$" -v bin_dir="${BIN_DIR}" '
-    $1 == self { next }
-    $2 == "secweaver-agent" || $2 == "audit-port-execmon" || $2 == "syslog-risk-json" { count++; next }
-    index($0, bin_dir "/secweaver-agent ") > 0 { count++; next }
-    END { print count + 0 }
-  ' | tr -d ' '
+  secweaver_process_pids | awk 'END { print NR + 0 }' | tr -d ' '
 }
 
 remaining_audit_rule_count() {
@@ -447,25 +618,26 @@ remaining_audit_rule_count() {
   awk '/tb_external_listener|tb_port_|tb_host_persistence/ { count++ } END { print count+0 }' <<<"${listing}"
 }
 
-known_logs_exist_bool() {
-  local paths=(
-    "${LOG_DIR}/audit-port-execmon.log"
-    "${LOG_DIR}/syslog-risk-json.log"
-    "${LOG_DIR}/host-persistence.log"
-    "${LOG_DIR}/host-behavior-summary.log"
-	"${LOG_DIR}/host-process-snapshot.log"
-	"${LOG_DIR}/host-state-snapshot.log"
-    "${LOG_DIR}/secweaver-agent-update.log"
-    "${LOG_DIR}/secweaver-agent-health.log"
-  )
-  local path
-  for path in "${paths[@]}"; do
-    if compgen -G "${path}*" >/dev/null; then
-      echo "true"
+known_logs_exist_in_dir_bool() {
+  local directory="$1" name
+  while IFS= read -r name; do
+    if compgen -G "${directory}/${name}*" >/dev/null; then
+      echo true
       return
     fi
-  done
-  echo "false"
+  done < <(known_agent_log_names)
+  echo false
+}
+
+known_agent_binaries_exist_bool() {
+  local path
+  while IFS= read -r path; do
+    if [[ -e "${path}" || -L "${path}" ]]; then
+      echo true
+      return
+    fi
+  done < <(known_agent_binary_paths)
+  echo false
 }
 
 # Verify requested external removals separately. A successful rm is not proof
@@ -493,13 +665,19 @@ standalone_remaining_bool() {
 
 print_verification_json() {
   local audit_count process_count binary_path unit_exists config_exists state_exists logs_exist
+  local legacy_config_exists legacy_state_exists legacy_logs_exist legacy_filebeat_logs_exist known_binaries_exist
   audit_count="$(remaining_audit_rule_count)"
   process_count="$(secweaver_process_count)"
   binary_path="${BIN_DIR}/secweaver-agent"
   unit_exists="$(service_unit_exists_bool)"
   config_exists="$(path_exists_bool "${CONFIG_DIR}")"
   state_exists="$(path_exists_bool "${STATE_DIR}")"
-  logs_exist="$(known_logs_exist_bool)"
+  logs_exist="$(known_logs_exist_in_dir_bool "${LOG_DIR}")"
+  legacy_config_exists="$(path_exists_bool "${LEGACY_CONFIG_DIR}")"
+  legacy_state_exists="$(path_exists_bool "${LEGACY_STATE_DIR}")"
+  legacy_logs_exist="$(known_logs_exist_in_dir_bool "${LEGACY_LOG_DIR}")"
+  legacy_filebeat_logs_exist="$(path_exists_bool "${LEGACY_FILEBEAT_LOG_DIR}")"
+  known_binaries_exist="$(known_agent_binaries_exist_bool)"
 
   local ok=1
   local logtail_remaining=null filebeat_remaining=null
@@ -514,13 +692,19 @@ print_verification_json() {
   [[ "${unit_exists}" == "false" ]] || ok=0
   [[ "${process_count}" == "0" ]] || ok=0
   [[ "${audit_count}" == "0" || "${audit_count}" == "-1" || "${CLEAN_AUDIT_RULES}" -eq 0 ]] || ok=0
-  if [[ "${REMOVE_BINARY}" -eq 1 && -e "${binary_path}" ]]; then ok=0; fi
-  if [[ "${REMOVE_CONFIG}" -eq 1 && "${config_exists}" == "true" ]]; then ok=0; fi
-  if [[ "${REMOVE_STATE}" -eq 1 && "${state_exists}" == "true" ]]; then ok=0; fi
-  if [[ "${REMOVE_LOGS}" -eq 1 && "${logs_exist}" == "true" ]]; then ok=0; fi
+  if [[ "${REMOVE_BINARY}" -eq 1 && "${known_binaries_exist}" == "true" ]]; then ok=0; fi
+  if [[ "${REMOVE_CONFIG}" -eq 1 ]]; then
+    [[ "${config_exists}" == "false" && "${legacy_config_exists}" == "false" ]] || ok=0
+  fi
+  if [[ "${REMOVE_STATE}" -eq 1 ]]; then
+    [[ "${state_exists}" == "false" && "${legacy_state_exists}" == "false" ]] || ok=0
+  fi
+  if [[ "${REMOVE_LOGS}" -eq 1 ]]; then
+    [[ "${logs_exist}" == "false" && "${legacy_logs_exist}" == "false" && "${legacy_filebeat_logs_exist}" == "false" ]] || ok=0
+  fi
 
   cat <<EOF
-{"ok":$(json_bool "${ok}"),"standalone_collectors":{"logtail":{"removal_requested":$(json_bool "${REMOVE_LOGTAIL}"),"remaining":${logtail_remaining}},"filebeat":{"removal_requested":$(json_bool "${REMOVE_FILEBEAT}"),"remaining":${filebeat_remaining}}},"service":{"name":"$(json_escape "${SERVICE_NAME}")","additional_names":["$(json_escape "${SHIPPER_SERVICE_NAME}")"],"unit_exists":${unit_exists}},"processes":{"matching_count":${process_count}},"audit":{"cleanup_requested":$(json_bool "${CLEAN_AUDIT_RULES}"),"remaining_rule_count":${audit_count}},"files":{"binary":"$(json_escape "${binary_path}")","binary_exists":$(path_exists_bool "${binary_path}"),"config_dir":"$(json_escape "${CONFIG_DIR}")","config_exists":${config_exists},"state_dir":"$(json_escape "${STATE_DIR}")","state_exists":${state_exists},"logs_dir":"$(json_escape "${LOG_DIR}")","known_logs_exist":${logs_exist}}}
+{"ok":$(json_bool "${ok}"),"standalone_collectors":{"logtail":{"removal_requested":$(json_bool "${REMOVE_LOGTAIL}"),"remaining":${logtail_remaining}},"filebeat":{"removal_requested":$(json_bool "${REMOVE_FILEBEAT}"),"remaining":${filebeat_remaining}}},"service":{"name":"$(json_escape "${SERVICE_NAME}")","additional_names":["$(json_escape "${SHIPPER_SERVICE_NAME}")","$(json_escape "${LEGACY_SWL_SERVICE_NAME}")","$(json_escape "${LEGACY_AUDIT_SERVICE_NAME}")","$(json_escape "${LEGACY_SYSLOG_SERVICE_NAME}")","$(json_escape "${LEGACY_PERSISTENCE_SERVICE_NAME}")"],"unit_exists":${unit_exists}},"processes":{"matching_count":${process_count}},"audit":{"cleanup_requested":$(json_bool "${CLEAN_AUDIT_RULES}"),"remaining_rule_count":${audit_count}},"files":{"binary":"$(json_escape "${binary_path}")","binary_exists":$(path_exists_bool "${binary_path}"),"known_binaries_exist":${known_binaries_exist},"config_dir":"$(json_escape "${CONFIG_DIR}")","config_exists":${config_exists},"legacy_config_dir":"$(json_escape "${LEGACY_CONFIG_DIR}")","legacy_config_exists":${legacy_config_exists},"state_dir":"$(json_escape "${STATE_DIR}")","state_exists":${state_exists},"legacy_state_dir":"$(json_escape "${LEGACY_STATE_DIR}")","legacy_state_exists":${legacy_state_exists},"logs_dir":"$(json_escape "${LOG_DIR}")","known_logs_exist":${logs_exist},"legacy_logs_dir":"$(json_escape "${LEGACY_LOG_DIR}")","legacy_known_logs_exist":${legacy_logs_exist},"legacy_filebeat_logs_dir":"$(json_escape "${LEGACY_FILEBEAT_LOG_DIR}")","legacy_filebeat_logs_exist":${legacy_filebeat_logs_exist}}}
 EOF
   [[ "${ok}" == 1 ]]
 }
@@ -536,6 +720,7 @@ if [[ -x "${BIN_DIR}/secweaver-agent" && -f "${CONFIG_DIR}/config.json" ]]; then
 fi
 command -v timeout >/dev/null
 stop_systemd_service
+stop_secweaver_processes
 if [[ "${REMOVE_LOGTAIL}" == 1 ]]; then remove_standalone_collector logtail "${LOGTAIL_ROOT}"; fi
 if [[ "${REMOVE_FILEBEAT}" == 1 ]]; then remove_standalone_collector filebeat "${FILEBEAT_ROOT}"; fi
 cleanup_audit_rules

@@ -793,6 +793,12 @@ staging directory. This script stops the Agent and shipper services, removes sys
 cleans stale audit rules, and removes `/opt/secweaver-agent/bin` plus the command
 symlink by default. Config, state, logs, and shipper data are retained;
 `sudo /opt/secweaver-agent/bin/uninstall.sh --purge` removes the complete `/opt/secweaver-agent` root.
+Agent 0.3.65 also removes legacy `swl-agent` and standalone module units/commands.
+With `--purge`, it removes legacy `/etc/secweaver-agent`,
+`/var/lib/secweaver-agent`, `/var/log/secweaver-filebeat`, and only the
+allowlisted SecWeaver log families under `/var/log`; it does not recursively
+delete `/var/log`. Machine-readable verification includes current and legacy
+residue and returns nonzero when cleanup is incomplete.
 Standalone collectors are retained unless explicitly selected. For a clean-host test:
 `sudo /opt/secweaver-agent/bin/uninstall.sh --purge --remove-logtail --remove-filebeat --json`.
 These flags remove each selected collector's configuration/state/logs, including shared
