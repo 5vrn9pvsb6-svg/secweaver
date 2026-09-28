@@ -561,9 +561,11 @@ Linux installs replace the binary atomically and return `installed`; systemd sta
 rollback launcher. New Linux units classify the dedicated exit code `75` as a successful forced restart,
 while upgraded binaries remain compatible with older units by returning `1` unless the unit opts in.
 Windows stages the replacement on the same filesystem and returns `install_scheduled` or
-`rollback_scheduled`. After the running process exits, the helper commits it with Windows
-`File.Replace` atomic semantics. Windows service recovery runs the external rollback command after
-repeated startup failures, and rollback uses the same atomic replacement operation.
+`rollback_scheduled`. The service then reports a successful planned stop so SCM recovery
+cannot race the detached helper. After the executable unlocks, that helper commits it with Windows
+`File.Replace` atomic semantics, restarts the registered service, and records its bounded
+phase in `replace-status.json`. Actual repeated startup failures still run the external
+rollback command, and rollback uses the same atomic replacement operation.
 
 ## Config
 

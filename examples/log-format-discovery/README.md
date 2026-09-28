@@ -44,7 +44,10 @@ Both WAF rows are within the same minute on 2026-06-21; they use string
 `@timestamp` and epoch-seconds `__time__` respectively. `normalized_preview`
 should expose canonical `src_ip`, `timestamp`, and `url` for both. Regression
 checks this discovery-to-normalized-preview path against the public discovery
-asset. Preview does **not** establish a live connection, applied mapping, or
+asset. That asset declares `schema.time_correction.assume_timezone=Asia/Shanghai`
+because epoch values carry no offset while this sample source is known to use
+China Standard Time; deployments must set the actual source timezone instead of
+copying this value blindly. Preview does **not** establish a live connection, applied mapping, or
 downstream fetch. The other vendor samples still cover format detection and
 preview only, not their completed field mappings.
 

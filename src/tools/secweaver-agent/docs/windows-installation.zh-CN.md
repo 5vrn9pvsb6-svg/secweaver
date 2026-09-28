@@ -231,7 +231,7 @@ HTTP 200 但零行仍判入库失败。doctor/健康报告核对签名路由、�
 回归，`make check` 做 Go、race 与跨平台编译；真实 SCM 升级测试仍位于
 `integration/service-upgrade/windows-scm.ps1`。自动检查不能代替真机标记与云端查询验收。
 
-Windows SCM 自动升级由脱离父进程的替换助手负责：等待旧进程释放可执行文件后原子替换，并重新启动已注册服务。前台 console 模式不携带服务名，不会修改 SCM 状态。
+Windows SCM 自动升级由脱离服务进程组的替换助手负责。计划替换会按正常停止上报，避免 SCM 故障恢复抢先重新打开旧可执行文件；随后只有替换助手负责等待解锁、原子替换并启动已注册服务，真实启动失败仍进入 SCM 恢复与回滚。助手把有界、已隐藏程序路径的阶段写入 `<update.state_dir>/replace-status.json`。前台 console 模式不携带服务名，不会修改 SCM 状态。
 
 ## Windows SLS 采集就绪
 

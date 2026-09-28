@@ -22,7 +22,12 @@
       "host"
     ],
     "time_field": "timestamp",
-    "retention_days": 30
+    "retention_days": 30,
+    "time_correction": {
+      "assume_timezone": "Asia/Shanghai",
+      "offset_minutes": 0,
+      "reason": "The public WAF sample mixes explicit +08:00 timestamps with epoch seconds from the same Asia/Shanghai source."
+    }
   },
   "query_template_ids": [
     "waf_api_search"

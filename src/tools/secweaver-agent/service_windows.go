@@ -162,14 +162,16 @@ func windowsServiceMain(argc uint32, argv uintptr) {
 	exitCode := uint32(0)
 	if err != nil && !errors.Is(err, context.Canceled) {
 		if errors.Is(err, errRestartAfterUpdate) {
-			// Keep the restart reason visible to SCM while the detached updater
-			// also starts the service after the executable is replaced.
-			exitCode = uint32(serviceRestartExitCode())
+			// A scheduled Windows replacement is an intentional stop, not a
+			// service failure. Reporting success prevents SCM recovery from racing
+			// the helper and reopening the old executable before it is replaced.
+			// The detached helper exclusively owns replace and restart from here.
+			serviceLogf("service stopped for scheduled executable replacement")
 		} else {
 			exitCode = 1
+			writeWindowsServiceFailure(serviceConfigPath, err)
+			serviceLogf("service stopped with error: %v", err)
 		}
-		writeWindowsServiceFailure(serviceConfigPath, err)
-		serviceLogf("service stopped with error: %v", err)
 	} else {
 		serviceLogf("service stopped")
 	}

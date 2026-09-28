@@ -492,9 +492,10 @@ Windows SCM。
 Linux 安装时会原子替换二进制并返回 `installed`，systemd 通过稳定启动器启动和必要时恢复
 上一版。新安装单元将专用退出码 `75` 识别为“正常但必须重启”，避免升级窗口产生失败误告警；
 二进制在旧单元上仍默认返回 `1`，保持向后兼容。Windows 不能覆盖正在运行的 `.exe`，所以
-安装/回滚先把文件暂存在同一文件系统，返回 `install_scheduled` 或 `rollback_scheduled`，待进程
-退出后通过 Windows `File.Replace` 原子提交。Windows 服务恢复动作在连续启动失败时执行外部
-回滚脚本，回滚二进制也使用相同的原子替换语义。
+安装/回滚先把文件暂存在同一文件系统，返回 `install_scheduled` 或 `rollback_scheduled`。服务随后
+按计划正常停止，避免 SCM 故障恢复与脱离进程的替换助手争抢旧文件；助手等待解锁后通过
+Windows `File.Replace` 原子提交、重启已注册服务，并将有界阶段写入
+`replace-status.json`。真实连续启动失败仍执行外部回滚脚本，回滚二进制使用相同原子替换语义。
 
 ## 配置
 

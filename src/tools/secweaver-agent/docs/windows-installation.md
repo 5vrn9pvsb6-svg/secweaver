@@ -278,7 +278,7 @@ PowerShell regression tests and `make check` for Go, race and cross-build checks
 Windows SCM upgrade tests remain in `integration/service-upgrade/windows-scm.ps1`.
 These automated checks do not replace the real-machine marker and cloud query above.
 
-Windows SCM updates use a detached replacement helper that waits for the old executable to unlock, atomically replaces it, and starts the registered service again. Console-mode runs do not carry a service name and never mutate SCM state.
+Windows SCM updates use a detached replacement helper outside the service process group. A scheduled replacement reports a successful service stop so SCM failure recovery cannot race it by reopening the old executable. The helper exclusively waits for unlock, atomically replaces the binary, and starts the registered service; real startup failures still enter SCM recovery and rollback. Its bounded, path-redacted phase is written to `<update.state_dir>/replace-status.json`. Console-mode runs do not carry a service name and never mutate SCM state.
 
 ## Windows SLS Collection Readiness
 

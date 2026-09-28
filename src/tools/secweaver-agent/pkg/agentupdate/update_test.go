@@ -1014,10 +1014,11 @@ func TestWriteBytesAtomicCreatesDirectoryAndReplacesExistingFile(t *testing.T) {
 }
 
 func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) {
-	source := `C:\ProgramData\SecWeaver\pending\agent with spaces.new`
-	destination := `C:\Program Files\SecWeaver\secweaver-agent.exe`
-	script := windowsAtomicReplaceScript(source, destination, "SecWeaverAgent")
-	if strings.Contains(script, source) || strings.Contains(script, destination) {
+	source := `C:/ProgramData/SecWeaver/pending/agent with spaces.new`
+	destination := `C:/Program Files/SecWeaver/secweaver-agent.exe`
+	statusPath := `C:/ProgramData/SecWeaver/state/replace-status.json`
+	script := windowsAtomicReplaceScript(source, destination, "SecWeaverAgent", statusPath)
+	if strings.Contains(script, source) || strings.Contains(script, destination) || strings.Contains(script, statusPath) {
 		t.Fatal("Windows replacement script embeds an unescaped filesystem path")
 	}
 	for _, expected := range []string{
@@ -1025,11 +1026,19 @@ func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) 
 		base64.StdEncoding.EncodeToString([]byte(source)),
 		base64.StdEncoding.EncodeToString([]byte(destination)),
 		base64.StdEncoding.EncodeToString([]byte("SecWeaverAgent")),
+		base64.StdEncoding.EncodeToString([]byte(statusPath)),
 		"Start-Service -Name $ServiceName",
+		`Write-ReplaceStatus "waiting_for_process_exit"`,
+		`Write-ReplaceStatus "service_start_failed"`,
 	} {
 		if !strings.Contains(script, expected) {
 			t.Fatalf("Windows replacement script is missing %q", expected)
 		}
+	}
+	replaceIndex := strings.Index(script, "[IO.File]::Replace($Source, $Destination, $null, $true)")
+	serviceLoopIndex := strings.Index(script, "for ($ServiceAttempt = 1;")
+	if replaceIndex < 0 || serviceLoopIndex < 0 || replaceIndex >= serviceLoopIndex {
+		t.Fatal("Windows replacement must complete before the independent SCM start phase")
 	}
 	if strings.Contains(strings.ToLower(script), "move /y") {
 		t.Fatal("Windows replacement script fell back to a non-atomic cmd move")

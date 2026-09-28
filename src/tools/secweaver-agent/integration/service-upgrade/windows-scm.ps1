@@ -38,6 +38,32 @@ function Remove-TestService {
   }
 }
 
+function Write-UpgradeDiagnostics {
+  param([Parameter(Mandatory = $true)][string]$Stage)
+
+  # CI normally deletes the temporary root. Emit every bounded lifecycle
+  # artifact before cleanup so failures identify replacement, SCM, or health.
+  Write-Host "=== Windows upgrade diagnostics: $Stage ==="
+  & sc.exe queryex $ServiceName
+  & sc.exe qc $ServiceName
+  & sc.exe qfailure $ServiceName
+  foreach ($Path in @(
+    (Join-Path $StateDir "state.json"),
+    (Join-Path $StateDir "replace-status.json"),
+    "$ConfigPath.service-error.txt"
+  )) {
+    if (Test-Path -LiteralPath $Path) {
+      Write-Host "--- $Path"
+      Get-Content -Raw -LiteralPath $Path | Write-Host
+    }
+  }
+  $UpdateStatus = Join-Path $Root "update-status.jsonl"
+  if (Test-Path -LiteralPath $UpdateStatus) {
+    Write-Host "--- $UpdateStatus (last 20 lines)"
+    Get-Content -LiteralPath $UpdateStatus -Tail 20 | Write-Host
+  }
+}
+
 function Write-SignedManifest {
   param(
     [Parameter(Mandatory = $true)][string]$Version,
@@ -173,13 +199,9 @@ exit /b 0
     Start-Sleep -Seconds 1
   }
   if (-not $Healthy) {
-    & sc.exe query $ServiceName
-    if (Test-Path (Join-Path $StateDir "state.json")) {
-      Get-Content -Raw (Join-Path $StateDir "state.json") | Write-Host
-    }
+    Write-UpgradeDiagnostics -Stage "healthy activation"
     throw "Windows SCM service did not complete the healthy upgrade"
   }
-
   Write-SignedManifest -Version "0.3.2" -TargetName $FailedTargetName
   Restart-Service -Name $ServiceName -Force
 
@@ -197,10 +219,7 @@ exit /b 0
     }
     Start-Sleep -Seconds 1
   }
-  & sc.exe query $ServiceName
-  if (Test-Path (Join-Path $StateDir "state.json")) {
-    Get-Content -Raw (Join-Path $StateDir "state.json") | Write-Host
-  }
+  Write-UpgradeDiagnostics -Stage "automatic rollback"
   throw "Windows SCM service did not complete automatic rollback"
 } finally {
   Remove-TestService

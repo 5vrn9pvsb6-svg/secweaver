@@ -1,5 +1,18 @@
 # Changelog
 
+## Agent 0.3.66
+
+- Remove the Windows automatic-update race between the detached executable
+  replacement helper and SCM failure recovery. A scheduled replacement now
+  stops the service successfully, and the detached helper exclusively owns the
+  atomic replace and service restart transaction.
+- Launch the Windows replacement helper outside the Agent service process group
+  and persist a bounded `replace-status.json` diagnostic containing its current
+  phase and sanitized failure text. Integration failures now print this status
+  and the bounded service error file before CI cleanup.
+- Declare the public WAF discovery sample's source timezone so epoch-second and
+  explicit-offset rows normalize consistently on UTC and non-UTC workers.
+
 ## Agent 0.3.65
 
 - Make Linux uninstall cover split-layout releases: stop and remove

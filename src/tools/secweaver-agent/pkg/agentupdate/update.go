@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -1072,26 +1071,68 @@ func stageWindowsBinary(selfPath, stateDir string, payload []byte) (string, erro
 
 func scheduleWindowsReplace(selfPath, pendingPath, stateDir, serviceName string) error {
 	scriptPath := filepath.Join(stateDir, fmt.Sprintf("replace-%d.ps1", os.Getpid()))
-	script := windowsAtomicReplaceScript(pendingPath, selfPath, serviceName)
+	statusPath := filepath.Join(stateDir, "replace-status.json")
+	// A status belongs to one replacement transaction. Removing the previous
+	// terminal record prevents a helper that fails before initialization from
+	// presenting stale success as the current result.
+	if err := os.Remove(statusPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove stale Windows replacement status: %w", err)
+	}
+	script := windowsAtomicReplaceScript(pendingPath, selfPath, serviceName, statusPath)
 	if err := os.WriteFile(scriptPath, []byte(script), 0600); err != nil {
 		return err
 	}
-	cmd := exec.Command(
-		"cmd.exe", "/D", "/S", "/C", "start", "", "/B",
-		"powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive",
-		"-ExecutionPolicy", "Bypass", "-File", scriptPath,
-	)
-	return cmd.Start()
+	return launchWindowsReplaceHelper(scriptPath)
 }
 
-func windowsAtomicReplaceScript(sourcePath, destinationPath, serviceName string) string {
+func windowsAtomicReplaceScript(sourcePath, destinationPath, serviceName, statusPath string) string {
 	encodedSource := base64.StdEncoding.EncodeToString([]byte(sourcePath))
 	encodedDestination := base64.StdEncoding.EncodeToString([]byte(destinationPath))
 	encodedService := base64.StdEncoding.EncodeToString([]byte(serviceName))
+	encodedStatus := base64.StdEncoding.EncodeToString([]byte(statusPath))
 	return fmt.Sprintf(`$ErrorActionPreference = "Stop"
 $Source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
 $Destination = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
 $ServiceName = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
+$StatusPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
+
+function Write-ReplaceStatus {
+  param([string]$Phase, [string]$Detail)
+  # Diagnostics are best effort and bounded: a status-write failure must never
+  # interrupt binary replacement or leave the service stopped.
+  try {
+    if ($null -eq $Detail) { $Detail = "" }
+    $Detail = $Detail.Replace($Source, "<pending>").Replace($Destination, "<agent>")
+    if ($Detail.Length -gt 2048) { $Detail = $Detail.Substring(0, 2048) }
+    $Payload = [ordered]@{
+      timestamp = [DateTime]::UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'")
+      phase = $Phase
+      service_name = $ServiceName
+      detail = $Detail
+    } | ConvertTo-Json -Compress
+    $TempPath = $StatusPath + "." + [Diagnostics.Process]::GetCurrentProcess().Id + ".tmp"
+    [IO.File]::WriteAllText($TempPath, $Payload, (New-Object Text.UTF8Encoding($false)))
+    if ([IO.File]::Exists($StatusPath)) {
+      [IO.File]::Replace($TempPath, $StatusPath, $null, $true)
+    } else {
+      [IO.File]::Move($TempPath, $StatusPath)
+    }
+  } catch {
+    if ($TempPath) { Remove-Item -LiteralPath $TempPath -Force -ErrorAction SilentlyContinue }
+  }
+}
+
+function Exit-Replace {
+  param([int]$Code)
+  # The durable status replaces per-attempt scripts as the diagnostic artifact,
+  # so successful and failed helpers do not accumulate executable files.
+  Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
+  exit $Code
+}
+
+Write-ReplaceStatus "waiting_for_process_exit" ""
+$Replaced = $false
+$LastError = ""
 for ($Attempt = 1; $Attempt -le 60; $Attempt++) {
   try {
     if ([IO.File]::Exists($Destination)) {
@@ -1099,38 +1140,54 @@ for ($Attempt = 1; $Attempt -le 60; $Attempt++) {
     } else {
       [IO.File]::Move($Source, $Destination)
     }
-    if ($ServiceName) {
-      # Do not rely only on SCM failure actions: service hosts may report a
-      # clean dispatcher return while the replacement is still pending.
-      for ($ServiceAttempt = 1; $ServiceAttempt -le 30; $ServiceAttempt++) {
-        try {
-          $Service = Get-Service -Name $ServiceName -ErrorAction Stop
-          if ($Service.Status -eq "Stopped") {
-            Start-Service -Name $ServiceName -ErrorAction Stop
-            exit 0
-          }
-          # The old service process can still be unwinding after releasing
-          # the executable. Waiting for Stopped avoids racing SCM's state
-          # transition and losing the restart immediately after exit.
-          Start-Sleep -Seconds 1
-        } catch {
-          Start-Sleep -Seconds 1
-        }
-      }
-      # SCM failure actions may have started the replacement during the wait.
-      # Treat an already-running service as success; otherwise report a
-      # failed activation so the health monitor can roll back deterministically.
-      $Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
-      if ($Service -and $Service.Status -eq "Running") { exit 0 }
-      exit 1
-    }
-    exit 0
+    $Replaced = $true
+    Write-ReplaceStatus "binary_replaced" ""
+    break
   } catch {
-    Start-Sleep -Seconds 1
+    $LastError = $_.Exception.Message
+    if ($Attempt -lt 60) { Start-Sleep -Seconds 1 }
   }
 }
-exit 1
-`, encodedSource, encodedDestination, encodedService)
+if (-not $Replaced) {
+  Write-ReplaceStatus "replace_failed" $LastError
+  # Replacement failure leaves the old binary intact. Restore availability
+  # instead of relying on SCM failure actions, which are intentionally not
+  # triggered for a scheduled update stop.
+  if ($ServiceName) {
+    try { Start-Service -Name $ServiceName -ErrorAction Stop } catch {}
+  }
+  Exit-Replace 1
+}
+if (-not $ServiceName) {
+  Write-ReplaceStatus "completed" "console mode; service restart not requested"
+  Exit-Replace 0
+}
+
+# Replacement and service activation are separate phases. Never rerun
+# File.Replace after it succeeds, even when SCM needs several start attempts.
+for ($ServiceAttempt = 1; $ServiceAttempt -le 60; $ServiceAttempt++) {
+  try {
+    $Service = Get-Service -Name $ServiceName -ErrorAction Stop
+    if ($Service.Status -eq "Running") {
+      Write-ReplaceStatus "service_running" ""
+      Exit-Replace 0
+    }
+    if ($Service.Status -eq "Stopped") {
+      Write-ReplaceStatus "service_starting" ""
+      Start-Service -Name $ServiceName -ErrorAction Stop
+      $Service = Get-Service -Name $ServiceName -ErrorAction Stop
+      $Service.WaitForStatus("Running", [TimeSpan]::FromSeconds(10))
+      Write-ReplaceStatus "service_running" ""
+      Exit-Replace 0
+    }
+  } catch {
+    $LastError = $_.Exception.Message
+  }
+  Start-Sleep -Seconds 1
+}
+Write-ReplaceStatus "service_start_failed" $LastError
+Exit-Replace 1
+`, encodedSource, encodedDestination, encodedService, encodedStatus)
 }
 
 func copyFile(src, dst string) error {

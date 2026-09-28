@@ -42,8 +42,11 @@ python3 src/skills/log-format-discovery/scripts/discover.py \
 
 WAF 样本两行均在 2026-06-21 的同一分钟内，分别使用字符串 `@timestamp` 和秒级
 `__time__`。`normalized_preview` 应包含两条记录的 `src_ip`、`timestamp`、`url`
-等规范字段；回归测试会核对这条字段发现与归一化预览路径。预览只检查当前
-`discovery` 资产，**不**代表已完成真实数据源的连接、字段映射应用或下游取数。
+等规范字段；回归测试会核对这条字段发现与归一化预览路径。由于 epoch 本身不携带时区，
+而该样例数据源已知使用中国标准时间，资产通过
+`schema.time_correction.assume_timezone=Asia/Shanghai` 明确解释；实际接入必须填写真实源时区，
+不能直接照抄。预览只检查当前 `discovery` 资产，**不**代表已完成真实数据源的连接、
+字段映射应用或下游取数。
 其他厂商样本当前只验证格式识别和预览，不应据此宣称其字段映射已完成。
 
 ## 相关
