@@ -186,6 +186,39 @@ func TestCollectOnceAlsoWritesProcessEvidence(t *testing.T) {
 	}
 }
 
+func TestCollectOnceRetainsLocalizedHostExecFromPartialPage(t *testing.T) {
+	orig := queryWindowsEventsAscending
+	defer func() { queryWindowsEventsAscending = orig }()
+	queryWindowsEventsAscending = func(context.Context, string, uint64, time.Duration, int) ([]windowseventlog.Event, error) {
+		event := mustParseOne(t, `<Event>
+  <System><Provider Name="Microsoft-Windows-Security-Auditing"/><EventID>4688</EventID><TimeCreated SystemTime="2026-09-28T01:02:03Z"/><EventRecordID>601</EventRecordID><Channel>Security</Channel><Computer>中文主机</Computer></System>
+  <EventData><Data Name="SubjectUserName">张三</Data><Data Name="NewProcessId">0x2a</Data><Data Name="CreatorProcessId">0x10</Data><Data Name="NewProcessName">C:\Windows\System32\cmd.exe</Data><Data Name="CommandLine">cmd.exe /c echo 中文参数</Data></EventData>
+</Event>`)
+		return []windowseventlog.Event{event}, &windowseventlog.BatchParseError{
+			FailedFragments: 1,
+			TotalFragments:  2,
+			FirstFragment:   2,
+			Cause:           errors.New("invalid XML"),
+		}
+	}
+	var riskOut bytes.Buffer
+	var evidenceOut bytes.Buffer
+	st := &stats{}
+	cursors := map[string]uint64{}
+	err := collectOnce(context.Background(), runConfig{Channels: []string{"Security"}, MaxEvents: 10, MinLevel: "medium"}, &riskOut, &evidenceOut, st, cursors, map[string]bool{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.QueryErrors != 1 || st.EvidenceWritten != 1 || cursors["Security"] != 601 {
+		t.Fatalf("stats=%+v cursors=%v evidence=%s", st, cursors, evidenceOut.String())
+	}
+	for _, expected := range [][]byte{[]byte(`"asset_type":"host_exec"`), []byte("中文主机"), []byte("cmd.exe /c echo 中文参数")} {
+		if !bytes.Contains(evidenceOut.Bytes(), expected) {
+			t.Fatalf("localized process evidence missing %q: %s", expected, evidenceOut.String())
+		}
+	}
+}
+
 func mustParseOne(t *testing.T, text string) windowseventlog.Event {
 	t.Helper()
 	events, err := windowseventlog.ParseEventsXML(text)

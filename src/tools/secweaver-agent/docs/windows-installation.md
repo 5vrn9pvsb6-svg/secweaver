@@ -173,6 +173,12 @@ amd64, with Security 4688 audit permissions and access to the release, authoriza
 SLS endpoints. These are implementation targets; native SCM and cloud acceptance must
 still be run for the target environment before release. Domain policy can override local
 audit policy. Sysmon remains required for network/file evidence; 4688 suffices for exec.
+The Event Log reader requests Unicode output and decodes UTF-16LE/UTF-16BE
+before parsing, so localized Security 4688 fields are valid UTF-8 in JSONL. To
+verify, create a process whose command line contains non-ASCII text, then confirm
+the same text and a newer `windows_record_id` in
+`logs\windows-process-execmon.log`. A partial XML page emits a warning while
+retaining valid records; a fully invalid page leaves the cursor unchanged.
 The Agent still builds for ARM64, but managed Logtail installation rejects ARM64 before
 enrollment. Use `-SkipLogtail` only with an independently verified external shipper.
 No native ARM64 Logtail support or Windows 7/Server 2008 support is claimed here.

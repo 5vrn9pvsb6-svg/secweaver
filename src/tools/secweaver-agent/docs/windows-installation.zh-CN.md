@@ -139,6 +139,11 @@ Windows 安装器现在校验配置/preflight，从同一次持久化注册结�
 目标为 Windows 10、Windows Server 2016/2019/2022/2025 amd64、管理员 PowerShell 5.1+、
 Security 4688 审计权限及发布源/授权/SLS 网络可达。这是实现目标，发布前仍须在实际目标环境
 完成 SCM 与云端验收；域策略可能覆盖本地审计。执行证据依赖 4688，网络/文件证据仍需 Sysmon。
+Event Log reader 会请求 Unicode 输出，并在 XML 解析前转换 UTF-16LE/UTF-16BE，
+因此本地化 Security 4688 字段进入 JSONL 后是合法 UTF-8。验收时可运行命令行包含中文的
+新进程，再检查 `logs\windows-process-execmon.log` 是否保留相同中文且
+`windows_record_id` 已更新。部分 XML 损坏会告警但保留同页有效事件；整页无有效事件时
+cursor 保持不变。
 Agent 保留 ARM64 构建，但托管 Logtail 在注册前拒绝 ARM64；只有已另行验证输送器时才使用
 `-SkipLogtail`。不宣称原生 ARM64 Logtail、Windows 7/Server 2008 支持。
 

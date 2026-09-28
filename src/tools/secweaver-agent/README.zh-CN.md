@@ -799,6 +799,7 @@ Windows 注意事项：
 - `-Purge` 删除配置、设备身份、学习状态、日志，以及标准目录下的 Logtail（包含该主机全部 Logtail 采集身份和断点）。共享 Logtail 时增加 `-KeepLogtail`。不会删除云端数据/设备记录、Sysmon 或恢复 Windows 审计策略。`-Json` 返回单个结果对象。详见 [卸载边界与验证](docs/windows-installation.zh-CN.md#windows-卸载)。
 
 - Windows 默认只由 `windows-eventlog-risk-json` 一个 `wevtutil` reader 读取 Security、System、PowerShell 和 Sysmon。它把风险写入 `windows-eventlog-risk-json.log`，同时通过 `-evidence-output` 把 Security 4688 和 Sysmon 1/3/11/23 映射为 `host_exec`、`host_connect`、`host_file_op` 写入 `windows-process-execmon.log`。
+- reader 强制使用 `wevtutil /uni:true`，在解析 XML 前把带 BOM 或无 BOM 的 UTF-16LE/UTF-16BE 转成 UTF-8，保留本地化主机名、账户名和命令行。单条 XML fragment 损坏时会告警并跳过该条，但同页有效事件继续输出；整页都无有效事件时查询失败且不推进 cursor。
 - 独立 `windows-process-execmon` 模块仍保留，供关闭统一证据输出的部署使用，默认每 5 分钟轮询一次；默认包已关闭它。若两个模块同时启用，必须给 `windows-eventlog-risk-json` 显式传入 `-evidence-output=`，把证据所有权交给 standalone reader，否则 preflight 和启动会拒绝配置，避免重复查询、重复事件和两个 writer 竞争同一日志。
 - 两种 reader 共用 `internal/windowsevidence` 的 Security/Sysmon 证据分类器。Agent 自身 PowerShell 采集脚本通过完整脚本 SHA-256 精确登记；只复制 marker 或在合法脚本后追加命令不会被当作内部活动抑制。
 - 活动 reader 使用 `C:\ProgramData\SecWeaver\Agent\data\windows-eventlog-risk-json.cursor.json` 持久化一份 `EventRecordID` 游标。输出 flush 并同步成功后才推进游标。可通过 `-state-file <path>` 改路径，传空值可关闭持久化。

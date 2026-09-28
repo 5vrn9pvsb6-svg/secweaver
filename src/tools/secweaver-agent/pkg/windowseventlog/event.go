@@ -1,8 +1,10 @@
 package windowseventlog
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/xml"
 	"fmt"
@@ -10,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
+	"unicode/utf8"
 )
 
 type Event struct {
@@ -82,6 +86,27 @@ type dataXML struct {
 	Value string `xml:",chardata"`
 }
 
+// BatchParseError reports malformed event fragments without hiding valid records
+// from the same wevtutil page. Callers may process the returned records; a page
+// with no valid records remains a hard error so cursors cannot advance silently.
+type BatchParseError struct {
+	FailedFragments int
+	TotalFragments  int
+	FirstFragment   int
+	Cause           error
+}
+
+func (e *BatchParseError) Error() string {
+	return fmt.Sprintf(
+		"parse event xml fragment %d: %v (failed=%d total=%d)",
+		e.FirstFragment, e.Cause, e.FailedFragments, e.TotalFragments,
+	)
+}
+
+func (e *BatchParseError) Unwrap() error {
+	return e.Cause
+}
+
 const defaultQueryTimeout = 20 * time.Second
 
 func QueryRecent(ctx context.Context, channel string, lookback time.Duration, maxEvents int) ([]Event, error) {
@@ -103,25 +128,131 @@ func queryAfter(ctx context.Context, channel string, afterRecordID uint64, lookb
 	if maxEvents <= 0 {
 		maxEvents = 200
 	}
+	args := wevtutilQueryArgs(channel, afterRecordID, lookback, maxEvents, newestFirst)
+	queryCtx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
+	defer cancel()
+	out, err := exec.CommandContext(queryCtx, "wevtutil", args...).CombinedOutput()
+	decoded, decodeErr := decodeWEVTUtilOutput(out)
+	if err != nil {
+		msg := strings.TrimSpace(decoded)
+		if msg == "" {
+			msg = err.Error()
+			if decodeErr != nil {
+				msg += "; output decode failed: " + decodeErr.Error()
+			}
+		}
+		return nil, fmt.Errorf("wevtutil qe %s failed: %s", channel, msg)
+	}
+	if decodeErr != nil {
+		return nil, fmt.Errorf("decode wevtutil qe %s output: %w", channel, decodeErr)
+	}
+	// Preserve valid records alongside BatchParseError. The owning collector
+	// records the degraded poll before writing those records and advancing their
+	// cursors, so service health cannot silently hide a skipped provider record.
+	return ParseEventsXML(decoded)
+}
+
+// decodeWEVTUtilOutput normalizes the two encodings emitted by wevtutil. The
+// reader requests /uni:true, which is UTF-16 on Windows, but accepts UTF-8 for
+// compatibility with test fixtures and older wrappers. Invalid or ambiguous
+// bytes are rejected rather than copied into security evidence as mojibake.
+func decodeWEVTUtilOutput(raw []byte) (string, error) {
+	if len(raw) == 0 {
+		return "", nil
+	}
+	if bytes.HasPrefix(raw, []byte{0xef, 0xbb, 0xbf}) {
+		raw = raw[3:]
+		if !utf8.Valid(raw) {
+			return "", fmt.Errorf("UTF-8 BOM followed by invalid UTF-8")
+		}
+		return string(raw), nil
+	}
+	if bytes.HasPrefix(raw, []byte{0xff, 0xfe}) {
+		return decodeUTF16(raw[2:], binary.LittleEndian)
+	}
+	if bytes.HasPrefix(raw, []byte{0xfe, 0xff}) {
+		return decodeUTF16(raw[2:], binary.BigEndian)
+	}
+	// BOM-less UTF-16 XML can also be byte-valid UTF-8 when its current page is
+	// ASCII-only, so the alternating-NUL signature must be checked first.
+	if order, ok := detectUTF16ByteOrder(raw); ok {
+		return decodeUTF16(raw, order)
+	}
+	if utf8.Valid(raw) {
+		return string(raw), nil
+	}
+	return "", fmt.Errorf("output is neither valid UTF-8 nor recognizable UTF-16")
+}
+
+// detectUTF16ByteOrder handles Unicode output from Windows builds that omit a
+// BOM on redirected stdout. XML markup is ASCII-heavy, so its alternating NUL
+// distribution is a bounded and deterministic byte-order signal.
+func detectUTF16ByteOrder(raw []byte) (binary.ByteOrder, bool) {
+	if len(raw) < 4 || len(raw)%2 != 0 {
+		return nil, false
+	}
+	sample := raw
+	if len(sample) > 512 {
+		sample = sample[:512]
+	}
+	pairs := len(sample) / 2
+	evenNUL, oddNUL := 0, 0
+	for i := 0; i+1 < len(sample); i += 2 {
+		if sample[i] == 0 {
+			evenNUL++
+		}
+		if sample[i+1] == 0 {
+			oddNUL++
+		}
+	}
+	minimum := pairs / 4
+	if minimum < 1 {
+		minimum = 1
+	}
+	if oddNUL >= minimum && oddNUL > evenNUL*2 {
+		return binary.LittleEndian, true
+	}
+	if evenNUL >= minimum && evenNUL > oddNUL*2 {
+		return binary.BigEndian, true
+	}
+	return nil, false
+}
+
+// decodeUTF16 rejects truncated and unpaired surrogate input before converting
+// it. Silent replacement would corrupt command lines and weaken forensic value.
+func decodeUTF16(raw []byte, order binary.ByteOrder) (string, error) {
+	if len(raw)%2 != 0 {
+		return "", fmt.Errorf("UTF-16 byte length %d is not even", len(raw))
+	}
+	units := make([]uint16, len(raw)/2)
+	for i := range units {
+		units[i] = order.Uint16(raw[i*2:])
+	}
+	for i := 0; i < len(units); i++ {
+		u := units[i]
+		switch {
+		case 0xd800 <= u && u <= 0xdbff:
+			if i+1 >= len(units) || units[i+1] < 0xdc00 || units[i+1] > 0xdfff {
+				return "", fmt.Errorf("UTF-16 contains an unpaired high surrogate at unit %d", i)
+			}
+			i++
+		case 0xdc00 <= u && u <= 0xdfff:
+			return "", fmt.Errorf("UTF-16 contains an unpaired low surrogate at unit %d", i)
+		}
+	}
+	return string(utf16.Decode(units)), nil
+}
+
+func wevtutilQueryArgs(channel string, afterRecordID uint64, lookback time.Duration, maxEvents int, newestFirst bool) []string {
 	direction := "/rd:false"
 	if newestFirst {
 		direction = "/rd:true"
 	}
-	args := []string{"qe", channel, "/f:xml", direction, fmt.Sprintf("/c:%d", maxEvents)}
+	args := []string{"qe", channel, "/f:xml", direction, fmt.Sprintf("/c:%d", maxEvents), "/uni:true"}
 	if query := eventQuery(afterRecordID, lookback); query != "" {
 		args = append(args, "/q:"+query)
 	}
-	queryCtx, cancel := context.WithTimeout(ctx, defaultQueryTimeout)
-	defer cancel()
-	out, err := exec.CommandContext(queryCtx, "wevtutil", args...).CombinedOutput()
-	if err != nil {
-		msg := strings.TrimSpace(string(out))
-		if msg == "" {
-			msg = err.Error()
-		}
-		return nil, fmt.Errorf("wevtutil qe %s failed: %s", channel, msg)
-	}
-	return ParseEventsXML(string(out))
+	return args
 }
 
 func eventQuery(afterRecordID uint64, lookback time.Duration) string {
@@ -142,13 +273,29 @@ func eventQuery(afterRecordID uint64, lookback time.Duration) string {
 	return "*[System[" + strings.Join(conditions, " and ") + "]]"
 }
 
+// ParseEventsXML parses every complete Event fragment independently. It
+// returns valid records together with BatchParseError when only part of a page
+// is malformed, preventing one localized provider record from erasing the page.
 func ParseEventsXML(text string) ([]Event, error) {
-	fragments := splitEventFragments(text)
+	fragments, incompleteTail := splitEventFragments(text)
+	totalFragments := len(fragments)
+	if incompleteTail {
+		totalFragments++
+	}
 	events := make([]Event, 0, len(fragments))
+	var batchErr *BatchParseError
 	for i, fragment := range fragments {
 		var parsed eventXML
 		if err := xml.Unmarshal([]byte(fragment), &parsed); err != nil {
-			return nil, fmt.Errorf("parse event xml fragment %d: %w", i+1, err)
+			if batchErr == nil {
+				batchErr = &BatchParseError{
+					TotalFragments: totalFragments,
+					FirstFragment:  i + 1,
+					Cause:          err,
+				}
+			}
+			batchErr.FailedFragments++
+			continue
 		}
 		event := Event{
 			System: SystemData{
@@ -182,27 +329,41 @@ func ParseEventsXML(text string) ([]Event, error) {
 		}
 		events = append(events, event)
 	}
+	if incompleteTail {
+		if batchErr == nil {
+			batchErr = &BatchParseError{
+				TotalFragments: totalFragments,
+				FirstFragment:  len(fragments) + 1,
+				Cause:          fmt.Errorf("incomplete Event fragment"),
+			}
+		}
+		batchErr.FailedFragments++
+	}
+	if batchErr != nil {
+		return events, batchErr
+	}
 	return events, nil
 }
 
-func splitEventFragments(text string) []string {
+// splitEventFragments reports a non-empty truncated tail separately. The caller
+// must not interpret incomplete command output as a healthy empty event page.
+func splitEventFragments(text string) ([]string, bool) {
 	var fragments []string
 	remaining := text
 	for {
 		start := strings.Index(remaining, "<Event")
 		if start < 0 {
-			break
+			return fragments, len(fragments) == 0 && strings.TrimSpace(remaining) != ""
 		}
 		remaining = remaining[start:]
 		end := strings.Index(remaining, "</Event>")
 		if end < 0 {
-			break
+			return fragments, true
 		}
 		end += len("</Event>")
 		fragments = append(fragments, remaining[:end])
 		remaining = remaining[end:]
 	}
-	return fragments
 }
 
 func (e Event) EventIDInt() int {

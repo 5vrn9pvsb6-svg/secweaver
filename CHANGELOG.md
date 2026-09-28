@@ -1,5 +1,17 @@
 # Changelog
 
+## Agent 0.3.64
+
+- Fix Windows Event Log collection on localized hosts by forcing Unicode
+  `wevtutil` output and decoding BOM-marked or BOM-less UTF-16LE/UTF-16BE
+  before XML parsing. Chinese Security 4688 fields now reach host-exec JSONL
+  without being treated as invalid UTF-8.
+- Isolate malformed XML fragments within a page: valid records continue through
+  risk/evidence output and advance their EventRecordID cursor, while an entirely
+  invalid page remains a hard query error.
+- Add regression coverage for Chinese UTF-16 event batches, BOM-less byte-order
+  detection, unknown encodings, Unicode query flags, and partial-page parsing.
+
 ## Agent 0.3.63
 
 - Honor an asset's declared source timezone for epoch timestamps, keeping SLS

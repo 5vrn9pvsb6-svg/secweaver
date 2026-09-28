@@ -3,6 +3,7 @@ package windowsprocessexecmon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -188,7 +189,14 @@ func collectOnce(ctx context.Context, cfg runConfig, out io.Writer, st *stats, c
 			beforeCursor := cursors[channel]
 			st.Queries++
 			events, err := queryWindowsEventsAscending(ctx, channel, cursors[channel], lookback, cfg.MaxEvents)
-			if err != nil {
+			var partialErr *windowseventlog.BatchParseError
+			if err != nil && errors.As(err, &partialErr) && len(events) > 0 {
+				// Keep valid records and advance through their EventRecordIDs, but mark
+				// the poll degraded so a skipped provider record remains observable.
+				st.QueryErrors++
+				windowsevidence.SourceFault(out, "windows_source_partial_parse")
+				fmt.Fprintf(os.Stderr, "WARN: channel %s returned a partial XML page: %v; retained=%d\n", channel, err, len(events))
+			} else if err != nil {
 				// Normal service stop cancels wevtutil; retain a clean learning state.
 				if ctx.Err() != nil {
 					return nil
