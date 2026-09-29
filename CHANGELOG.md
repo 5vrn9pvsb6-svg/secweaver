@@ -1,5 +1,16 @@
 # Changelog
 
+## Agent 0.3.67
+
+- Fix UTC-only log-format discovery previews by passing the complete asset
+  schema into normalization, including `time_correction`, masking, and future
+  asset-level rules. Epoch timestamps now remain in the declared source
+  timezone on CI and portable workers.
+- Harden Windows SCM update handoff: the replacement helper now requests
+  `CREATE_BREAKAWAY_FROM_JOB`, writes a private startup diagnostic, and must
+  acknowledge its first transaction phase before the service reports a planned
+  stop. A failed or killed helper leaves the current Agent available.
+
 ## Agent 0.3.66
 
 - Remove the Windows automatic-update race between the detached executable

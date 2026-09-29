@@ -286,7 +286,10 @@ class SkillCatalogAndOutputContractTests(unittest.TestCase):
             [sys.executable, str(ROOT / "src/skills/log-format-discovery/scripts/discover.py"),
              "--asset-id", "asset-waf-api-prod", "-i", str(EXAMPLES / "log-format-discovery/waf-jsonl.sample"),
              "--preview-normalize"],
-            cwd=ROOT, env={**os.environ, "DATAASSET_ROOT": str(ROOT / "dataasset")},
+            cwd=ROOT,
+            # UTC makes this regression independent of the developer machine:
+            # epoch rows must use the asset timezone, not the worker timezone.
+            env={**os.environ, "DATAASSET_ROOT": str(ROOT / "dataasset"), "TZ": "UTC"},
             capture_output=True, text=True, timeout=30, check=False,
         )
         self.assertEqual(process.returncode, 0, process.stderr)

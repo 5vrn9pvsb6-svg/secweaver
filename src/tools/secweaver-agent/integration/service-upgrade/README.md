@@ -29,8 +29,12 @@ stop so SCM failure recovery cannot reopen the old executable first. The helper
 then exclusively waits for unlock, performs the atomic replacement, and starts
 the service. Actual startup failures still use SCM recovery and rollback. Its
 bounded, path-redacted phase is persisted as `replace-status.json` and printed
-with service/update diagnostics before CI cleanup. A console-mode `service`
-command deliberately leaves the service name empty and does not start or modify
-SCM services.
+with service/update diagnostics before CI cleanup. The Agent waits for the
+helper's first atomic status acknowledgement before reporting the planned stop;
+if the helper cannot start, the current service process remains available and
+the update attempt fails. A private, truncated `replace-helper.stderr` file
+records PowerShell startup errors without creating a Windows service log. A
+console-mode `service` command deliberately leaves the service name empty
+and does not start or modify SCM services.
 
 Set `KEEP_INTEGRATION_ARTIFACTS=1` to retain the temporary state after a run.

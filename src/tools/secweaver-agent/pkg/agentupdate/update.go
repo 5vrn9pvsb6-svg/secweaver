@@ -1072,17 +1072,71 @@ func stageWindowsBinary(selfPath, stateDir string, payload []byte) (string, erro
 func scheduleWindowsReplace(selfPath, pendingPath, stateDir, serviceName string) error {
 	scriptPath := filepath.Join(stateDir, fmt.Sprintf("replace-%d.ps1", os.Getpid()))
 	statusPath := filepath.Join(stateDir, "replace-status.json")
+	stderrPath := filepath.Join(stateDir, "replace-helper.stderr")
 	// A status belongs to one replacement transaction. Removing the previous
 	// terminal record prevents a helper that fails before initialization from
 	// presenting stale success as the current result.
 	if err := os.Remove(statusPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove stale Windows replacement status: %w", err)
 	}
+	if err := os.Remove(stderrPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return fmt.Errorf("remove stale Windows replacement diagnostic: %w", err)
+	}
 	script := windowsAtomicReplaceScript(pendingPath, selfPath, serviceName, statusPath)
 	if err := os.WriteFile(scriptPath, []byte(script), 0600); err != nil {
 		return err
 	}
-	return launchWindowsReplaceHelper(scriptPath)
+	process, err := launchWindowsReplaceHelper(scriptPath, stderrPath)
+	if err != nil {
+		return fmt.Errorf("start Windows replacement helper: %w", err)
+	}
+	// CreateProcess returning successfully is not enough: CI and service
+	// supervisors may kill children that remain in the parent's Job Object as
+	// soon as this process exits. Require the helper's first atomic status write
+	// before reporting a planned stop to SCM, otherwise the old Agent remains
+	// available and the transaction is retried by the normal scheduler.
+	if err := waitForWindowsReplaceHelperReady(statusPath, 5*time.Second); err != nil {
+		_ = process.Kill()
+		_ = process.Release()
+		return fmt.Errorf("Windows replacement helper did not acknowledge startup: %w (diagnostic=%s)", err, stderrPath)
+	}
+	return process.Release()
+}
+
+type windowsReplaceStatus struct {
+	Phase string `json:"phase"`
+}
+
+// waitForWindowsReplaceHelperReady closes the handoff race between the service
+// and its post-exit helper. Only an initial waiting/busy phase is accepted;
+// a terminal failure is returned immediately so the updater never leaves SCM
+// stopped without an owner for replacement.
+func waitForWindowsReplaceHelperReady(statusPath string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		payload, err := os.ReadFile(statusPath)
+		if err == nil {
+			var status windowsReplaceStatus
+			if jsonErr := json.Unmarshal(payload, &status); jsonErr != nil {
+				return fmt.Errorf("invalid helper status: %w", jsonErr)
+			}
+			switch status.Phase {
+			case "waiting_for_process_exit", "binary_replaced", "service_starting", "service_running":
+				return nil
+			case "replace_failed", "service_start_failed":
+				return fmt.Errorf("helper reported phase %q", status.Phase)
+			default:
+				return fmt.Errorf("helper reported unknown phase %q", status.Phase)
+			}
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("read helper status: %w", err)
+		}
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("startup acknowledgement timeout after %s", timeout)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 func windowsAtomicReplaceScript(sourcePath, destinationPath, serviceName, statusPath string) string {

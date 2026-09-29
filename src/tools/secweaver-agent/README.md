@@ -565,7 +565,12 @@ Windows stages the replacement on the same filesystem and returns `install_sched
 cannot race the detached helper. After the executable unlocks, that helper commits it with Windows
 `File.Replace` atomic semantics, restarts the registered service, and records its bounded
 phase in `replace-status.json`. Actual repeated startup failures still run the external
-rollback command, and rollback uses the same atomic replacement operation.
+rollback command, and rollback uses the same atomic replacement operation. Before
+the service reports a planned stop, it waits for the helper's first atomic
+phase acknowledgement; a helper that is killed by a runner Job Object or
+fails to start therefore cannot leave the service stopped. The helper requests
+`CREATE_BREAKAWAY_FROM_JOB` when allowed and keeps a truncated
+`replace-helper.stderr` diagnostic in the protected update state directory.
 
 ## Config
 

@@ -495,7 +495,11 @@ Linux 安装时会原子替换二进制并返回 `installed`，systemd 通过稳
 安装/回滚先把文件暂存在同一文件系统，返回 `install_scheduled` 或 `rollback_scheduled`。服务随后
 按计划正常停止，避免 SCM 故障恢复与脱离进程的替换助手争抢旧文件；助手等待解锁后通过
 Windows `File.Replace` 原子提交、重启已注册服务，并将有界阶段写入
-`replace-status.json`。真实连续启动失败仍执行外部回滚脚本，回滚二进制使用相同原子替换语义。
+`replace-status.json`。服务报告计划内停止前会等待助手第一次原子阶段确认，因此
+runner Job Object 杀掉助手或助手启动失败时，不会留下已经停止的服务。允许时助手
+会请求 `CREATE_BREAKAWAY_FROM_JOB`，并在受保护的升级状态目录中保留截断的
+`replace-helper.stderr` 诊断。真实连续启动失败仍执行外部回滚脚本，回滚二进制使用相同
+原子替换语义。
 
 ## 配置
 

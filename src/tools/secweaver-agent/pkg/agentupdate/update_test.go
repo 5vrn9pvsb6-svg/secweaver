@@ -1045,6 +1045,24 @@ func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) 
 	}
 }
 
+func TestWaitForWindowsReplaceHelperReadyRequiresAcknowledge(t *testing.T) {
+	dir := t.TempDir()
+	statusPath := filepath.Join(dir, "replace-status.json")
+	if err := os.WriteFile(statusPath, []byte("{\"phase\":\"waiting_for_process_exit\"}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitForWindowsReplaceHelperReady(statusPath, time.Second); err != nil {
+		t.Fatalf("valid helper acknowledgement failed: %v", err)
+	}
+
+	if err := os.WriteFile(statusPath, []byte("{\"phase\":\"replace_failed\"}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitForWindowsReplaceHelperReady(statusPath, time.Second); err == nil {
+		t.Fatal("terminal helper failure was accepted as startup acknowledgement")
+	}
+}
+
 func writeRolloutManifest(t *testing.T, rolloutJSON string) string {
 	t.Helper()
 	dir := t.TempDir()

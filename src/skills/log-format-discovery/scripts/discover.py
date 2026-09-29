@@ -715,8 +715,15 @@ def try_normalize_preview(
             real_path = DATAASSET / "assets" / f"{asset_id}.json"
             if real_path.is_file():
                 real = _load_json(real_path)
-                if real.get("field_aliases"):
-                    asset["field_aliases"] = real["field_aliases"]
+                # Preview must exercise the same normalization contract as a
+                # live fetch. Loading aliases alone silently dropped schema
+                # timezone correction, masking, and future asset-level rules.
+                asset = {
+                    **real,
+                    "asset_id": asset_id,
+                    "asset_type": asset_type,
+                }
+                asset.setdefault("masking", {})
         json_events = [ev for ev in preview if ev.keys() != {"raw_line"}]
         if not json_events:
             return None
