@@ -386,11 +386,30 @@ func RollbackForReason(opts Options, reason string) (Status, error) {
 	status := newStatus("secweaver_agent_update_rollback", opts)
 	statePath := filepath.Join(opts.StateDir, "state.json")
 	status.StatePath = statePath
+
+	// State selection and backup restoration are one transaction. Reading state
+	// before taking this lock allowed two recovering service starts to retain a
+	// stale previous_binary path while one of them pruned that same backup.
+	unlock, err := acquireLock(opts.StateDir, opts.LockStaleAfter)
+	if err != nil {
+		status.Reason = "update_lock_unavailable"
+		return status, err
+	}
+	defer unlock()
+
 	state, err := readState(statePath)
 	if err != nil {
 		status.Reason = "state_read_failed"
 		return status, err
 	}
+	return rollbackFromStateLocked(opts, status, state, reason)
+}
+
+// rollbackFromStateLocked restores exactly the state generation selected by
+// the caller. The caller owns the update lock for the complete read/backup/
+// replace/state-write sequence; this function must never acquire it again.
+func rollbackFromStateLocked(opts Options, status Status, state State, reason string) (Status, error) {
+	statePath := status.StatePath
 	status.LatestVersion = state.LatestVersion
 	if state.PreviousBinary == "" {
 		status.Reason = "missing_previous_binary"
@@ -403,21 +422,22 @@ func RollbackForReason(opts Options, reason string) (Status, error) {
 	}
 	status.InstalledPath = selfPath
 
-	unlock, err := acquireLock(opts.StateDir, opts.LockStaleAfter)
-	if err != nil {
-		status.Reason = "update_lock_unavailable"
-		return status, err
-	}
-	defer unlock()
-
-	backupPath, err := backupCurrentBinary(selfPath, opts.StateDir, opts.CurrentVersion+"-rollback-from", opts.MaxBackups)
-	if err != nil {
-		status.Reason = "backup_failed"
-		return status, err
-	}
+	// Read the referenced recovery payload before creating or pruning another
+	// backup. Retention also pins this path until the new state is durable.
 	payload, err := os.ReadFile(filepath.Clean(state.PreviousBinary))
 	if err != nil {
 		status.Reason = "previous_binary_read_failed"
+		return status, err
+	}
+	backupPath, err := backupCurrentBinary(
+		selfPath,
+		opts.StateDir,
+		opts.CurrentVersion+"-rollback-from",
+		opts.MaxBackups,
+		state.PreviousBinary,
+	)
+	if err != nil {
+		status.Reason = "backup_failed"
 		return status, err
 	}
 	status.BackupPath = backupPath
@@ -489,6 +509,15 @@ func PrepareHealthCheck(opts Options, timeout time.Duration) (bool, Status, erro
 	opts = normalizeOptions(opts)
 	status := newStatus("secweaver_agent_update_health", opts)
 	status.StatePath = filepath.Join(opts.StateDir, "state.json")
+	// Startup can overlap with SCM recovery. Hold the same transaction lock used
+	// by rollback so a stale health decision cannot overwrite a completed restore.
+	unlock, err := acquireLock(opts.StateDir, opts.LockStaleAfter)
+	if err != nil {
+		status.Reason = "update_lock_unavailable"
+		return false, status, err
+	}
+	defer unlock()
+
 	state, err := readState(status.StatePath)
 	if errors.Is(err, os.ErrNotExist) {
 		status.Status = "not_pending"
@@ -512,7 +541,9 @@ func PrepareHealthCheck(opts Options, timeout time.Duration) (bool, Status, erro
 		if err := writeState(status.StatePath, state); err != nil {
 			return false, status, err
 		}
-		rollbackStatus, rollbackErr := RollbackForReason(opts, state.RollbackReason)
+		rollbackStatus := newStatus("secweaver_agent_update_rollback", opts)
+		rollbackStatus.StatePath = status.StatePath
+		rollbackStatus, rollbackErr := rollbackFromStateLocked(opts, rollbackStatus, state, state.RollbackReason)
 		return false, rollbackStatus, rollbackErr
 	}
 	if state.HealthStartedAt != "" {
@@ -521,7 +552,9 @@ func PrepareHealthCheck(opts Options, timeout time.Duration) (bool, Status, erro
 		if err := writeState(status.StatePath, state); err != nil {
 			return false, status, err
 		}
-		rollbackStatus, rollbackErr := Rollback(opts)
+		rollbackStatus := newStatus("secweaver_agent_update_rollback", opts)
+		rollbackStatus.StatePath = status.StatePath
+		rollbackStatus, rollbackErr := rollbackFromStateLocked(opts, rollbackStatus, state, "manual_rollback")
 		return false, rollbackStatus, rollbackErr
 	}
 	if timeout <= 0 {
@@ -805,7 +838,7 @@ func resolveSelfPath(path string) (string, error) {
 	return abs, nil
 }
 
-func backupCurrentBinary(selfPath, stateDir, currentVersion string, maxBackups int) (string, error) {
+func backupCurrentBinary(selfPath, stateDir, currentVersion string, maxBackups int, protectedPaths ...string) (string, error) {
 	backupDir := filepath.Join(stateDir, "backups")
 	if err := os.MkdirAll(backupDir, 0700); err != nil {
 		return "", err
@@ -815,13 +848,13 @@ func backupCurrentBinary(selfPath, stateDir, currentVersion string, maxBackups i
 	if err := copyFile(selfPath, backupPath); err != nil {
 		return "", err
 	}
-	if err := pruneBackups(backupDir, maxBackups, backupPath); err != nil {
+	if err := pruneBackups(backupDir, maxBackups, append(protectedPaths, backupPath)...); err != nil {
 		return "", err
 	}
 	return backupPath, nil
 }
 
-func pruneBackups(backupDir string, maxBackups int, keepPath string) error {
+func pruneBackups(backupDir string, maxBackups int, protectedPaths ...string) error {
 	if maxBackups <= 0 {
 		return nil
 	}
@@ -851,11 +884,23 @@ func pruneBackups(backupDir string, maxBackups int, keepPath string) error {
 		return backups[i].modTime.Before(backups[j].modTime)
 	})
 	for len(backups) > maxBackups {
-		removeIndex := 0
-		if backups[removeIndex].path == keepPath {
-			removeIndex = 1
+		removeIndex := -1
+		for index, backup := range backups {
+			protected := false
+			for _, keepPath := range protectedPaths {
+				if pathsEqual(backup.path, keepPath) {
+					protected = true
+					break
+				}
+			}
+			if !protected {
+				removeIndex = index
+				break
+			}
 		}
-		if removeIndex >= len(backups) {
+		// A live transaction may temporarily retain more than maxBackups. Its
+		// recovery inputs take precedence over the steady-state disk bound.
+		if removeIndex < 0 {
 			break
 		}
 		if err := os.Remove(backups[removeIndex].path); err != nil && !errors.Is(err, os.ErrNotExist) {
@@ -864,6 +909,15 @@ func pruneBackups(backupDir string, maxBackups int, keepPath string) error {
 		backups = append(backups[:removeIndex], backups[removeIndex+1:]...)
 	}
 	return nil
+}
+
+func pathsEqual(left, right string) bool {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	if runtime.GOOS == "windows" {
+		return strings.EqualFold(left, right)
+	}
+	return left == right
 }
 
 var availableDiskBytes = diskFreeBytes
@@ -1082,7 +1136,7 @@ func scheduleWindowsReplace(selfPath, pendingPath, stateDir, serviceName string)
 	if err := os.Remove(stderrPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("remove stale Windows replacement diagnostic: %w", err)
 	}
-	script := windowsAtomicReplaceScript(pendingPath, selfPath, serviceName, statusPath)
+	script := windowsAtomicReplaceScript(pendingPath, selfPath, serviceName, statusPath, os.Getpid())
 	if err := os.WriteFile(scriptPath, []byte(script), 0600); err != nil {
 		return err
 	}
@@ -1123,7 +1177,7 @@ func waitForWindowsReplaceHelperReady(statusPath string, timeout time.Duration) 
 			switch status.Phase {
 			case "waiting_for_process_exit", "binary_replaced", "service_starting", "service_running":
 				return nil
-			case "replace_failed", "service_start_failed":
+			case "parent_exit_timeout", "replace_failed", "service_start_failed":
 				return fmt.Errorf("helper reported phase %q", status.Phase)
 			default:
 				return fmt.Errorf("helper reported unknown phase %q", status.Phase)
@@ -1139,7 +1193,7 @@ func waitForWindowsReplaceHelperReady(statusPath string, timeout time.Duration) 
 	}
 }
 
-func windowsAtomicReplaceScript(sourcePath, destinationPath, serviceName, statusPath string) string {
+func windowsAtomicReplaceScript(sourcePath, destinationPath, serviceName, statusPath string, parentPID int) string {
 	encodedSource := base64.StdEncoding.EncodeToString([]byte(sourcePath))
 	encodedDestination := base64.StdEncoding.EncodeToString([]byte(destinationPath))
 	encodedService := base64.StdEncoding.EncodeToString([]byte(serviceName))
@@ -1149,6 +1203,7 @@ $Source = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
 $Destination = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
 $ServiceName = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
 $StatusPath = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("%s"))
+$ParentPID = %d
 
 function Write-ReplaceStatus {
   param([string]$Phase, [string]$Detail)
@@ -1185,9 +1240,24 @@ function Exit-Replace {
 }
 
 Write-ReplaceStatus "waiting_for_process_exit" ""
+$ParentExited = $false
+for ($Attempt = 1; $Attempt -le 120; $Attempt++) {
+  try {
+    Get-Process -Id $ParentPID -ErrorAction Stop | Out-Null
+    Start-Sleep -Seconds 1
+  } catch {
+    $ParentExited = $true
+    break
+  }
+}
+if (-not $ParentExited) {
+  Write-ReplaceStatus "parent_exit_timeout" "service process did not exit within 120 seconds"
+  Exit-Replace 1
+}
+
 $Replaced = $false
 $LastError = ""
-for ($Attempt = 1; $Attempt -le 60; $Attempt++) {
+for ($Attempt = 1; $Attempt -le 30; $Attempt++) {
   try {
     if ([IO.File]::Exists($Destination)) {
       [IO.File]::Replace($Source, $Destination, $null, $true)
@@ -1199,7 +1269,7 @@ for ($Attempt = 1; $Attempt -le 60; $Attempt++) {
     break
   } catch {
     $LastError = $_.Exception.Message
-    if ($Attempt -lt 60) { Start-Sleep -Seconds 1 }
+    if ($Attempt -lt 30) { Start-Sleep -Seconds 1 }
   }
 }
 if (-not $Replaced) {
@@ -1241,7 +1311,7 @@ for ($ServiceAttempt = 1; $ServiceAttempt -le 60; $ServiceAttempt++) {
 }
 Write-ReplaceStatus "service_start_failed" $LastError
 Exit-Replace 1
-`, encodedSource, encodedDestination, encodedService, encodedStatus)
+`, encodedSource, encodedDestination, encodedService, encodedStatus, parentPID)
 }
 
 func copyFile(src, dst string) error {

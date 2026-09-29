@@ -18,7 +18,7 @@ fi
 "${ROOT_DIR}/scripts/verify-release-version.sh" "${VERSION}"
 if git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   SOURCE_COMMIT="$(git -C "${REPO_ROOT}" rev-parse HEAD)"
-  SOURCE_CHANGES="$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=all -- src/tools/secweaver-agent src/scripts/source_fingerprint.py)"
+  SOURCE_CHANGES="$(git -C "${REPO_ROOT}" status --porcelain --untracked-files=all -- src/tools/secweaver-agent src/scripts/source_fingerprint.py src/scripts/source_archive_provenance.py)"
   if [[ -n "${SOURCE_CHANGES}" && "${ALLOW_DIRTY_RELEASE}" != "1" ]]; then
     echo "refusing Agent build from a dirty source tree; commit the release or set ALLOW_DIRTY_RELEASE=1 for a non-production build" >&2
     printf '%s\n' "${SOURCE_CHANGES}" >&2
@@ -29,7 +29,7 @@ if git -C "${REPO_ROOT}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "warning: building non-production Agent artifacts from dirty source" >&2
   fi
 else
-  SOURCE_COMMIT="unknown"
+  SOURCE_COMMIT="$(python3 "${REPO_ROOT}/src/scripts/source_archive_provenance.py" field --root "${REPO_ROOT}" source_commit)"
 fi
 TARGETS=(
   "linux amd64"

@@ -132,7 +132,7 @@ func TestReleaseVersionGateRejectsEnvironmentOnlyVersioning(t *testing.T) {
 	}
 	// A package name supplied only through VERSION would not be represented in
 	// source history, so the gate must compare it with the canonical file.
-	for _, contract := range []string{"requested VERSION", "diff --name-only", "status --porcelain"} {
+	for _, contract := range []string{"requested VERSION", "diff --name-only", "status --porcelain", "source_archive_provenance.py"} {
 		if !strings.Contains(string(body), contract) {
 			t.Fatalf("release version gate does not enforce %q", contract)
 		}

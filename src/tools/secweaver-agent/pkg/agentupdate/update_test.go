@@ -629,6 +629,9 @@ func TestHealthyPostUpdateActivationIsCommitted(t *testing.T) {
 func TestTargetVersionMismatchAutomaticallyRollsBack(t *testing.T) {
 	opts, selfPath := installUnsignedTestUpdate(t)
 	opts.CurrentVersion = "0.3.1"
+	// A one-file retention limit reproduces the production failure where making
+	// the rollback-from backup pruned the previous binary before it was read.
+	opts.MaxBackups = 1
 
 	pending, status, err := PrepareHealthCheck(opts, time.Minute)
 	if err != nil || pending || status.Status != "rolled_back" {
@@ -1017,7 +1020,7 @@ func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) 
 	source := `C:/ProgramData/SecWeaver/pending/agent with spaces.new`
 	destination := `C:/Program Files/SecWeaver/secweaver-agent.exe`
 	statusPath := `C:/ProgramData/SecWeaver/state/replace-status.json`
-	script := windowsAtomicReplaceScript(source, destination, "SecWeaverAgent", statusPath)
+	script := windowsAtomicReplaceScript(source, destination, "SecWeaverAgent", statusPath, 4242)
 	if strings.Contains(script, source) || strings.Contains(script, destination) || strings.Contains(script, statusPath) {
 		t.Fatal("Windows replacement script embeds an unescaped filesystem path")
 	}
@@ -1029,6 +1032,9 @@ func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) 
 		base64.StdEncoding.EncodeToString([]byte(statusPath)),
 		"Start-Service -Name $ServiceName",
 		`Write-ReplaceStatus "waiting_for_process_exit"`,
+		`$ParentPID = 4242`,
+		`Get-Process -Id $ParentPID`,
+		`Write-ReplaceStatus "parent_exit_timeout"`,
 		`Write-ReplaceStatus "service_start_failed"`,
 	} {
 		if !strings.Contains(script, expected) {

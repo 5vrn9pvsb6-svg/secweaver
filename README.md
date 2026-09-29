@@ -336,7 +336,11 @@ worktree clean before creating a public archive without internal Git history:
 make open-source-export OUTPUT=/tmp/secweaver-community.tar.gz
 ```
 
-The exporter validates the extracted archive. Do not push internal Git history to a public remote.
+The exporter first runs the Git-backed Agent version gate, then embeds a
+`.secweaver-source-archive.json` receipt containing the source commit, VERSION commit, and
+byte-level Agent fingerprint. Release tooling accepts a history-free tree only when that receipt
+still matches the extracted source. The exporter validates the completed archive; do not push
+internal Git history to a public remote.
 
 ---
 

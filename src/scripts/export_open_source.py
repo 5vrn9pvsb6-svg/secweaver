@@ -75,6 +75,54 @@ def verify_archive(path: Path) -> bool:
     return True
 
 
+def run_checked(command: list[str], cwd: Path) -> str:
+    """Run one export prerequisite and surface its bounded diagnostic on failure."""
+    result = subprocess.run(command, cwd=cwd, text=True, capture_output=True, check=False)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip()
+        raise RuntimeError(f"{' '.join(command)} failed: {detail}")
+    return result.stdout.strip()
+
+
+def add_source_provenance(raw_archive: Path, output: Path) -> None:
+    """Repack Git's history-free tree with provenance produced by the Git release gate.
+
+    The receipt is added only after the clean checkout passes the production Agent
+    version check. Archive consumers can therefore verify exact Agent bytes without
+    carrying repository history or relying on an environment-only bypass.
+    """
+    verifier = REPO_ROOT / "src/tools/secweaver-agent/scripts/verify-release-version.sh"
+    run_checked([str(verifier)], REPO_ROOT)
+    source_commit = run_checked(["git", "rev-parse", "HEAD"], REPO_ROOT)
+    version_commit = run_checked(
+        ["git", "log", "-1", "--format=%H", "--", "src/tools/secweaver-agent/VERSION"],
+        REPO_ROOT,
+    )
+
+    with tempfile.TemporaryDirectory(prefix="secweaver-community-stage-") as directory:
+        root = Path(directory)
+        with tarfile.open(raw_archive, "r:gz") as archive:
+            archive.extractall(root)
+        provenance = root / "src/scripts/source_archive_provenance.py"
+        run_checked(
+            [
+                os.environ.get("PYTHON", sys.executable),
+                str(provenance),
+                "create",
+                "--root",
+                str(root),
+                "--source-commit",
+                source_commit,
+                "--version-commit",
+                version_commit,
+            ],
+            root,
+        )
+        with tarfile.open(output, "w:gz", format=tarfile.PAX_FORMAT) as archive:
+            for child in sorted(root.iterdir(), key=lambda path: path.name):
+                archive.add(child, arcname=child.name, recursive=True)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Export the current Git HEAD without company-private roots or internal history."
@@ -97,6 +145,8 @@ def main() -> int:
 
     output = args.output.expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(prefix="secweaver-community-raw-", suffix=".tar.gz", delete=False) as handle:
+        raw_archive = Path(handle.name)
     with tempfile.NamedTemporaryFile(prefix="secweaver-community-", suffix=".tar.gz", delete=False) as handle:
         temporary = Path(handle.name)
     try:
@@ -106,7 +156,7 @@ def main() -> int:
                 "archive",
                 "--worktree-attributes",
                 "--format=tar.gz",
-                f"--output={temporary}",
+                f"--output={raw_archive}",
                 "HEAD",
             ],
             cwd=REPO_ROOT,
@@ -116,6 +166,11 @@ def main() -> int:
         )
         if result.returncode != 0:
             print(f"ERROR: git archive failed: {result.stderr.strip()}")
+            return 1
+        try:
+            add_source_provenance(raw_archive, temporary)
+        except RuntimeError as exc:
+            print(f"ERROR: source archive provenance failed: {exc}")
             return 1
         leaked = private_members(archive_members(temporary))
         if leaked:
@@ -127,6 +182,7 @@ def main() -> int:
             return 1
         temporary.replace(output)
     finally:
+        raw_archive.unlink(missing_ok=True)
         temporary.unlink(missing_ok=True)
 
     print(f"open-source archive: {output}")

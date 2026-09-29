@@ -286,7 +286,9 @@ make ci
 make open-source-export OUTPUT=/tmp/secweaver-community.tar.gz
 ```
 
-导出器会验证解压后的归档；不要向公开远程仓库推送内部 Git 历史。
+导出器会先执行基于 Git 的 Agent 版本门禁，再写入 `.secweaver-source-archive.json`，其中包含
+源码提交、VERSION 提交和 Agent 字节级指纹。发布工具仅在该清单仍与解压源码完全一致时接受
+无 Git 历史的目录。导出器会验证最终归档；不要向公开远程仓库推送内部 Git 历史。
 
 ---
 

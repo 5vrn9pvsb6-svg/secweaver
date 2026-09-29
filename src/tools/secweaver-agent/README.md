@@ -567,10 +567,13 @@ cannot race the detached helper. After the executable unlocks, that helper commi
 phase in `replace-status.json`. Actual repeated startup failures still run the external
 rollback command, and rollback uses the same atomic replacement operation. Before
 the service reports a planned stop, it waits for the helper's first atomic
-phase acknowledgement; a helper that is killed by a runner Job Object or
-fails to start therefore cannot leave the service stopped. The helper requests
-`CREATE_BREAKAWAY_FROM_JOB` when allowed and keeps a truncated
-`replace-helper.stderr` diagnostic in the protected update state directory.
+phase acknowledgement. The helper requests `CREATE_BREAKAWAY_FROM_JOB`, tracks
+the exact parent service PID, and waits for that process to exit before touching
+the executable. Parent-exit timeout, replacement failure, and service-start
+failure are persisted as separate phases. Rollback holds the update lock from
+state selection through replacement and temporarily protects every referenced
+backup from retention pruning. The protected update state directory keeps a
+truncated `replace-helper.stderr` diagnostic.
 
 ## Config
 

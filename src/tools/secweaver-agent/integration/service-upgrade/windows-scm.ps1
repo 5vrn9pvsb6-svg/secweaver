@@ -50,6 +50,7 @@ function Write-UpgradeDiagnostics {
   foreach ($Path in @(
     (Join-Path $StateDir "state.json"),
     (Join-Path $StateDir "replace-status.json"),
+    (Join-Path $StateDir "replace-helper.stderr"),
     "$ConfigPath.service-error.txt"
   )) {
     if (Test-Path -LiteralPath $Path) {
@@ -61,6 +62,21 @@ function Write-UpgradeDiagnostics {
   if (Test-Path -LiteralPath $UpdateStatus) {
     Write-Host "--- $UpdateStatus (last 20 lines)"
     Get-Content -LiteralPath $UpdateStatus -Tail 20 | Write-Host
+  }
+  foreach ($Directory in @(
+    (Join-Path $StateDir "backups"),
+    (Join-Path $StateDir "pending")
+  )) {
+    Write-Host "--- directory $Directory"
+    if (Test-Path -LiteralPath $Directory) {
+      Get-ChildItem -Force -LiteralPath $Directory |
+        Select-Object Name, Length, LastWriteTimeUtc |
+        Format-Table -AutoSize |
+        Out-String |
+        Write-Host
+    } else {
+      Write-Host "(missing)"
+    }
   }
 }
 

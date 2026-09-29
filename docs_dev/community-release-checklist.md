@@ -19,6 +19,10 @@ make open-source-export OUTPUT=/tmp/secweaver-community.tar.gz
 ```
 
 Export reads `HEAD`; uncommitted changes, including private documentation, block export.
+Before repacking, it runs the production Agent version gate in the clean checkout and writes
+`.secweaver-source-archive.json` into the archive. This receipt binds the history-free tree to its
+source commit, VERSION commit, and exact Agent fingerprint. Packaging from an extracted archive
+fails if the receipt is missing or any protected source byte has changed.
 Do not discard unfinished work to pass this check. CI writes demo outputs to a temporary
 directory so timestamps and local paths do not dirty tracked examples. Published example
 reports use repository-relative paths; the release scanner rejects user home paths in them.

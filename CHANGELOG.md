@@ -1,5 +1,19 @@
 # Changelog
 
+## Agent 0.3.68
+
+- Allow verified Agent packaging from the official history-free Community
+  archive. The exporter now runs the Git-backed immutable-version gate before
+  embedding source/version commits and byte-level Agent provenance; modifying
+  the archive's Agent source, `VERSION`, or fingerprint tool invalidates it.
+- Serialize Windows activation and rollback state under the update lock, read
+  the selected recovery payload before retention pruning, and pin every backup
+  referenced by the active transaction. A low backup limit or overlapping SCM
+  recovery can no longer delete the binary currently needed for rollback.
+- Make the Windows replacement helper wait for the exact service process to
+  exit before attempting `File.Replace`, and include helper stderr plus backup
+  and pending-file inventories in failed SCM integration diagnostics.
+
 ## Agent 0.3.67
 
 - Fix UTC-only log-format discovery previews by passing the complete asset
