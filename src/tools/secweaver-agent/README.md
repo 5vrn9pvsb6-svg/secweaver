@@ -563,8 +563,8 @@ while upgraded binaries remain compatible with older units by returning `1` unle
 Windows stages the replacement on the same filesystem and returns `install_scheduled` or
 `rollback_scheduled`. The service then reports a successful planned stop so SCM recovery
 cannot race the detached helper. After the executable unlocks, that helper commits it with Windows
-`File.Replace` atomic semantics, restarts the registered service, and records its bounded
-phase in `replace-status.json`. Actual repeated startup failures still run the external
+`File.Replace` atomic semantics with a concrete same-directory backup path for Windows PowerShell 5.1 compatibility, restarts the registered service, and records its bounded
+phase in transaction-scoped `replace-status-<attempt_id>.json`. Actual repeated startup failures still run the external
 rollback command, and rollback uses the same atomic replacement operation. Before
 the service reports a planned stop, it waits for the helper's first atomic
 phase acknowledgement. The helper requests `CREATE_BREAKAWAY_FROM_JOB`, tracks
@@ -573,7 +573,10 @@ the executable. Parent-exit timeout, replacement failure, and service-start
 failure are persisted as separate phases. Rollback holds the update lock from
 state selection through replacement and temporarily protects every referenced
 backup from retention pruning. The protected update state directory keeps a
-truncated `replace-helper.stderr` diagnostic.
+transaction-scoped, truncated `replace-helper-<attempt_id>.stderr` diagnostic.
+The newest three files of each kind are retained. Cleanup is best effort:
+a previous helper that is still closing a Windows file handle can temporarily
+leave an extra diagnostic, but can never block activation or rollback.
 
 ## Config
 

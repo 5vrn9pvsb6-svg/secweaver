@@ -28,14 +28,20 @@ detached replacement helper. A scheduled update reports a successful service
 stop so SCM failure recovery cannot reopen the old executable first. The helper
 then exclusively waits for unlock, performs the atomic replacement, and starts
 the service. Actual startup failures still use SCM recovery and rollback. Its
-bounded, path-redacted phase is persisted as `replace-status.json` and printed
-with service/update diagnostics before CI cleanup. The Agent waits for the
+bounded, path-redacted phase is persisted as
+`replace-status-<attempt_id>.json` and printed with service/update diagnostics
+before CI cleanup. The Agent waits for the
 helper's first atomic status acknowledgement before reporting the planned stop.
 The helper then tracks the exact parent service PID and does not attempt
 `File.Replace` until that process has exited; parent-exit, replacement, and
 service-start failures remain distinguishable phases. A private, truncated
-`replace-helper.stderr` file records PowerShell startup errors without creating
-a Windows service log. Failed CI runs print that file and bounded inventories
+`replace-helper-<attempt_id>.stderr` file records PowerShell startup errors
+without creating a Windows service log. Transaction-specific paths let
+activation and rollback helpers overlap without locking each other's evidence;
+only the newest three files per kind are retained. The test verifies the
+embedded version of N-1/N/N+1 before SCM registration and uses isolated,
+one-second full process baselines so probation does not depend on prior runner
+state. Failed CI runs print the newest helper files and bounded inventories
 of backup and pending files before cleanup. A console-mode `service` command
 deliberately leaves the service name empty and does not start or modify SCM
 services.

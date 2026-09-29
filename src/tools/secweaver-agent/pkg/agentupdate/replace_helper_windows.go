@@ -29,9 +29,10 @@ func launchWindowsReplaceHelper(scriptPath, stderrPath string) (*os.Process, err
 	)
 }
 
-// startWindowsReplaceHelper owns only process creation. stderr is overwritten
-// for each transaction and kept in the ACL-protected update state directory;
-// it is a bounded startup diagnostic, not an append-only Windows service log.
+// startWindowsReplaceHelper owns only process creation. stderr uses a unique,
+// ACL-protected path for each transaction so a still-exiting activation helper
+// cannot lock a rollback helper's diagnostic. The updater bounds old files; this
+// is startup evidence, not an append-only Windows service log.
 func startWindowsReplaceHelper(scriptPath, stderrPath string, creationFlags uint32) (*os.Process, error) {
 	stderr, err := os.OpenFile(stderrPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {

@@ -1,5 +1,21 @@
 # Changelog
 
+## Agent 0.3.69
+
+- Restore Windows PowerShell 5.1 compatibility for atomic activation and
+  rollback. Replacement helpers and SCM recovery commands now provide a
+  concrete same-directory backup path to `File.Replace`, then
+  remove that temporary backup after a successful commit.
+- Isolate Windows replacement-helper status and stderr by update transaction.
+  An activation helper that is still closing its diagnostic handle can no
+  longer block rollback scheduling, fail service startup, or trigger an SCM
+  restart loop. Cleanup retains the newest three records per diagnostic kind
+  and treats transient Windows sharing violations as non-fatal.
+- Make the native Windows SCM upgrade test deterministic: verify every built
+  binary's embedded version before service registration, isolate process
+  collector state, force fresh probation output, and print the newest
+  transaction-scoped replacement diagnostics on failure.
+
 ## Agent 0.3.68
 
 - Allow verified Agent packaging from the official history-free Community

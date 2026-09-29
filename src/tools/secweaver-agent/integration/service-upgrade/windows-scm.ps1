@@ -49,8 +49,6 @@ function Write-UpgradeDiagnostics {
   & sc.exe qfailure $ServiceName
   foreach ($Path in @(
     (Join-Path $StateDir "state.json"),
-    (Join-Path $StateDir "replace-status.json"),
-    (Join-Path $StateDir "replace-helper.stderr"),
     "$ConfigPath.service-error.txt"
   )) {
     if (Test-Path -LiteralPath $Path) {
@@ -58,6 +56,17 @@ function Write-UpgradeDiagnostics {
       Get-Content -Raw -LiteralPath $Path | Write-Host
     }
   }
+  # Replacement helpers overlap briefly with the service generations they
+  # activate. Print the newest transaction-scoped evidence instead of assuming
+  # a single shared status or stderr file.
+  Get-ChildItem -File -LiteralPath $StateDir -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -match '^replace-(status-.*\.json|helper-.*\.stderr)$' -or $_.Name -in @("replace-status.json", "replace-helper.stderr") } |
+    Sort-Object LastWriteTimeUtc |
+    Select-Object -Last 6 |
+    ForEach-Object {
+      Write-Host "--- $($_.FullName)"
+      Get-Content -Raw -LiteralPath $_.FullName | Write-Host
+    }
   $UpdateStatus = Join-Path $Root "update-status.jsonl"
   if (Test-Path -LiteralPath $UpdateStatus) {
     Write-Host "--- $UpdateStatus (last 20 lines)"
@@ -77,6 +86,19 @@ function Write-UpgradeDiagnostics {
     } else {
       Write-Host "(missing)"
     }
+  }
+}
+
+function Assert-AgentVersion {
+  param(
+    [Parameter(Mandatory = $true)][string]$Path,
+    [Parameter(Mandatory = $true)][string]$Expected
+  )
+  # Fail before SCM mutation when PowerShell or Go argument handling produces a
+  # binary whose embedded identity differs from the manifest under test.
+  $VersionOutput = (& $Path version 2>&1) -join "`n"
+  if ($LASTEXITCODE -ne 0 -or $VersionOutput -notmatch ("secweaver-agent " + [Regex]::Escape($Expected))) {
+    throw "built Agent $Path did not report expected version $Expected; output=$VersionOutput"
   }
 }
 
@@ -129,6 +151,9 @@ try {
     $FailedTargetBinary = Join-Path $ArtifactDir $FailedTargetName
     Invoke-Go @("build", "-trimpath", "-ldflags", "-X main.version=0.3.1", "-o", $GoodTargetBinary, ".")
     Invoke-Go @("build", "-trimpath", "-tags", "integrationhealthfail", "-ldflags", "-X main.version=0.3.2", "-o", $FailedTargetBinary, ".")
+    Assert-AgentVersion -Path $Binary -Expected "0.3.0"
+    Assert-AgentVersion -Path $GoodTargetBinary -Expected "0.3.1"
+    Assert-AgentVersion -Path $FailedTargetBinary -Expected "0.3.2"
     Invoke-Go @("run", "./cmd/update-sign", "-generate-key", (Join-Path $Root "update-signing.key"))
   } finally {
     Pop-Location
@@ -164,7 +189,15 @@ try {
       "host-process-snapshot" = @{
         enabled = $true
         restart = "on_failure"
-        args = @("-interval", "30s", "-output", (Join-Path $Root "host-process.jsonl"))
+        # Keep state inside this test and force each service generation to emit
+        # a baseline within probation. The test validates upgrade lifecycle,
+        # not the normal no-change suppression of the process delta collector.
+        args = @(
+          "-interval", "1s",
+          "-full-snapshot-interval", "1s",
+          "-state", (Join-Path $Root "host-process-state.json"),
+          "-output", (Join-Path $Root "host-process.jsonl")
+        )
       }
     }
   }
@@ -183,7 +216,9 @@ if not exist "%STATE%\health.pending" goto restart
 if not exist "%STATE%\previous.bin" exit /b 2
 copy /Y "%STATE%\previous.bin" "%AGENT%.rollback" >NUL || exit /b 3
 set "ROLLBACK=%AGENT%.rollback"
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "[IO.File]::Replace(`$env:ROLLBACK, `$env:AGENT, `$null, `$true)" >NUL 2>NUL || exit /b 4
+set "ROLLBACK_BACKUP=%AGENT%.rollback-backup"
+rem Windows PowerShell 5.1 requires a concrete File.Replace backup path.
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Remove-Item -LiteralPath `$env:ROLLBACK_BACKUP -Force -ErrorAction SilentlyContinue; [IO.File]::Replace(`$env:ROLLBACK, `$env:AGENT, `$env:ROLLBACK_BACKUP, `$true); Remove-Item -LiteralPath `$env:ROLLBACK_BACKUP -Force -ErrorAction SilentlyContinue" >NUL 2>NUL || exit /b 4
 del /Q "%STATE%\health.pending" "%STATE%\activation.attempted" >NUL 2>NUL
 :restart
 sc.exe start "$ServiceName" >NUL 2>NUL

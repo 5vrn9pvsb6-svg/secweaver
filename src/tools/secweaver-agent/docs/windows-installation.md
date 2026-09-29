@@ -278,7 +278,7 @@ PowerShell regression tests and `make check` for Go, race and cross-build checks
 Windows SCM upgrade tests remain in `integration/service-upgrade/windows-scm.ps1`.
 These automated checks do not replace the real-machine marker and cloud query above.
 
-Windows SCM updates use a detached replacement helper outside the service process group. A scheduled replacement reports a successful service stop so SCM failure recovery cannot race it by reopening the old executable. The helper tracks the exact parent service PID, waits for that process to exit, atomically replaces the binary, and starts the registered service; real startup failures still enter SCM recovery and rollback. Its bounded, path-redacted phase is written to `<update.state_dir>/replace-status.json`. Before the service reports a planned stop, it waits for the helper's first atomic phase acknowledgement. The helper requests `CREATE_BREAKAWAY_FROM_JOB` and records parent-exit timeout, replacement failure, or service-start failure separately. Rollback holds the update transaction lock and pins its referenced recovery binary against backup pruning until new state is durable. A truncated `replace-helper.stderr` diagnostic remains in the protected update state directory. Console-mode runs do not carry a service name and never mutate SCM state.
+Windows SCM updates use a detached replacement helper outside the service process group. A scheduled replacement reports a successful service stop so SCM failure recovery cannot race it by reopening the old executable. The helper tracks the exact parent service PID, waits for that process to exit, atomically replaces the binary, and starts the registered service; real startup failures still enter SCM recovery and rollback. Its bounded, path-redacted phase is written to `<update.state_dir>/replace-status-<attempt_id>.json`. Before the service reports a planned stop, it waits for the helper's first atomic phase acknowledgement. The helper requests `CREATE_BREAKAWAY_FROM_JOB` and records parent-exit timeout, replacement failure, or service-start failure separately. Rollback holds the update transaction lock and pins its referenced recovery binary against backup pruning until new state is durable. A transaction-scoped, truncated `replace-helper-<attempt_id>.stderr` diagnostic remains in the protected update state directory. The newest three files of each kind are retained; cleanup sharing violations are non-fatal so an exiting helper cannot block rollback. Console-mode runs do not carry a service name and never mutate SCM state.
 
 ## Windows SLS Collection Readiness
 
@@ -327,3 +327,14 @@ complete nonempty SLS query of a newly generated benign command. It emits a
 timestamped receipt; zero rows or query failure remain unverified. Run that test
 on a real Windows x64 host before production promotion. Unit tests and cross-builds
 do not replace this acceptance.
+
+## PowerShell 5.1 replacement compatibility
+
+The Windows PowerShell 5.1/.NET Framework implementation rejects a null backup
+argument for `[IO.File]::Replace`. Agent activation and installer/SCM rollback
+therefore create a same-directory temporary backup path, perform the atomic
+replacement, and remove that temporary backup after success. This keeps the
+destination on one volume and leaves durable rollback ownership in the Agent
+update state directory. Do not replace these calls with `Move-Item` or a
+cross-volume copy. The service-upgrade integration test runs on PowerShell 5.1
+and must cover both healthy activation and rollback.

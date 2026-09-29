@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -1025,7 +1026,10 @@ func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) 
 		t.Fatal("Windows replacement script embeds an unescaped filesystem path")
 	}
 	for _, expected := range []string{
-		"[IO.File]::Replace($Source, $Destination, $null, $true)",
+		"[IO.File]::Replace($Source, $Destination, $ReplaceBackup, $true)",
+		"[IO.File]::Replace($TempPath, $StatusPath, $StatusBackup, $true)",
+		"$ReplaceBackup = $Destination + \".replace-backup.\"",
+		"$StatusBackup = $StatusPath + \".",
 		base64.StdEncoding.EncodeToString([]byte(source)),
 		base64.StdEncoding.EncodeToString([]byte(destination)),
 		base64.StdEncoding.EncodeToString([]byte("SecWeaverAgent")),
@@ -1041,13 +1045,17 @@ func TestWindowsReplaceScriptUsesAtomicFileReplaceAndEncodedPaths(t *testing.T) 
 			t.Fatalf("Windows replacement script is missing %q", expected)
 		}
 	}
-	replaceIndex := strings.Index(script, "[IO.File]::Replace($Source, $Destination, $null, $true)")
+	replaceIndex := strings.Index(script, "[IO.File]::Replace($Source, $Destination, $ReplaceBackup, $true)")
 	serviceLoopIndex := strings.Index(script, "for ($ServiceAttempt = 1;")
 	if replaceIndex < 0 || serviceLoopIndex < 0 || replaceIndex >= serviceLoopIndex {
 		t.Fatal("Windows replacement must complete before the independent SCM start phase")
 	}
 	if strings.Contains(strings.ToLower(script), "move /y") {
 		t.Fatal("Windows replacement script fell back to a non-atomic cmd move")
+	}
+	if strings.Contains(script, "[IO.File]::Replace($Source, $Destination, $null") ||
+		strings.Contains(script, "[IO.File]::Replace($TempPath, $StatusPath, $null") {
+		t.Fatal("Windows PowerShell 5.1 cannot use a null File.Replace backup path")
 	}
 }
 
@@ -1066,6 +1074,49 @@ func TestWaitForWindowsReplaceHelperReadyRequiresAcknowledge(t *testing.T) {
 	}
 	if err := waitForWindowsReplaceHelperReady(statusPath, time.Second); err == nil {
 		t.Fatal("terminal helper failure was accepted as startup acknowledgement")
+	}
+}
+
+func TestWindowsReplaceArtifactsAreTransactionScopedAndBounded(t *testing.T) {
+	dir := t.TempDir()
+	first := newWindowsReplaceArtifacts(dir)
+	second := newWindowsReplaceArtifacts(dir)
+	if first.statusPath == second.statusPath || first.stderrPath == second.stderrPath || first.scriptPath == second.scriptPath {
+		t.Fatal("Windows replacement transactions reused artifact paths")
+	}
+
+	base := time.Now().Add(-time.Hour)
+	for index := 0; index < 4; index++ {
+		for _, name := range []string{
+			fmt.Sprintf("replace-status-swua_%d.json", index),
+			fmt.Sprintf("replace-helper-swua_%d.stderr", index),
+		} {
+			path := filepath.Join(dir, name)
+			if err := os.WriteFile(path, []byte(name), 0600); err != nil {
+				t.Fatal(err)
+			}
+			stamp := base.Add(time.Duration(index) * time.Minute)
+			if err := os.Chtimes(path, stamp, stamp); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := os.WriteFile(filepath.Join(dir, "unrelated.json"), []byte("keep"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	pruneWindowsReplaceDiagnostics(dir, 2)
+	for _, pattern := range []string{"replace-status-*.json", "replace-helper-*.stderr"} {
+		matches, err := filepath.Glob(filepath.Join(dir, pattern))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(matches) != 2 {
+			t.Fatalf("pattern %s retained %d files, want 2: %v", pattern, len(matches), matches)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dir, "unrelated.json")); err != nil {
+		t.Fatalf("diagnostic pruning removed unrelated state: %v", err)
 	}
 }
 

@@ -21,7 +21,10 @@ import (
 	agentoutput "secweaver-agent/pkg/output"
 )
 
-const appName = "secweaver-agent"
+const (
+	appName                           = "secweaver-agent"
+	windowsReplaceDiagnosticRetention = 3
+)
 
 type Options struct {
 	Context        context.Context
@@ -1124,23 +1127,17 @@ func stageWindowsBinary(selfPath, stateDir string, payload []byte) (string, erro
 }
 
 func scheduleWindowsReplace(selfPath, pendingPath, stateDir, serviceName string) error {
-	scriptPath := filepath.Join(stateDir, fmt.Sprintf("replace-%d.ps1", os.Getpid()))
-	statusPath := filepath.Join(stateDir, "replace-status.json")
-	stderrPath := filepath.Join(stateDir, "replace-helper.stderr")
-	// A status belongs to one replacement transaction. Removing the previous
-	// terminal record prevents a helper that fails before initialization from
-	// presenting stale success as the current result.
-	if err := os.Remove(statusPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove stale Windows replacement status: %w", err)
-	}
-	if err := os.Remove(stderrPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("remove stale Windows replacement diagnostic: %w", err)
-	}
-	script := windowsAtomicReplaceScript(pendingPath, selfPath, serviceName, statusPath, os.Getpid())
-	if err := os.WriteFile(scriptPath, []byte(script), 0600); err != nil {
+	artifacts := newWindowsReplaceArtifacts(stateDir)
+	// The activation helper can still be closing its inherited stderr handle
+	// when the new service schedules a rollback. Per-transaction paths prevent
+	// that harmless overlap from blocking recovery. Pruning is deliberately
+	// best effort because diagnostics must never become part of update liveness.
+	pruneWindowsReplaceDiagnostics(stateDir, windowsReplaceDiagnosticRetention-1)
+	script := windowsAtomicReplaceScript(pendingPath, selfPath, serviceName, artifacts.statusPath, os.Getpid())
+	if err := os.WriteFile(artifacts.scriptPath, []byte(script), 0600); err != nil {
 		return err
 	}
-	process, err := launchWindowsReplaceHelper(scriptPath, stderrPath)
+	process, err := launchWindowsReplaceHelper(artifacts.scriptPath, artifacts.stderrPath)
 	if err != nil {
 		return fmt.Errorf("start Windows replacement helper: %w", err)
 	}
@@ -1149,12 +1146,73 @@ func scheduleWindowsReplace(selfPath, pendingPath, stateDir, serviceName string)
 	// soon as this process exits. Require the helper's first atomic status write
 	// before reporting a planned stop to SCM, otherwise the old Agent remains
 	// available and the transaction is retried by the normal scheduler.
-	if err := waitForWindowsReplaceHelperReady(statusPath, 5*time.Second); err != nil {
+	if err := waitForWindowsReplaceHelperReady(artifacts.statusPath, 5*time.Second); err != nil {
 		_ = process.Kill()
 		_ = process.Release()
-		return fmt.Errorf("Windows replacement helper did not acknowledge startup: %w (diagnostic=%s)", err, stderrPath)
+		return fmt.Errorf("Windows replacement helper did not acknowledge startup: %w (diagnostic=%s)", err, artifacts.stderrPath)
 	}
 	return process.Release()
+}
+
+type windowsReplaceArtifacts struct {
+	scriptPath string
+	statusPath string
+	stderrPath string
+}
+
+// newWindowsReplaceArtifacts assigns one namespace to a helper transaction.
+// Attempt IDs avoid PID reuse and keep an activation helper from racing a
+// rollback helper over status replacement or diagnostic file ownership.
+func newWindowsReplaceArtifacts(stateDir string) windowsReplaceArtifacts {
+	id := newAttemptID()
+	return windowsReplaceArtifacts{
+		scriptPath: filepath.Join(stateDir, "replace-"+id+".ps1"),
+		statusPath: filepath.Join(stateDir, "replace-status-"+id+".json"),
+		stderrPath: filepath.Join(stateDir, "replace-helper-"+id+".stderr"),
+	}
+}
+
+// pruneWindowsReplaceDiagnostics bounds completed helper evidence while
+// tolerating files that an overlapping Windows helper still has open. A later
+// transaction retries removal, so transient sharing violations cannot turn a
+// diagnostic retention policy into an update or rollback failure.
+func pruneWindowsReplaceDiagnostics(stateDir string, maxPerKind int) {
+	if maxPerKind < 0 {
+		maxPerKind = 0
+	}
+	pruneWindowsReplaceDiagnosticKind(stateDir, "replace-status-", ".json", "replace-status.json", maxPerKind)
+	pruneWindowsReplaceDiagnosticKind(stateDir, "replace-helper-", ".stderr", "replace-helper.stderr", maxPerKind)
+}
+
+func pruneWindowsReplaceDiagnosticKind(stateDir, prefix, suffix, legacyName string, maxFiles int) {
+	entries, err := os.ReadDir(stateDir)
+	if err != nil {
+		return
+	}
+	type diagnosticFile struct {
+		path    string
+		modTime time.Time
+	}
+	files := make([]diagnosticFile, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || (entry.Name() != legacyName && !(strings.HasPrefix(entry.Name(), prefix) && strings.HasSuffix(entry.Name(), suffix))) {
+			continue
+		}
+		info, infoErr := entry.Info()
+		if infoErr != nil {
+			continue
+		}
+		files = append(files, diagnosticFile{path: filepath.Join(stateDir, entry.Name()), modTime: info.ModTime()})
+	}
+	sort.Slice(files, func(i, j int) bool {
+		if files[i].modTime.Equal(files[j].modTime) {
+			return files[i].path < files[j].path
+		}
+		return files[i].modTime.Before(files[j].modTime)
+	})
+	for index := 0; index < len(files)-maxFiles; index++ {
+		_ = os.Remove(files[index].path)
+	}
 }
 
 type windowsReplaceStatus struct {
@@ -1220,14 +1278,21 @@ function Write-ReplaceStatus {
       detail = $Detail
     } | ConvertTo-Json -Compress
     $TempPath = $StatusPath + "." + [Diagnostics.Process]::GetCurrentProcess().Id + ".tmp"
+    $StatusBackup = $StatusPath + "." + [Diagnostics.Process]::GetCurrentProcess().Id + ".bak"
     [IO.File]::WriteAllText($TempPath, $Payload, (New-Object Text.UTF8Encoding($false)))
     if ([IO.File]::Exists($StatusPath)) {
-      [IO.File]::Replace($TempPath, $StatusPath, $null, $true)
+      # Windows PowerShell 5.1/.NET Framework rejects a null backup path even
+      # though newer runtimes accept it. Use a same-directory temporary backup
+      # so the status commit remains atomic on supported Windows Server hosts.
+      Remove-Item -LiteralPath $StatusBackup -Force -ErrorAction SilentlyContinue
+      [IO.File]::Replace($TempPath, $StatusPath, $StatusBackup, $true)
+      Remove-Item -LiteralPath $StatusBackup -Force -ErrorAction SilentlyContinue
     } else {
       [IO.File]::Move($TempPath, $StatusPath)
     }
   } catch {
     if ($TempPath) { Remove-Item -LiteralPath $TempPath -Force -ErrorAction SilentlyContinue }
+    if ($StatusBackup) { Remove-Item -LiteralPath $StatusBackup -Force -ErrorAction SilentlyContinue }
   }
 }
 
@@ -1257,10 +1322,16 @@ if (-not $ParentExited) {
 
 $Replaced = $false
 $LastError = ""
+$ReplaceBackup = $Destination + ".replace-backup." + [Diagnostics.Process]::GetCurrentProcess().Id
 for ($Attempt = 1; $Attempt -le 30; $Attempt++) {
   try {
     if ([IO.File]::Exists($Destination)) {
-      [IO.File]::Replace($Source, $Destination, $null, $true)
+      # A concrete backup path is mandatory on Windows PowerShell 5.1. The
+      # helper removes it immediately after the atomic commit because durable
+      # rollback ownership remains with the Agent update state directory.
+      Remove-Item -LiteralPath $ReplaceBackup -Force -ErrorAction SilentlyContinue
+      [IO.File]::Replace($Source, $Destination, $ReplaceBackup, $true)
+      Remove-Item -LiteralPath $ReplaceBackup -Force -ErrorAction SilentlyContinue
     } else {
       [IO.File]::Move($Source, $Destination)
     }
@@ -1269,6 +1340,7 @@ for ($Attempt = 1; $Attempt -le 30; $Attempt++) {
     break
   } catch {
     $LastError = $_.Exception.Message
+    Remove-Item -LiteralPath $ReplaceBackup -Force -ErrorAction SilentlyContinue
     if ($Attempt -lt 30) { Start-Sleep -Seconds 1 }
   }
 }

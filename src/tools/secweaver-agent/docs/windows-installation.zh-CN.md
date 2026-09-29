@@ -231,7 +231,7 @@ HTTP 200 但零行仍判入库失败。doctor/健康报告核对签名路由、�
 回归，`make check` 做 Go、race 与跨平台编译；真实 SCM 升级测试仍位于
 `integration/service-upgrade/windows-scm.ps1`。自动检查不能代替真机标记与云端查询验收。
 
-Windows SCM 自动升级由脱离服务进程组的替换助手负责。计划替换会按正常停止上报，避免 SCM 故障恢复抢先重新打开旧可执行文件；助手跟踪准确的父服务 PID，在该进程退出后才原子替换并启动已注册服务，真实启动失败仍进入 SCM 恢复与回滚。助手把有界、已隐藏程序路径的阶段写入 `<update.state_dir>/replace-status.json`。服务报告计划内停止前会等待助手第一次原子阶段确认。助手请求 `CREATE_BREAKAWAY_FROM_JOB`，并分别记录父进程退出超时、替换失败或服务启动失败。回滚在整个升级事务中持有锁，并保护当前引用的恢复二进制不被备份保留策略提前裁剪；受保护的升级状态目录还会保留截断的 `replace-helper.stderr` 诊断。前台 console 模式不携带服务名，不会修改 SCM 状态。
+Windows SCM 自动升级由脱离服务进程组的替换助手负责。计划替换会按正常停止上报，避免 SCM 故障恢复抢先重新打开旧可执行文件；助手跟踪准确的父服务 PID，在该进程退出后才原子替换并启动已注册服务，真实启动失败仍进入 SCM 恢复与回滚。助手把有界、已隐藏程序路径的阶段写入 `<update.state_dir>/replace-status-<attempt_id>.json`。服务报告计划内停止前会等待助手第一次原子阶段确认。助手请求 `CREATE_BREAKAWAY_FROM_JOB`，并分别记录父进程退出超时、替换失败或服务启动失败。回滚在整个升级事务中持有锁，并保护当前引用的恢复二进制不被备份保留策略提前裁剪；受保护的升级状态目录还会保留按事务隔离、截断的 `replace-helper-<attempt_id>.stderr` 诊断。每类最多保留最新三份；Windows 共享锁导致的清理失败不影响回滚，退出中的旧助手不能再阻断恢复。前台 console 模式不携带服务名，不会修改 SCM 状态。
 
 ## Windows SLS 采集就绪
 
@@ -265,3 +265,11 @@ Windows ARM64 仍不支持受管 Logtail。
 本地就绪不代表已入库。运营工具的 `-verify-host-ip`、`-enterprise-id`、`-marker` 要求最近
 机器组心跳和新生成良性命令的完整非空 SLS 查询结果，输出带时间戳的回执；零行或查询失败仍为
 未验证。生产推广前必须在 Windows x64 真机完成此验收，单元测试与跨平台编译不能代替。
+
+## PowerShell 5.1 替换兼容性
+
+Windows PowerShell 5.1/.NET Framework 不接受 `[IO.File]::Replace` 的空备份参数。
+因此 Agent 激活以及安装器/SCM 回滚都会创建同目录临时备份，执行原子替换，成功后再删除
+临时备份。这样源文件与目标文件始终位于同一文件系统，持久回滚仍由 Agent 升级状态目录负责。
+不要把这些调用改成 `Move-Item` 或跨盘复制。service-upgrade 集成测试在 PowerShell 5.1
+上运行，必须同时覆盖成功激活和失败回滚。

@@ -386,7 +386,9 @@ if not exist "%STATE%\health.pending" goto restart
 if not exist "%STATE%\previous.bin" exit /b 2
 copy /Y "%STATE%\previous.bin" "%AGENT%.rollback" >NUL || exit /b 3
 set "ROLLBACK=%AGENT%.rollback"
-powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "[IO.File]::Replace(`$env:ROLLBACK, `$env:AGENT, `$null, `$true)" >NUL 2>NUL || exit /b 4
+set "ROLLBACK_BACKUP=%AGENT%.rollback-backup"
+rem Windows PowerShell 5.1 requires a concrete File.Replace backup path.
+powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "Remove-Item -LiteralPath `$env:ROLLBACK_BACKUP -Force -ErrorAction SilentlyContinue; [IO.File]::Replace(`$env:ROLLBACK, `$env:AGENT, `$env:ROLLBACK_BACKUP, `$true); Remove-Item -LiteralPath `$env:ROLLBACK_BACKUP -Force -ErrorAction SilentlyContinue" >NUL 2>NUL || exit /b 4
 del /Q "%STATE%\health.pending" "%STATE%\activation.attempted" >NUL 2>NUL
 :restart
 sc.exe start "$ServiceName" >NUL 2>NUL
