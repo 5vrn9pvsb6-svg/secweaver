@@ -1,5 +1,11 @@
 # secweaver-agent
 
+源码 0.3.70 保留注册拒绝错误码，分别说明设备身份冲突、设备额度已满、令牌累计
+注册次数用尽、企业禁用和订阅到期，并提供中英文处理建议。Linux Bootstrap
+也会在终端显示简短原因。兼容范围、前提与验证见
+[注册拒绝诊断](docs/collector-lifecycle.zh-CN.md#注册拒绝诊断0370)。
+本次源码修改不代表安装包或线上 Bootstrap 已发布。
+
 源码 0.3.61 不再发送 `external_ip`，Agent 只把私有网卡地址作为 `internal_ip` 上报。
 外部地址由 Agent Gateway 根据 socket 对端或明确可信 WAF 的 `X-Forwarded-For` 链生成，
 因此已签名客户端也不能自行指定页面显示的来源 IP。

@@ -42,6 +42,10 @@ type EnrollmentRequest struct {
 	AgentVersion        string            `json:"agent_version"`
 }
 
+// Enroll registers the persisted device identity while holding its state lock.
+// Rejections retain the local key/state for safe retries and carry a structured
+// Gateway code separately from display text; authorization is saved only after
+// the successful response binds both the local device and enterprise identity.
 func (c Client) Enroll(ctx context.Context, cfg Config, token, agentVersion string) (Result, error) {
 	cfg = cfg.Normalize()
 	if !cfg.DeviceAuthEnabled() {
@@ -118,7 +122,18 @@ func (c Client) Enroll(ctx context.Context, cfg Config, token, agentVersion stri
 		decodeErr = json.Unmarshal(resp, &enrollment)
 	}
 	if status < 200 || status >= 300 {
-		return Result{Response: enrollment, State: state}, &HTTPStatusError{Operation: "enrollment server", StatusCode: status, Reason: responseReason(enrollment)}
+		// Malformed JSON may partially decode before failing. Do not turn its
+		// incomplete fields into an apparently authoritative rejection reason.
+		if decodeErr != nil {
+			enrollment = Response{}
+		}
+		// A human message must not hide the authorization code. Older Gateways
+		// use reason instead of errorCode; retain that compatibility separately.
+		code := enrollment.ErrorCode
+		if code == "" {
+			code = enrollment.Reason
+		}
+		return Result{Response: enrollment, State: state}, &HTTPStatusError{Operation: "enrollment server", StatusCode: status, Reason: responseReason(enrollment), ErrorCode: code}
 	}
 	if len(bytes.TrimSpace(resp)) == 0 {
 		return Result{State: state}, &ResponseValidationError{StatusCode: status, Check: "empty-json-response"}

@@ -1,8 +1,43 @@
 # 采集器生命周期与诊断
 
+## 注册拒绝诊断（0.3.70）
+
+支持的 Linux/Windows 主机上的 `enroll` 命令向 stderr 输出
+`HTTP=<状态> reason=<错误码>`，以及固定的中英文说明和处理建议。成功时企业/设备
+身份的 stdout 格式与退出码保持不变。Linux SaaS Bootstrap 在注册步骤失败时，
+会在终端显示简短原因，详细安装日志保留完整 CLI 诊断。Windows 安装器通过现有
+原生命令调用显示相同 CLI stderr。不会自动重试、删除身份、撤销设备或调整额度。
+
+| HTTP / 错误码 | 含义与处理方式 |
+| --- | --- |
+| 403 / `DeviceIdentityConflict` | 本机身份已撤销、替换或登记企业/密钥冲突。请管理员核对设备记录与重装流程，保留本地状态和私钥用于排查。 |
+| 403 / `DeviceQuotaExceeded` | 企业设备额度已满或超额。撤销确认不用的设备注册，或提高额度；离线、卸载但未撤销的设备仍占额度，删除本地状态不释放额度。 |
+| 403 / `EnrollmentTokenExhausted` | 令牌累计新增设备注册次数用尽，与是否到期独立。生成新安装命令；撤销设备不会恢复令牌次数。 |
+| 403 / `EnterpriseDisabled` | 企业被禁用、尚未开通或未到生效时间。请管理员启用或完成开通；换令牌不能启用企业。 |
+| 403 / `SubscriptionExpired` | 企业订阅已到期。续期企业授权；换令牌不能延长订阅。 |
+| 409 / `AmbiguousReinstall` | 硬件指纹匹配多个有效身份。先核对重复设备记录，再重装。 |
+| 401 / `RequestReplay` | 请求 nonce 已使用。用 enroll 生成新请求重试；若重复出现，检查代理重放。 |
+| 401 / `Unauthorized` | 注册认证失败。核对当前安装命令及主机时间；令牌无效、过期、撤销与请求认证失败有意共用此响应，不能据此断定令牌过期。 |
+| 404 / `NotFound` | 核对 Gateway 注册路由及反向代理；不代表令牌过期。 |
+
+前提：Gateway 返回已知 JSON `errorCode` 与匹配的 HTTP 状态。兼容旧 JSON
+`reason` 错误码，以及旧式 HTTP 200 / `allowed=false` 拒绝。人类可读的 `message`
+不能覆盖 `errorCode` 或 `reason`。未知错误码、非法 JSON、HTML/WAF 响应和不一致
+的状态/错误码显示 `UnknownRejection`，不猜测原因，也不输出服务端原文。未知
+403 提示查看 Gateway 与 WAF/代理日志。不打印令牌、私钥或 URL 用户信息/查询值。
+旧服务端只有通用响应时，必须提供具体错误码才能区分这些原因。
+
+在 Agent 源码目录运行
+`go test -race . ./pkg/agentlicense -run 'TestEnroll|TestEnrollment'`，在仓库根目录
+运行 `python3 -m unittest tests.test_agent_install_presentation`。使用模拟 TLS
+端点及隔离日志验证各类 403、旧 JSON、非法/WAF 响应、状态不匹配、失败 stdout
+为空、重试身份保留、脱敏与安装原退出码。Windows 编译不能替代真实 PowerShell/SCM
+验收。发布新的不可变 0.3.70 包及生成的 Bootstrap 后，公开安装命令才有新提示；
+已安装的旧二进制仍保留原输出。
+
 ## 0.3.43 安装恢复
 
-注册 HTTP 401 会提示在 Data Cloud 生成新安装命令；令牌可能过期、撤销或无效。
+注册 HTTP 401 会提示核对安装命令及主机时间；可能是令牌过期、撤销、无效或请求认证失败。
 客户端不猜测具体失败项，不删除身份、不盲目重试授权、不关闭 TLS 校验。
 指引只写 stderr，适用于 Linux/Windows 的 Agent enroll 命令。
 

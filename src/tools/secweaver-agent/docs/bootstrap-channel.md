@@ -26,7 +26,9 @@ installation logs as needed; there is one file per invocation, not a background 
 Use `sudo tail -f <printed-log-path>` in a second terminal for detailed progress.
 
 Failure stops the flow, preserves the failing exit status and prints the failed stage
-and log path. HTTP 401 adds token recovery guidance. Signals return 130/143. An expected
+and log path. From 0.3.70, enrollment failure also shows an allowlisted rejection
+code and matching recovery summary; see [enrollment diagnostics](collector-lifecycle.md#enrollment-rejection-diagnostics-0370).
+Signals return 130/143. An expected
 auto-backend fallback from unavailable BTF and newly empty event logs are INFO; other
 diagnostic warnings/errors remain visible. Vendor graceful-stop failure becomes one
 WARN before bounded force-stop; repeated PID output stays in the log. Service checks

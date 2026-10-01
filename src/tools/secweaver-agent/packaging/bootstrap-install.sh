@@ -232,6 +232,49 @@ show_diagnostics() {
   return 0
 }
 
+# Extract only the Agent's status/code record and render local fixed summaries.
+# Never echo a log line or vendor tail: even a forged matching record cannot
+# reflect a token, URL credential or arbitrary server body into the terminal.
+show_enrollment_failure() {
+  local line code status summary
+  local pattern='^stage=device-enrollment check=authorization url=[^[:space:]]+ HTTP=([0-9]{3}) reason=([A-Za-z]+):'
+  while IFS= read -r line; do
+    [[ "${line}" =~ ${pattern} ]] || continue
+    status="${BASH_REMATCH[1]}"
+    code="${BASH_REMATCH[2]}"
+    case "${status}:${code}" in
+      403:DeviceIdentityConflict|200:DeviceIdentityConflict)
+        summary='Local device identity was revoked, replaced or conflicts with registration; ask the administrator to verify it and preserve local state. / 本机身份已撤销、替换或登记冲突，请管理员核对并保留本地身份。' ;;
+      403:DeviceQuotaExceeded|200:DeviceQuotaExceeded)
+        summary='Enterprise device quota is full; revoke confirmed unused registrations or increase the quota. Offline/uninstalled devices still occupy slots. / 企业设备额度已满，请撤销确认不用的设备注册或提高额度；离线、卸载仍占额度。' ;;
+      403:EnrollmentTokenExhausted|200:EnrollmentTokenExhausted)
+        summary='Token cumulative registration limit is exhausted; generate a new installation command. Revoking devices does not restore token uses. / 令牌累计注册次数已用完，请生成新安装命令；撤销设备不恢复次数。' ;;
+      403:EnterpriseDisabled|200:EnterpriseDisabled)
+        summary='Enterprise is disabled or not yet active; ask the administrator to enable or activate it. / 企业被禁用或尚未生效，请管理员启用或完成开通。' ;;
+      403:SubscriptionExpired|200:SubscriptionExpired)
+        summary='Enterprise subscription expired; ask the administrator to renew it. / 企业订阅已到期，请管理员续期授权。' ;;
+      409:AmbiguousReinstall|200:AmbiguousReinstall)
+        summary='Multiple active identities match this hardware; ask the administrator to verify duplicates before reinstalling. / 同一硬件匹配多个有效身份，请管理员核对重复记录后再重装。' ;;
+      401:RequestReplay|200:RequestReplay)
+        summary='Enrollment request was replayed; retry with a fresh enroll request and check proxy retries. / 注册请求重复，请用 enroll 生成新请求并检查代理重放。' ;;
+      401:Unauthorized|401:UnknownRejection)
+        summary='Enrollment authentication failed; check the installation command and host clock, preserving identity and TLS verification. / 注册认证失败，请核对安装命令及主机时间，保留身份和 TLS 校验。' ;;
+      404:NotFound|404:UnknownRejection)
+        summary='Check the Agent Gateway enrollment route and reverse proxy; 404 does not indicate token expiry. / 请检查注册路由和反向代理；404 不代表令牌过期。' ;;
+      403:UnknownRejection)
+        summary='Unrecognized enrollment rejection; inspect Gateway/WAF logs. HTTP 403 alone does not identify quota, token expiry or identity conflict. / 原因未知，请检查 Gateway/WAF 日志；仅凭 403 不能判断额度、令牌过期或身份冲突。' ;;
+      *) continue ;;
+    esac
+    status_line WARN "reason=${code}: ${summary}"
+    return 0
+  done <"${INSTALL_LOG}"
+  # Older Agent binaries emitted an HTTP status without a reason field.
+  if grep -q '^stage=device-enrollment .* HTTP=401:' "${INSTALL_LOG}"; then
+    status_line WARN 'Enrollment authentication failed; check the installation command and host clock. / 注册认证失败，请核对安装命令及主机时间。'
+  fi
+  return 0
+}
+
 # Preserve the failing exit status, including signals/unexpected shell errors.
 # Do not echo commands or raw vendor tails: they can contain installation tokens.
 # Only the top-level shell owns UI completion and temporary-directory cleanup.
@@ -242,8 +285,10 @@ finish_install() {
   if [[ "${rc}" != 0 ]]; then
     status_line FAIL "${STEP_TITLE:-Installation validation} failed (exit=${rc})."
     if [[ -n "${INSTALL_LOG}" ]]; then
-      if grep -q 'returned HTTP 401' "${INSTALL_LOG}"; then
-        status_line WARN "Enrollment token may be expired, revoked or invalid; generate a new installation command in Data Cloud."
+      # Diagnostics are best effort: a missing log or display failure must not
+      # replace the installation's original exit status or prevent cleanup.
+      if [[ "${STEP_NUMBER}" == 3 && -r "${INSTALL_LOG}" ]]; then
+        show_enrollment_failure || :
       fi
       status_line INFO "Details: ${INSTALL_LOG}"
     fi

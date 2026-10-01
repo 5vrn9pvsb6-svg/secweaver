@@ -6,7 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"regexp"
@@ -98,8 +97,9 @@ func enrollmentTokenInput(input io.Reader, argument string, fromStdin bool) (str
 }
 
 // enrollmentFailureMessage keeps machine-readable identity on stdout and never
-// reflects a server error body. HTTP status plus endpoint distinguish bad tokens
-// from bad routes; transport errors remain useful without leaking credentials.
+// reflects a server error body. Known status/code pairs select local bilingual
+// explanations; unknown/WAF responses cannot masquerade as an authorization
+// diagnosis. Transport errors remain useful without leaking credentials.
 func enrollmentFailureMessage(err error, serverURL, token string) string {
 	endpoint := "<invalid-url>"
 	if parsed, parseErr := url.Parse(serverURL); parseErr == nil && parsed.Host != "" {
@@ -115,17 +115,18 @@ func enrollmentFailureMessage(err error, serverURL, token string) string {
 	}
 	statusCode := "unavailable"
 	detail := err.Error()
-	var status *agentlicense.HTTPStatusError
-	if errors.As(err, &status) {
-		statusCode = fmt.Sprint(status.StatusCode)
-		detail = http.StatusText(status.StatusCode)
+	reason := ""
+	if status, code, diagnostic, rejected := enrollmentRejection(err); rejected {
+		statusCode = fmt.Sprint(status)
+		reason = " reason=" + code
+		detail = diagnostic.detail
 	}
 	var invalid *agentlicense.ResponseValidationError
 	if errors.As(err, &invalid) {
 		statusCode = fmt.Sprint(invalid.StatusCode)
 		detail = invalid.Error()
 	}
-	message := fmt.Sprintf("stage=device-enrollment check=authorization url=%s HTTP=%s: %s", endpoint, statusCode, detail)
+	message := fmt.Sprintf("stage=device-enrollment check=authorization url=%s HTTP=%s%s: %s", endpoint, statusCode, reason, detail)
 	if token != "" {
 		for _, secret := range []string{token, url.QueryEscape(token), url.PathEscape(token)} {
 			message = strings.ReplaceAll(message, secret, "[REDACTED]")
@@ -147,16 +148,12 @@ func enrollmentFailureMessage(err error, serverURL, token string) string {
 	return message
 }
 
-// enrollmentRecoveryHint does not infer which credential check failed: the
-// public endpoint intentionally conflates invalid, expired and revoked tokens.
-// Keep guidance on stderr so installer identity output remains machine-readable.
+// enrollmentRecoveryHint shares the failure line's allowlisted diagnosis so
+// advice cannot contradict the code. Guidance stays on stderr; an unknown 401
+// still cannot distinguish token validity from clock/proof authentication.
 func enrollmentRecoveryHint(err error) string {
-	var status *agentlicense.HTTPStatusError
-	if errors.As(err, &status) && status.StatusCode == http.StatusUnauthorized {
-		return "Enrollment credential may be expired, revoked or invalid. Generate a new installation command in SecWeaver Data Cloud and retry. Preserve the existing device identity; do not delete state or disable TLS verification. / 安装令牌可能已过期、撤销或无效，请在 SecWeaver Data Cloud 生成新安装命令后重试；不要删除现有设备身份或关闭 TLS 校验。"
-	}
-	if errors.As(err, &status) && status.StatusCode == http.StatusNotFound {
-		return "Check the Agent Gateway origin and /api/secweaver/v2/agent/enroll route, including reverse-proxy configuration. A 404 does not indicate an expired token. / 请核对 Agent Gateway 地址和注册路由；404 不代表令牌过期。"
+	if _, _, diagnostic, rejected := enrollmentRejection(err); rejected {
+		return diagnostic.hint
 	}
 	return ""
 }

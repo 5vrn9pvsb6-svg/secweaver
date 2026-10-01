@@ -146,6 +146,7 @@ type ModuleHealth struct {
 type Response struct {
 	Allowed               bool          `json:"allowed"`
 	Registered            bool          `json:"registered"`
+	ErrorCode             string        `json:"errorCode,omitempty"`
 	Reason                string        `json:"reason,omitempty"`
 	Message               string        `json:"message,omitempty"`
 	EnterpriseID          string        `json:"enterprise_id,omitempty"`
@@ -179,10 +180,13 @@ func (e DeniedError) Error() string {
 	return "license denied: " + responseReason(e.Response)
 }
 
+// HTTPStatusError retains a machine error code separately from display text.
+// Callers must allowlist codes before presenting server-controlled diagnostics.
 type HTTPStatusError struct {
 	Operation  string
 	StatusCode int
 	Reason     string
+	ErrorCode  string
 }
 
 // ResponseValidationError separates a successful HTTP exchange with an invalid

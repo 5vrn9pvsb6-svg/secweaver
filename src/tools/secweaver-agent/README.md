@@ -1,5 +1,13 @@
 # secweaver-agent
 
+Source 0.3.70 preserves enrollment rejection codes and gives distinct English/Chinese
+diagnoses and recovery advice for device identity conflicts, full device quotas,
+exhausted token registration limits, disabled enterprises and expired subscriptions.
+The Linux Bootstrap also shows a concise reason in the terminal. See
+[enrollment rejection diagnostics](docs/collector-lifecycle.md#enrollment-rejection-diagnostics-0370)
+for compatibility, prerequisites and verification. This source change does not
+publish an installation package or update the live Bootstrap.
+
 Source 0.3.61 no longer sends `external_ip`. The Agent reports only a private
 interface address as `internal_ip`; the Agent Gateway derives the external
 address from the socket peer or an explicitly trusted WAF `X-Forwarded-For`

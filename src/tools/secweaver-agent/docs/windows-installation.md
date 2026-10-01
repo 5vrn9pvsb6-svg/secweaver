@@ -119,7 +119,7 @@ does not acquire these fixes until a new immutable package and Bootstrap are pub
 | Null Bootstrap response | Reject null/empty/HTML/JSON version pointers; accept bounded text/UTF-8 bytes with one LF/CRLF. Empty/malformed sidecars fail before extraction. |
 | Created service stops | Require Running plus fresh module/authorization readiness for ten observations within 90 seconds. Before activation, failures restore prior files and SCM command/start mode and restart a previously running service; fresh failed services are deleted. |
 | Doctor service name | SCM and doctor share the default `SecWeaverAgent` identity; the installer uses the same name. Custom service names still require explicit SCM inspection. |
-| Unclear errors | Bootstrap emits stage, check, sanitized request URL, HTTP status and advice. Enrollment 401 explains credential replacement; 404 explains route configuration; an invalid HTTP-200 body is a response error. Tokens, userinfo, URL queries and server bodies are not printed. |
+| Unclear errors | Emits stage, check, sanitized URL, HTTP status and advice. Agent 0.3.70 distinguishes identity, device quota, token registration allowance and enterprise subscription denials by allowlisted code; see [enrollment diagnostics](collector-lifecycle.md#enrollment-rejection-diagnostics-0370). Unknown 401 does not prove token expiry; 404 explains routing; invalid HTTP-200 JSON remains a response error. Tokens, userinfo, URL queries and server bodies are not printed. |
 | Update mismatch | See the explicit defaults below; installation verifies persisted flags before SCM starts. |
 
 Installer rollback is separate from automatic-update rollback. It snapshots only

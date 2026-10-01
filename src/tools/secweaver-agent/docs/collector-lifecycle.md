@@ -1,10 +1,54 @@
 # Collector Lifecycle And Diagnostics
 
+## Enrollment Rejection Diagnostics (0.3.70)
+
+The `enroll` command on supported Linux and Windows hosts reports
+`HTTP=<status> reason=<code>` plus fixed English/Chinese explanations and recovery
+advice on stderr. Successful enterprise/device identity stdout and exit codes are
+unchanged. The Linux SaaS Bootstrap shows a concise reason when its registration
+step fails; the detailed installation log retains the complete CLI diagnosis.
+The Windows installer displays the same CLI stderr through its existing native
+command invocation. No automatic retries, identity deletion, revocation or quota
+changes are performed.
+
+| HTTP / code | Meaning and recovery |
+| --- | --- |
+| 403 / `DeviceIdentityConflict` | Local identity was revoked, replaced or has conflicting enterprise/key ownership. Ask the administrator to verify registration and the intended reinstall procedure; preserve local state/key for diagnosis. |
+| 403 / `DeviceQuotaExceeded` | Enterprise device entitlement is full or exceeded. Revoke confirmed unused registrations or increase the entitlement. Offline/uninstalled devices count until revoked; deleting local state does not release a slot. |
+| 403 / `EnrollmentTokenExhausted` | Token cumulative new-device registrations are exhausted, independently of expiry. Generate a new installation command. Revoking devices does not restore token uses. |
+| 403 / `EnterpriseDisabled` | Enterprise is disabled, not provisioned or not yet effective. The administrator must enable/activate it; a new token cannot enable it. |
+| 403 / `SubscriptionExpired` | Subscription expired. Renew the enterprise entitlement; replacing the token cannot renew it. |
+| 409 / `AmbiguousReinstall` | Multiple active identities match the hardware fingerprint. Verify duplicate registrations before reinstalling. |
+| 401 / `RequestReplay` | Request nonce was already used. Retry with a fresh enroll request; inspect proxy replay if repeated. |
+| 401 / `Unauthorized` | Authentication failed. Check the current installation command and host clock. Invalid/expired/revoked tokens and failed request authentication deliberately share this response; it does not establish token expiry. |
+| 404 / `NotFound` | Check the Gateway enrollment route and reverse proxy; this is not token expiry. |
+
+Prerequisite: the Gateway must return a recognized JSON `errorCode` with the
+matching HTTP status. Older JSON `reason` codes are supported, including legacy
+HTTP-200 `allowed=false` denials. A human `message` cannot override `errorCode` or
+`reason`. Unknown codes, malformed JSON, HTML/WAF responses and inconsistent
+status/code pairs are shown as `UnknownRejection`, without guessing the cause or
+printing server-controlled text. Unknown 403 responses advise inspecting Gateway
+and WAF/proxy logs. Tokens, private keys and URL userinfo/query values are not
+printed. Old generic responses cannot distinguish these reasons until the server
+provides a code.
+
+Verify from the Agent source directory with
+`go test -race . ./pkg/agentlicense -run 'TestEnroll|TestEnrollment'`, and from the
+repository root with `python3 -m unittest tests.test_agent_install_presentation`.
+Tests use synthetic TLS endpoints and isolated logs to verify every listed 403,
+legacy JSON, invalid/WAF bodies, status mismatch, empty failure stdout, preserved
+identity across retries, secret redaction and the original installation exit code.
+Windows compilation does not replace real PowerShell/SCM acceptance. Publish a
+new immutable 0.3.70 package and generated Bootstrap before the public installation
+command gains this behavior; already installed binaries keep their existing output.
+
 ## 0.3.43 Installation Recovery
 
-Enrollment HTTP 401 now advises generating a new installation command in Data Cloud;
-the credential may be expired, revoked or invalid. The client does not infer which
-check failed, delete identity, retry authorization blindly or disable TLS verification.
+Enrollment HTTP 401 advises checking the installation command and host clock;
+the credential may be expired, revoked or invalid, or request authentication may
+have failed. The client does not infer which check failed, delete identity, retry
+authorization blindly or disable TLS verification.
 Guidance is stderr-only and applies to the Agent enroll command on Linux and Windows.
 
 The Linux uninstaller accepts the standard `/etc/init.d -> /etc/rc.d/init.d` and
