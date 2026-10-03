@@ -14,6 +14,7 @@ REQUIRE_SYSTEMD="${REQUIRE_SYSTEMD:-1}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENTERPRISE_ID=""
 DEPLOYMENT_MODE=""
+LEARNING_MODE="preserve"
 ENTERPRISE_ENROLLMENT_TOKEN=""
 LICENSE_SERVER_URL=""
 LICENSE_ENROLLMENT_ID=""
@@ -36,6 +37,7 @@ Usage: sudo ./install.sh --enterprise-enrollment-token <token> --license-server-
 
 Options:
   --deployment-mode MODE             sls_saas or es_private; upgrades preserve existing mode
+  --learning-mode MODE              preserve, shadow, enable, or disable; default: preserve
   --enterprise-enrollment-token TOKEN Reusable enterprise-scoped installation credential
   --enterprise-id ID                  Legacy v1 platform-issued enterprise ID
   --license-server-url URL            WEB shield authorization server URL
@@ -62,6 +64,15 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --deployment-mode=*)
       DEPLOYMENT_MODE="${1#*=}"
+      shift
+      ;;
+    --learning-mode)
+      [[ "$#" -ge 2 ]] || { usage >&2; exit 2; }
+      LEARNING_MODE="$2"
+      shift 2
+      ;;
+    --learning-mode=*)
+      LEARNING_MODE="${1#*=}"
       shift
       ;;
     --enterprise-id)
@@ -235,6 +246,10 @@ persist_bootstrap_ca() {
 [[ "${LICENSE_HEARTBEAT_INTERVAL_SECONDS}" =~ ^[0-9]+$ ]] || fatal "--license-heartbeat-interval-seconds must be an integer"
 [[ "${LICENSE_OUTAGE_GRACE_SECONDS}" =~ ^[0-9]+$ ]] || fatal "--license-outage-grace-seconds must be an integer"
 (( 10#${LICENSE_OUTAGE_GRACE_SECONDS} <= 604800 )) || fatal "--license-outage-grace-seconds must not exceed 604800"
+case "${LEARNING_MODE}" in
+  preserve|shadow|enable|disable) ;;
+  *) fatal "--learning-mode must be preserve, shadow, enable, or disable" ;;
+esac
 
 if [[ -n "${ENTERPRISE_ENROLLMENT_TOKEN}" && -n "${ENTERPRISE_ID}" ]]; then
   fatal "provide either --enterprise-enrollment-token or --enterprise-id, not both"
@@ -566,6 +581,11 @@ if [[ ! -f "${CONFIG_DIR}/audit-port-execmon.json" ]]; then
     install -m 0600 "${ROOT_DIR}/etc/secweaver-agent/audit-port-execmon.example.json" "${CONFIG_DIR}/audit-port-execmon.json"
   fi
 fi
+# Keep legacy configs unchanged by default. Explicit activation alters only the
+# learning enabled/shadow switches, never the baseline generation or scope.
+"${BIN_DIR}/secweaver-agent" config set-learning-mode \
+  -config "${CONFIG_DIR}/audit-port-execmon.json" \
+  -mode "${LEARNING_MODE}"
 if [[ ! -f "${CONFIG_DIR}/host-persistence.json" ]]; then
   if [[ -f /etc/secweaver-agent/host-persistence.json ]]; then
     install -m 0600 /etc/secweaver-agent/host-persistence.json "${CONFIG_DIR}/host-persistence.json"

@@ -149,7 +149,7 @@ func runSupervisor(ctx context.Context, modules []runtimeModule, updater *schedu
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := runScheduledHeartbeat(ctx, licenseCfg, enterpriseID, tracker, updater, updatePolicies, metricsExporter); err != nil {
+			if err := runScheduledHeartbeat(ctx, modules, licenseCfg, enterpriseID, tracker, updater, updatePolicies, metricsExporter); err != nil {
 				errCh <- err
 				cancel()
 			}

@@ -77,25 +77,7 @@ func WrapLearning(out io.Writer, o LearningOptions, stateFile, eventPath string,
 // newLearning acquires state ownership before starting the ticker. Failures
 // close the summary sink; the caller retains responsibility for the raw sink.
 func newLearning(out io.Writer, o LearningOptions, stateFile, eventPath string, poll time.Duration) (*Learning, error) {
-	if o.Duration == 0 {
-		o.Duration = 24 * time.Hour
-	}
-	if o.StateDir == "" {
-		dir := filepath.Dir(stateFile)
-		if stateFile == "" {
-			dir = layout.WindowsData
-		}
-		o.StateDir = filepath.Join(dir, "behavior-learning-windows")
-	}
-	if o.Output == "" {
-		o.Output = LearningOutputPath(eventPath, "")
-	}
-	if strings.EqualFold(filepath.Clean(o.Output), filepath.Clean(eventPath)) {
-		return nil, fmt.Errorf("learning summary and original logs must differ")
-	}
-	cfg, err := (behaviorlearning.Config{Enabled: true, StateDir: o.StateDir, OutputLog: o.Output,
-		LearningSeconds: int(o.Duration / time.Second), Generation: o.Generation, Shadow: o.Shadow,
-		EventTypes: splitPolicyList(o.EventTypes, ","), FileRoots: splitPolicyList(o.FileRoots, ";")}).Normalize()
+	cfg, err := o.policy(stateFile, eventPath)
 	if err != nil {
 		return nil, err
 	}
@@ -125,6 +107,30 @@ func newLearning(out io.Writer, o LearningOptions, stateFile, eventPath string, 
 	}
 	go w.tick()
 	return w, nil
+}
+
+// policy is shared by runtime and status inspection so defaults and collision
+// checks cannot drift. It does not acquire a writer lock or create state files.
+func (o LearningOptions) policy(stateFile, eventPath string) (behaviorlearning.Config, error) {
+	if o.Duration == 0 {
+		o.Duration = 24 * time.Hour
+	}
+	if o.StateDir == "" {
+		dir := filepath.Dir(stateFile)
+		if stateFile == "" {
+			dir = layout.WindowsData
+		}
+		o.StateDir = filepath.Join(dir, "behavior-learning-windows")
+	}
+	if o.Output == "" {
+		o.Output = LearningOutputPath(eventPath, "")
+	}
+	if strings.EqualFold(filepath.Clean(o.Output), filepath.Clean(eventPath)) {
+		return behaviorlearning.Config{}, fmt.Errorf("learning summary and original logs must differ")
+	}
+	return (behaviorlearning.Config{Enabled: o.Enabled, StateDir: o.StateDir, OutputLog: o.Output,
+		LearningSeconds: int(o.Duration / time.Second), Generation: o.Generation, Shadow: o.Shadow,
+		EventTypes: splitPolicyList(o.EventTypes, ","), FileRoots: splitPolicyList(o.FileRoots, ";")}).Normalize()
 }
 
 // LearningOutputPath is shared with descriptors so disk budgeting sees summaries.

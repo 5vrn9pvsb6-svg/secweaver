@@ -77,15 +77,7 @@ func New(cfg Config, device string, original func(json.RawMessage) error, summar
 		return nil, err
 	}
 	e := &Engine{cfg: cfg, store: s, now: time.Now, counters: map[string]*counters{}, evidence: map[string]evidence{}, seen: map[string]time.Time{}, original: original, summary: summary, runID: runID}
-	policyCfg := cfg
-	policyCfg.StateDir = ""
-	policyCfg.OutputLog = ""
-	policyCfg.Enabled = false
-	policyCfg.Generation = 0
-	policyCfg.Shadow = false
-	body, _ := json.Marshal(policyCfg)
-	hash := sha256.Sum256(body)
-	policy := hex.EncodeToString(hash[:])
+	policy := policyHash(cfg)
 	prior, err := s.Load()
 	if err != nil {
 		s.Close()

@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"secweaver-agent/pkg/behaviorlearning"
 )
 
 func TestComputeHardwareFingerprintIsOrderIndependent(t *testing.T) {
@@ -95,6 +97,11 @@ func TestEnrollAndHeartbeatUseIndependentDeviceKey(t *testing.T) {
 			if err := json.Unmarshal(body, &heartbeat); err != nil {
 				t.Fatal(err)
 			}
+			// Learning telemetry belongs to the signed body, not an unsigned
+			// header or a separate unauthenticated status request.
+			if heartbeat.BehaviorLearning == nil || heartbeat.BehaviorLearning.Mode != "learning" || heartbeat.BehaviorLearning.RemainingSeconds != 86400 {
+				t.Fatalf("learning telemetry missing: %+v", heartbeat.BehaviorLearning)
+			}
 			signature, err := base64.RawURLEncoding.DecodeString(r.Header.Get("X-SecWeaver-Signature"))
 			if err != nil {
 				t.Fatal(err)
@@ -152,12 +159,14 @@ func TestEnrollAndHeartbeatUseIndependentDeviceKey(t *testing.T) {
 	}
 
 	currentComponents = map[string]string{"machine_id": "sha256:" + strings.Repeat("2", 64)}
-	if _, err := client.Heartbeat(
+	if _, err := client.HeartbeatWithUpdateAndLearning(
 		context.Background(),
 		cfg,
 		"UNTRUSTEDCLIENT1",
 		"0.3.0",
 		nil,
+		nil,
+		&behaviorlearning.StatusSnapshot{Enabled: true, Mode: "learning", RemainingSeconds: 86400},
 	); err != nil {
 		t.Fatal(err)
 	}

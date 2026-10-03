@@ -29,6 +29,61 @@ CO-RE 字段不存在或内核读取失败时 identity_valid=false，不能获�
 
 ## 配置
 
+### 安装选择与状态（0.3.71）
+
+Linux systemd 安装包的 `install.sh` 和公网 Bootstrap 支持
+`--learning-mode preserve|shadow|enable|disable`；Windows 保留同样的
+`-LearningMode` 选项，两端默认均为 `preserve`。
+
+| 选项 | 行为 |
+| --- | --- |
+| `preserve` | 不重写既有学习策略。全新安装保留模板的首日学习默认值；缺少学习配置的旧安装仍关闭。 |
+| `shadow` | 开启学习、保留全部原文，不过滤任何基线命中。 |
+| `enable` | 开启学习，资格满足后过滤合格精确命中；学习期仍输出全部原文。 |
+| `disable` | 关闭学习与过滤，保留状态供后续明确选择复用。 |
+
+保留已关闭的旧配置时明确输出：
+`behavior learning: disabled; reason=existing-config-preserved`。
+Bootstrap 简洁控制台也会显示安装器的实际选择，详细日志保留完整输出。
+显式选择只修改 `enabled`、`shadow`，不修改代次、匹配范围或晋级阈值，
+不修复损坏状态，也不会静默重启已降级代次。显式重新学习见下方恢复步骤。
+升级不会静默启用既有关闭策略。
+
+```bash
+sudo ./install.sh --learning-mode shadow
+# 在既有主机的 Bootstrap 安装命令中明确选择启用：
+# 在 bash -s -- 后面的参数中追加 --learning-mode enable。
+sudo secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json
+```
+
+只修改配置时：
+
+```bash
+sudo secweaver-agent config set-learning-mode \
+  -config /opt/secweaver-agent/etc/audit-port-execmon.json -mode enable
+sudo systemctl restart secweaver-agent
+```
+
+Linux 包安装器修改标准位置的 `audit-port-execmon.json`。自定义模块配置路径时，
+需使用配置命令指定实际文件。配置命令不会重启服务；Bootstrap 的正常启动/重启
+才应用安装选择。容器工作负载安装器不是宿主机学习策略入口。
+
+Linux Doctor 现在检查关闭/非法策略、缺失状态、模式、开始时间、剩余健康秒数、
+条目数及 `filtering_active`。状态缺失或损坏不影响普通事件采集和心跳续约。
+Doctor 与心跳只读 HMAC 保护的原子检查点，不抢写锁；当前摘要文件最多读取
+128 KiB。进度可能落后 60 秒检查点，剩余时间按健康采集累计，不按墙上时钟倒计时。
+
+托管心跳可选新增 `behavior_learning`，包含 `enabled`、`mode`、`shadow`、
+`started_at`、`remaining_seconds`、`filtering_active`、计数、`reason`、`updated_at`。
+不上传白名单条目、指纹、口令或命令行。沿用原心跳周期（默认 3 分钟），摘要默认
+5 分钟。策略/代次不匹配、过期摘要、模块停止/刚重启、shadow 或输入不健康均不能
+证明正在过滤。单独的 `enforcing` 只表示基线阶段，不代表过滤生效。
+
+SaaS 展示需 Agent Server 0.6.0-rc.64 或更高版本保存可选状态，以及工作台 Server
+0.6.0-rc.89 或更高版本展示。使用 Linux 新选项前，须同时发布新 Bootstrap 和 Agent
+0.3.71。旧 Agent 显示“未上报”，无需数据库迁移。源码版本不代表线上已部署；
+依次核验安装输出、Doctor 和下一次设备心跳后，再确认页面状态。
+
 ### Windows（0.3.39）
 
 新安装的 `config.windows.example.json` 给统一 reader `windows-eventlog-risk-json` 默认添加

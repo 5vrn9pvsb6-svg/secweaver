@@ -31,6 +31,70 @@ Exited or changed /proc instances do not qualify. Reduction depends on actual el
 
 ## Configuration
 
+### Installation Choices And Status (0.3.71)
+
+Linux systemd package `install.sh` and the published Bootstrap support
+`--learning-mode preserve|shadow|enable|disable`; Windows retains the same choices
+through `-LearningMode`. Both default to `preserve`.
+
+| Choice | Behavior |
+| --- | --- |
+| `preserve` | Do not rewrite the existing learning policy. A fresh installation keeps the packaged enabled first-day policy; an old config with no learning block stays disabled. |
+| `shadow` | Enable learning, keep every original event, and never filter baseline matches. |
+| `enable` | Enable learning and eligible exact-match filtering after qualification; the learning period still outputs originals. |
+| `disable` | Disable learning/filtering, keeping state for possible later reuse. |
+
+An unchanged disabled configuration explicitly prints
+`behavior learning: disabled; reason=existing-config-preserved`.
+The concise Bootstrap console repeats the packaged installer's choice; the detailed
+log preserves its full output. Explicit choices change only `enabled` and `shadow`,
+not generation, matching scope, or thresholds. They do not repair corrupted state
+or silently restart a degraded generation. Use the recovery procedure below for
+an explicit relearn. Existing configuration is not silently enabled by upgrades.
+
+```bash
+sudo ./install.sh --learning-mode shadow
+# Explicitly opt in on an existing host using its published Bootstrap command:
+# append --learning-mode enable to the arguments after bash -s --.
+sudo secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json
+```
+
+For a configuration-only change:
+
+```bash
+sudo secweaver-agent config set-learning-mode \
+  -config /opt/secweaver-agent/etc/audit-port-execmon.json -mode enable
+sudo systemctl restart secweaver-agent
+```
+
+The Linux package installer updates its standard `audit-port-execmon.json` path.
+Custom module config paths require the configuration command with the actual path.
+The configuration command does not restart services; Bootstrap's normal start/restart
+applies the installation choice. The container workload installer is not a host
+learning-mode entry point.
+
+Linux Doctor now reports disabled/invalid policies, missing state, mode, start time,
+remaining healthy seconds, entry count and `filtering_active`. Missing or damaged
+state does not prevent ordinary event collection or heartbeat renewal. Doctor and
+heartbeat inspect the HMAC-protected atomic checkpoint without the writer lock and
+read at most 128 KiB of the current summary file. Progress can lag its 60-second
+checkpoint; remaining time is healthy runtime, not a wall-clock countdown.
+
+Managed heartbeats optionally add `behavior_learning` with `enabled`, `mode`,
+`shadow`, `started_at`, `remaining_seconds`, `filtering_active`, counts, `reason`
+and `updated_at`. No whitelist entries, fingerprints, passwords or command lines
+are included. Reporting follows the existing heartbeat interval (default three
+minutes); summaries default to five minutes. Policy/generation mismatch, stale
+summary, stopped/restarted module, shadow and unhealthy input cannot certify active
+filtering. `enforcing` alone does not prove filtering is active.
+
+The SaaS device inventory requires Agent Server 0.6.0-rc.64 or later to persist
+this optional telemetry and workspace Server 0.6.0-rc.89 or later to display it.
+Publish the new Bootstrap together with Agent 0.3.71 before using Linux choices.
+Old Agents show "not reported"; no database migration is needed. These source
+versions are not a claim of live deployment. Verify the installer choice, Doctor
+output and a subsequent device heartbeat before expecting the workspace to update.
+
 ### Windows (0.3.39)
 
 Fresh `config.windows.example.json` installations pass `-behavior-learning` to the unified

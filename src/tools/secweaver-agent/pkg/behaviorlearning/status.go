@@ -1,6 +1,45 @@
 package behaviorlearning
 
-import "fmt"
+import (
+	"bufio"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math"
+	"os"
+	"strings"
+	"time"
+)
+
+// StatusSnapshot is the bounded operational view sent in the managed heartbeat.
+// It intentionally contains progress and mode only; baseline fingerprints and
+// command arguments never leave the host through this status object.
+type StatusSnapshot struct {
+	Enabled          bool    `json:"enabled"`
+	Mode             string  `json:"mode"`
+	Shadow           bool    `json:"shadow"`
+	StartedAt        string  `json:"started_at,omitempty"`
+	RemainingSeconds int64   `json:"remaining_seconds,omitempty"`
+	FilteringActive  bool    `json:"filtering_active"`
+	HealthySeconds   float64 `json:"healthy_seconds,omitempty"`
+	BaselineEntries  int     `json:"baseline_entries,omitempty"`
+	CandidateEntries int     `json:"candidate_entries,omitempty"`
+	Reason           string  `json:"reason,omitempty"`
+	UpdatedAt        string  `json:"updated_at,omitempty"`
+}
+
+// policyHash excludes installation paths and activation choices. Switching
+// shadow/enabled preserves a qualified baseline; changing matching semantics
+// requires an explicit new generation, in both the engine and diagnostics.
+func policyHash(cfg Config) string {
+	cfg.StateDir, cfg.OutputLog = "", ""
+	cfg.Enabled, cfg.Shadow, cfg.Generation = false, false, 0
+	body, _ := json.Marshal(cfg)
+	hash := sha256.Sum256(body)
+	return hex.EncodeToString(hash[:])
+}
 
 // Inspect reads an atomic authenticated checkpoint without taking the writer
 // lock. It never creates files or resets progress while the collector is live.
@@ -22,4 +61,109 @@ func Inspect(dir string, budgetMB int) (*State, error) {
 		return nil, fmt.Errorf("learning has not initialized")
 	}
 	return state, nil
+}
+
+// ReadLatestSummary reads only a bounded tail of the summary file. Heartbeats
+// run periodically, so scanning the complete rotating log would turn a status
+// probe into an avoidable disk and CPU cost on busy hosts.
+func ReadLatestSummary(path string) (*Summary, error) {
+	// Reject nonregular paths before opening: a misconfigured FIFO must not
+	// block a heartbeat waiting for a writer.
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("learning summary must be a regular file")
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err = f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("learning summary must be a regular file")
+	}
+	const tailBytes int64 = 128 << 10
+	if info.Size() > tailBytes {
+		if _, err := f.Seek(-tailBytes, io.SeekEnd); err != nil {
+			return nil, err
+		}
+	}
+	// Fix the read budget even if the collector appends while we inspect it.
+	scanner := bufio.NewScanner(io.LimitReader(f, tailBytes))
+	scanner.Buffer(make([]byte, 4096), 128<<10)
+	var latest *Summary
+	for scanner.Scan() {
+		var candidate Summary
+		if json.Unmarshal(scanner.Bytes(), &candidate) != nil {
+			continue
+		}
+		if candidate.EventType != "behavior_learning_status" && candidate.EventType != "behavior_summary" {
+			continue
+		}
+		if latest == nil || candidate.Time.After(latest.Time) {
+			copy := candidate
+			latest = &copy
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	if latest == nil {
+		return nil, fmt.Errorf("learning summary has no status record")
+	}
+	return latest, nil
+}
+
+// Snapshot combines authenticated state with the latest runtime summary. A
+// missing or stale summary never claims filtering is active, which prevents a
+// SaaS inventory page from displaying a false sense of protection after a
+// collector failure.
+func Snapshot(cfg Config, state *State, latest *Summary, now time.Time) StatusSnapshot {
+	if !cfg.Enabled {
+		return StatusSnapshot{Mode: "disabled", Reason: "disabled"}
+	}
+	result := StatusSnapshot{Enabled: true, Shadow: cfg.Shadow, Mode: "unknown", Reason: "state_unavailable"}
+	if state == nil {
+		return result
+	}
+	if state.Generation != cfg.Generation || state.Policy != policyHash(cfg) {
+		result.Reason = "policy_changed_explicit_relearn_required"
+		return result
+	}
+	result.Mode = state.Mode
+	result.Shadow = cfg.Shadow
+	if !state.Started.IsZero() {
+		result.StartedAt = state.Started.UTC().Format(time.RFC3339)
+	}
+	result.HealthySeconds = state.HealthySeconds
+	result.BaselineEntries = len(state.Entries)
+	result.CandidateEntries = len(state.Candidates)
+	result.Reason = strings.TrimSpace(state.Reason)
+	if result.Mode == "learning" {
+		remaining := int64(math.Ceil(float64(cfg.LearningSeconds) - state.HealthySeconds))
+		if remaining > 0 {
+			result.RemainingSeconds = remaining
+		}
+	}
+	// Rotation and explicit relearning can leave an older generation in the
+	// log. Only a matching device/baseline may qualify the runtime observation.
+	if latest == nil || latest.DeviceID != state.Device || latest.BaselineID != state.BaselineID {
+		return result
+	}
+	result.UpdatedAt = latest.Time.UTC().Format(time.RFC3339)
+	if strings.TrimSpace(latest.Reason) != "" {
+		result.Reason = latest.Reason
+	}
+	// A stale status is never treated as proof that filtering remains active.
+	age := now.Sub(latest.Time)
+	if !state.CleanShutdown && !latest.Time.IsZero() && age >= 0 && age <= 2*time.Duration(cfg.SummarySeconds)*time.Second {
+		result.FilteringActive = latest.FilteringActive && latest.SourceHealthy && !cfg.Shadow && !latest.Shadow && state.Mode == "enforcing" && latest.Mode == state.Mode
+	}
+	return result
 }

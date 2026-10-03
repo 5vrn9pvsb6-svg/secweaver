@@ -20,6 +20,7 @@ import (
 	"strings"
 	"time"
 
+	"secweaver-agent/pkg/behaviorlearning"
 	"secweaver-agent/pkg/layout"
 )
 
@@ -66,23 +67,24 @@ type State struct {
 }
 
 type Request struct {
-	EnterpriseID        string                  `json:"enterprise_id"`
-	DeviceID            string                  `json:"device_id"`
-	HostName            string                  `json:"host_name"`
-	HostIP              string                  `json:"host_ip"`
-	InternalIP          string                  `json:"internal_ip,omitempty"`
-	OS                  string                  `json:"os"`
-	OSVersion           string                  `json:"os_version,omitempty"`
-	Arch                string                  `json:"arch"`
-	AgentVersion        string                  `json:"agent_version"`
-	Registered          bool                    `json:"registered"`
-	Status              string                  `json:"status,omitempty"`
-	Modules             map[string]ModuleHealth `json:"modules,omitempty"`
-	Labels              map[string]string       `json:"labels,omitempty"`
-	FingerprintVersion  string                  `json:"fingerprint_version,omitempty"`
-	HardwareFingerprint string                  `json:"hardware_fingerprint,omitempty"`
-	HardwareComponents  map[string]string       `json:"hardware_components,omitempty"`
-	UpdateStatus        *UpdateReport           `json:"update_status,omitempty"`
+	EnterpriseID        string                           `json:"enterprise_id"`
+	DeviceID            string                           `json:"device_id"`
+	HostName            string                           `json:"host_name"`
+	HostIP              string                           `json:"host_ip"`
+	InternalIP          string                           `json:"internal_ip,omitempty"`
+	OS                  string                           `json:"os"`
+	OSVersion           string                           `json:"os_version,omitempty"`
+	Arch                string                           `json:"arch"`
+	AgentVersion        string                           `json:"agent_version"`
+	Registered          bool                             `json:"registered"`
+	Status              string                           `json:"status,omitempty"`
+	Modules             map[string]ModuleHealth          `json:"modules,omitempty"`
+	Labels              map[string]string                `json:"labels,omitempty"`
+	FingerprintVersion  string                           `json:"fingerprint_version,omitempty"`
+	HardwareFingerprint string                           `json:"hardware_fingerprint,omitempty"`
+	HardwareComponents  map[string]string                `json:"hardware_components,omitempty"`
+	UpdateStatus        *UpdateReport                    `json:"update_status,omitempty"`
+	BehaviorLearning    *behaviorlearning.StatusSnapshot `json:"behavior_learning,omitempty"`
 }
 
 type UpdateReport struct {
@@ -397,6 +399,12 @@ func (c Client) Heartbeat(ctx context.Context, cfg Config, enterpriseID, agentVe
 }
 
 func (c Client) HeartbeatWithUpdate(ctx context.Context, cfg Config, enterpriseID, agentVersion string, modules map[string]ModuleHealth, updateStatus *UpdateReport) (Response, error) {
+	return c.HeartbeatWithUpdateAndLearning(ctx, cfg, enterpriseID, agentVersion, modules, updateStatus, nil)
+}
+
+// HeartbeatWithUpdateAndLearning keeps the learning field optional for older
+// callers while allowing the managed inventory to display current progress.
+func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, enterpriseID, agentVersion string, modules map[string]ModuleHealth, updateStatus *UpdateReport, learning *behaviorlearning.StatusSnapshot) (Response, error) {
 	cfg = cfg.Normalize()
 	if err := cfg.Validate(); err != nil {
 		return Response{}, err
@@ -411,11 +419,13 @@ func (c Client) HeartbeatWithUpdate(ctx context.Context, cfg Config, enterpriseI
 	req := buildRequest(enterpriseID, state, agentVersion, "online")
 	req.Modules = modules
 	req.UpdateStatus = updateStatus
+	req.BehaviorLearning = learning
 	if cfg.DeviceAuthEnabled() {
 		state = withCurrentHardwareObservation(state)
 		req = buildRequest(state.EnterpriseID, state, agentVersion, "online")
 		req.Modules = modules
 		req.UpdateStatus = updateStatus
+		req.BehaviorLearning = learning
 		req.EnterpriseID = state.EnterpriseID
 		return c.postSigned(ctx, cfg, heartbeatV2Path, req, state)
 	}

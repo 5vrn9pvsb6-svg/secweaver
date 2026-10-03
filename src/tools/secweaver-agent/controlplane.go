@@ -177,7 +177,7 @@ func runScheduledLicenseChecker(ctx context.Context, cfg agentlicense.Config, en
 // runScheduledHeartbeat publishes each raw request outcome before applying retry
 // backoff. A denied heartbeat still terminates supervision; transient failures
 // remain visible while the loop backs off up to its configured ceiling.
-func runScheduledHeartbeat(ctx context.Context, cfg agentlicense.Config, enterpriseID string, tracker *statusTracker, updater *scheduledUpdateConfig, updatePolicies chan agentlicense.UpdatePolicy, metricsExporter *metrics.Exporter) error {
+func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, cfg agentlicense.Config, enterpriseID string, tracker *statusTracker, updater *scheduledUpdateConfig, updatePolicies chan agentlicense.UpdatePolicy, metricsExporter *metrics.Exporter) error {
 	interval := time.Duration(cfg.HeartbeatSeconds) * time.Second
 	if interval <= 0 {
 		return nil
@@ -201,17 +201,18 @@ func runScheduledHeartbeat(ctx context.Context, cfg agentlicense.Config, enterpr
 			return nil
 		case <-timer.C:
 			checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-			var modules map[string]agentlicense.ModuleHealth
+			var moduleHealth map[string]agentlicense.ModuleHealth
 			if tracker != nil {
-				modules = tracker.moduleSnapshot()
+				moduleHealth = tracker.moduleSnapshot()
 			}
-			resp, err := (agentlicense.Client{}).HeartbeatWithUpdate(
+			resp, err := (agentlicense.Client{}).HeartbeatWithUpdateAndLearning(
 				checkCtx,
 				cfg,
 				enterpriseID,
 				version,
-				modules,
+				moduleHealth,
 				updateHeartbeatReport(updater),
+				behaviorLearningStatus(runtimeModules, moduleHealth),
 			)
 			cancel()
 			if metricsExporter != nil {

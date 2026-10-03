@@ -81,6 +81,7 @@ UPDATE_PUBLIC_KEY="${EMBEDDED_UPDATE_PUBLIC_KEY}"
 LOGTAIL_CONFIG_DIR="${SECWEAVER_LOGTAIL_CONFIG_DIR:-/etc/ilogtail}"
 ENTERPRISE_ID=""
 ENTERPRISE_ENROLLMENT_TOKEN=""
+LEARNING_MODE="preserve"
 LICENSE_CHECK_INTERVAL_SECONDS="21600"
 LICENSE_HEARTBEAT_INTERVAL_SECONDS="180"
 LICENSE_OUTAGE_GRACE_SECONDS="86400"
@@ -110,6 +111,7 @@ Required:
 Options:
   --enterprise-id ID       Legacy v1 enterprise ID; migration use only
   --version VERSION        Explicitly pin an immutable version for testing
+  --learning-mode MODE      preserve, shadow, enable, or disable; default: preserve
   --enrollment-id ID       Override the embedded machine admission identifier
   --license-server-url URL Override the embedded authorization origin
   --release-base-url URL   Override the embedded release root for self-hosting/testing
@@ -387,6 +389,15 @@ while [[ "$#" -gt 0 ]]; do
       VERSION="${1#*=}"
       shift
       ;;
+    --learning-mode)
+      [[ "$#" -ge 2 ]] || { usage >&2; exit 2; }
+      LEARNING_MODE="$2"
+      shift 2
+      ;;
+    --learning-mode=*)
+      LEARNING_MODE="${1#*=}"
+      shift
+      ;;
     --logtail-install-url)
       [[ "$#" -ge 2 ]] || fatal "--logtail-install-url requires a value"
       LOGTAIL_INSTALL_URL="$2"
@@ -471,6 +482,10 @@ fi
 [[ "${LICENSE_OUTAGE_GRACE_SECONDS}" =~ ^[0-9]+$ ]] || fatal "--license-outage-grace-seconds must be an integer"
 (( 10#${LICENSE_OUTAGE_GRACE_SECONDS} <= 604800 )) || fatal "--license-outage-grace-seconds must not exceed 604800"
 [[ -z "${VERSION}" || "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ ]] || fatal "invalid --version"
+case "${LEARNING_MODE}" in
+  preserve|shadow|enable|disable) ;;
+  *) fatal "--learning-mode must be preserve, shadow, enable, or disable" ;;
+esac
 [[ -n "${RELEASE_BASE_URL}" ]] || fatal "release base URL is not configured"
 [[ "${RELEASE_BASE_URL}" != *YOUR_DATA_CLOUD_HOST* ]] || fatal "embedded release base URL is not configured"
 [[ "${RELEASE_BASE_URL}" != *[[:space:]]* && "${RELEASE_BASE_URL}" != *\?* && "${RELEASE_BASE_URL}" != *\#* ]] || fatal "invalid --release-base-url"
@@ -799,6 +814,7 @@ step_complete
 step_begin "Install Agent and register/configure device"
 log "installing ${APP_NAME} ${VERSION} for linux/${ARCH}"
 INSTALL_ARGS=(
+  --learning-mode "${LEARNING_MODE}"
   --deployment-mode sls_saas
   --license-server-url "${LICENSE_SERVER_URL}"
   --license-check-interval-seconds "${LICENSE_CHECK_INTERVAL_SECONDS}"
@@ -818,6 +834,12 @@ else
   )
 fi
 "${PACKAGE_ROOT}/install.sh" "${INSTALL_ARGS[@]}"
+# The detailed installer output is captured in INSTALL_LOG. Surface its actual
+# choice in the concise console too, including preserved disabled policies.
+LEARNING_REPORT="$(awk '/^behavior learning:/ {report=$0} END {print report}' "${INSTALL_LOG}")"
+if [[ -n "${LEARNING_REPORT}" ]]; then
+  status_line INFO "${LEARNING_REPORT}"
+fi
 ENTERPRISE_ENROLLMENT_TOKEN=""
 INSTALL_ARGS=()
 step_complete

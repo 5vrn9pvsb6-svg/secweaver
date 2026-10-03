@@ -1,5 +1,18 @@
 # Changelog
 
+## Agent 0.3.71
+
+- Add Linux installer and Bootstrap `--learning-mode preserve|shadow|enable|disable`.
+  Preserve remains the default for upgrades and explicitly reports disabled
+  existing policies; opt-in keeps baseline generation and matching scope intact.
+- Add Linux Doctor policy/progress checks and optional learning status in signed
+  and legacy heartbeats, without transmitting whitelist entries or command lines.
+- Bound summary inspection to 128 KiB and verify policy/generation identity.
+  Stopped, restarted, stale, shadow and unhealthy collectors never advertise
+  active filtering from an old summary. Share Windows runtime/diagnostic defaults.
+- Document coordinated Gateway/workspace upgrades and explicit learning activation
+  in the bilingual behavior-learning guides.
+
 ## Agent 0.3.69
 
 - Restore Windows PowerShell 5.1 compatibility for atomic activation and

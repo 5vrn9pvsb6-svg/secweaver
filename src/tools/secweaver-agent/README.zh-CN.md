@@ -1,5 +1,9 @@
 # secweaver-agent
 
+源码 0.3.71 增加 Linux 安装参数 `--learning-mode preserve|shadow|enable|disable`、
+Linux Doctor 学习检查和可选心跳进度上报。默认保留既有策略，不在升级时静默启用；
+详见[安装选择与状态](docs/behavior-learning.zh-CN.md#安装选择与状态0371)。
+
 源码 0.3.70 保留注册拒绝错误码，分别说明设备身份冲突、设备额度已满、令牌累计
 注册次数用尽、企业禁用和订阅到期，并提供中英文处理建议。Linux Bootstrap
 也会在终端显示简短原因。兼容范围、前提与验证见

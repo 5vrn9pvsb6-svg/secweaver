@@ -1,5 +1,10 @@
 # secweaver-agent
 
+Source 0.3.71 adds Linux `--learning-mode preserve|shadow|enable|disable`,
+Linux Doctor learning checks and optional heartbeat progress. Existing policies
+remain unchanged by default; activation requires an explicit choice. See
+[installation choices and status](docs/behavior-learning.md#installation-choices-and-status-0371).
+
 Source 0.3.70 preserves enrollment rejection codes and gives distinct English/Chinese
 diagnoses and recovery advice for device identity conflicts, full device quotas,
 exhausted token registration limits, disabled enterprises and expired subscriptions.
