@@ -1,5 +1,11 @@
 # Changelog
 
+## Agent 0.3.74
+
+- Publish the committed managed-upgrade hardening baseline as a new immutable
+  Agent release. This version bump prevents the already published `0.3.73`
+  archive from being overwritten.
+
 ## Agent 0.3.73
 
 - Make update recovery persistence, health confirmation and rollback share one
