@@ -12,5 +12,7 @@
 | 运维健康日志与上传边界 | [operations-health-report](operations-health-report.zh-CN.md) |
 | 故障自愈与磁盘保护 | [reliability-and-disk-protection](reliability-and-disk-protection.zh-CN.md) |
 | 托管安装版本入口与发布验证 | [bootstrap-channel](bootstrap-channel.zh-CN.md) |
+| 升级需求基线 | [agent-upgrade-requirements](agent-upgrade-requirements.zh-CN.md) |
+| 升级模块与架构 | [agent-upgrade-architecture](agent-upgrade-architecture.zh-CN.md) |
 
 架构阅读见 [Linux eBPF/Audit 设计与历史审查](../../../../docs_dev/history/28-secweaver-agent-audit-design.zh-CN.md)。该评估中的历史待办不等于当前版本缺陷清单。

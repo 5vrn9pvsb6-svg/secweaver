@@ -140,12 +140,14 @@ retains the activated service and reports the failed stage instead of rewinding 
 | Entry | Result |
 | --- | --- |
 | Generic Windows JSON template, no manifest supplied | `update.enabled=false`; there is no usable universal update origin. |
-| Published SaaS Bootstrap | Requires a real embedded HTTPS manifest and passes it to installation; persists `enabled=true`, `auto_install=true`. |
+| Published SaaS Bootstrap | Persists updates in managed-policy mode with automatic installation disabled by default; the tenant workspace permission and a signed campaign must both allow installation. |
 | Direct package installer / ES enrollment with `UpdateManifestUrl` | Enables updates using the enrolled immutable device ID; managed installation fails if persisted flags disagree. |
 | Upgrade without `UpdateManifestUrl` | Preserves existing settings; does not silently enable or disable updates. |
 
 Enabled scheduling defaults to a six-hour check, initial delay/jitter, and server
-policy approval. It does not mean immediate fleet-wide installation; manifest
+policy approval. `auto_install=false` is the packaged default. SLS SaaS additionally
+requires the tenant workspace switch; enabling that switch alone does not publish
+a target. It does not mean immediate fleet-wide installation; manifest
 eligibility, policy and rollout still apply. A supplied public key requires
 signature verification; otherwise HTTPS and artifact integrity checks apply.
 Doctor reports the actual configuration. Disabled scheduling is not a service-name

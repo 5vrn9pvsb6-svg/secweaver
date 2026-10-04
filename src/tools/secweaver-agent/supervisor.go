@@ -105,7 +105,7 @@ func runSupervisor(ctx context.Context, modules []runtimeModule, updater *schedu
 			}
 		}()
 	}
-	if updater != nil {
+	if updater != nil && updater.Enabled {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -114,16 +114,18 @@ func runSupervisor(ctx context.Context, modules []runtimeModule, updater *schedu
 				cancel()
 			}
 		}()
-		if updater.HealthCheckPending {
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				if err := runUpdateHealthMonitor(ctx, *updater, tracker, metricsExporter); err != nil {
-					errCh <- err
-					cancel()
-				}
-			}()
-		}
+	}
+	// Recovery must remain active even when scheduled installation is disabled;
+	// manual/offline updates still need the same health confirmation and rollback.
+	if updater != nil && updater.HealthCheckPending {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if err := runUpdateHealthMonitor(ctx, *updater, tracker, metricsExporter); err != nil {
+				errCh <- err
+				cancel()
+			}
+		}()
 	}
 	if remoteCfg != nil {
 		wg.Add(1)
@@ -400,6 +402,7 @@ func runModuleProcess(ctx context.Context, module runtimeModule, auditDemuxes *a
 	}
 	if tracker != nil {
 		tracker.moduleStarting(module.Spec.Name, cmd.Process.Pid)
+		tracker.moduleHeartbeat(module.Spec.Name)
 	}
 	if err := processControl.afterStart(cmd.Process); err != nil {
 		// Cooperative stop still works when an upstream Windows Job forbids
@@ -418,7 +421,13 @@ func runModuleProcess(ctx context.Context, module runtimeModule, auditDemuxes *a
 		// duplicate open would prevent EOF when the demux closes its writer.
 		_ = auditReader.Close()
 	}
+	healthCtx, stopHealth := context.WithCancel(ctx)
+	defer stopHealth()
+	if tracker != nil {
+		go runModuleHealthHeartbeat(healthCtx, tracker, module.Spec.Name)
+	}
 	err = cmd.Wait()
+	stopHealth()
 	if ctx.Err() != nil {
 		return nil
 	}
@@ -426,6 +435,22 @@ func runModuleProcess(ctx context.Context, module runtimeModule, auditDemuxes *a
 		return err
 	}
 	return nil
+}
+
+// runModuleHealthHeartbeat keeps post-upgrade health meaningful on quiet hosts.
+// The bounded ticker adds one tiny status update per module per 15 seconds and
+// never reads collector output or participates in the event ingestion path.
+func runModuleHealthHeartbeat(ctx context.Context, tracker *statusTracker, moduleName string) {
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			tracker.moduleHeartbeat(moduleName)
+		}
+	}
 }
 
 // moduleDiskPriority reserves headroom for real-time security evidence before

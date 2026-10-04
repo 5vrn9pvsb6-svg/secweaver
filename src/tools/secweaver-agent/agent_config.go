@@ -123,6 +123,7 @@ type runtimeModule struct {
 }
 
 type scheduledUpdateConfig struct {
+	Enabled              bool
 	Options              agentupdate.Options
 	Interval             time.Duration
 	InitialDelay         time.Duration
@@ -336,14 +337,11 @@ func validateWindowsReaderOwnership(modules []runtimeModule) error {
 }
 
 func scheduledUpdateFromConfig(cfg updateConfig) (*scheduledUpdateConfig, error) {
-	if !cfg.Enabled {
-		return nil, nil
-	}
 	manifestURL := strings.TrimSpace(cfg.ManifestURL)
 	if manifestURL == "" {
 		manifestURL = agentupdate.DefaultManifestURL()
 	}
-	if manifestURL == "" {
+	if cfg.Enabled && manifestURL == "" {
 		return nil, fmt.Errorf("manifest_url is required when update.enabled=true")
 	}
 	channel := strings.TrimSpace(cfg.Channel)
@@ -392,7 +390,10 @@ func scheduledUpdateFromConfig(cfg updateConfig) (*scheduledUpdateConfig, error)
 	if healthTimeout == 0 {
 		healthTimeout = 90 * time.Second
 	}
-	autoInstall := true
+	// Managed installations fail closed when the field is omitted. The server
+	// tenant permission and signed rollout policy must both opt into install;
+	// this prevents a legacy or hand-written config from upgrading by surprise.
+	autoInstall := false
 	if cfg.AutoInstall != nil {
 		autoInstall = *cfg.AutoInstall
 	}
@@ -440,6 +441,7 @@ func scheduledUpdateFromConfig(cfg updateConfig) (*scheduledUpdateConfig, error)
 	}
 	opts = normalizeUpdateOptions(opts)
 	return &scheduledUpdateConfig{
+		Enabled:             cfg.Enabled,
 		Options:             opts,
 		Interval:            interval,
 		InitialDelay:        initialDelay,

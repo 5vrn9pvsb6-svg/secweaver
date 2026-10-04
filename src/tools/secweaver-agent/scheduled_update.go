@@ -131,12 +131,20 @@ func applyUpdatePolicy(cfg scheduledUpdateConfig, policy *agentlicense.UpdatePol
 	if policy == nil {
 		return cfg, false, status
 	}
+	if policy.AutoUpdateAllowed != nil && !*policy.AutoUpdateAllowed {
+		status.Reason = firstUpdatePolicyValue(policy.Reason, "tenant_auto_update_disabled")
+		return cfg, false, status
+	}
 	if !policy.Enabled {
 		status.Reason = firstUpdatePolicyValue(policy.Reason, "server_policy_disabled")
 		return cfg, false, status
 	}
 	if policy.Paused {
 		status.Reason = firstUpdatePolicyValue(policy.Reason, "rollout_paused")
+		return cfg, false, status
+	}
+	if policy.HealthUnknown {
+		status.Reason = firstUpdatePolicyValue(policy.Reason, "health_unknown")
 		return cfg, false, status
 	}
 	if policy.MaintenanceWindowOpen != nil && !*policy.MaintenanceWindowOpen {

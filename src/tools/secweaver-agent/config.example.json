@@ -45,7 +45,7 @@
     "jitter_seconds": 300,
 	"retry_initial_seconds": 60,
 	"retry_max_seconds": 3600,
-    "auto_install": true,
+    "auto_install": false,
     "state_dir": "/opt/secweaver-agent/data/update",
     "status_output": "/opt/secweaver-agent/logs/secweaver-agent-update.log",
     "require_server_policy": true,

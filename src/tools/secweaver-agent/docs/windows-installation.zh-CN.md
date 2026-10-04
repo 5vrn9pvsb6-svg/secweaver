@@ -114,11 +114,13 @@ Agent 0.3.51 的 Windows 风险 parser_version 为 0.3.1。4104 完整脚本片�
 | 安装入口 | 实际结果 |
 | --- | --- |
 | 通用 Windows JSON 模板，未提供清单 | `update.enabled=false`，不存在可通用使用的升级服务地址。 |
-| 已发布 SaaS Bootstrap | 要求嵌入真实 HTTPS 清单并传给安装器，落盘 `enabled=true`、`auto_install=true`。 |
+| 已发布 SaaS Bootstrap | 使用受管策略模式，默认落盘 `auto_install=false`；企业工作台许可和签名升级活动都允许时才可安装。 |
 | 直接安装包 / ES enrollment 提供 `UpdateManifestUrl` | 使用已注册的稳定设备 ID 启用升级；落盘开关不符则安装失败。 |
 | 升级时未提供 `UpdateManifestUrl` | 保留原设置，不静默启用或关闭。 |
 
-启用后默认每 6 小时检查，带初始延迟和抖动，且要求服务端策略批准；不意味着立即全量升级，
+启用检查后默认每 6 小时检查，带初始延迟和抖动，且要求服务端策略批准；打包默认
+`auto_install=false`。SLS SaaS 还要求企业工作台开关开启；开启开关本身不会发布目标版本。
+这不意味着立即全量升级，
 仍受 manifest、设备资格和灰度策略控制。提供公钥时强制验证签名，否则验证 HTTPS 和包完整性。
 doctor 显示实际配置。关闭升级不属于服务名错误；应通过正式受管安装入口或提供真实 manifest
 及设备身份启用，不能保留模板示例地址只把开关改为 true。

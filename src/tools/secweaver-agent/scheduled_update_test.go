@@ -25,6 +25,7 @@ func TestApplyUpdatePolicyDefersUnsafeRollouts(t *testing.T) {
 	}{
 		{name: "missing", reason: "server_policy_missing"},
 		{name: "disabled", policy: &agentlicense.UpdatePolicy{}, reason: "server_policy_disabled"},
+		{name: "tenant-disabled", policy: &agentlicense.UpdatePolicy{Enabled: true, AutoUpdateAllowed: boolPointer(false)}, reason: "tenant_auto_update_disabled"},
 		{name: "paused", policy: &agentlicense.UpdatePolicy{Enabled: true, Paused: true}, reason: "rollout_paused"},
 		{name: "outside-window", policy: &agentlicense.UpdatePolicy{Enabled: true, MaintenanceWindowOpen: boolPointer(false)}, reason: "outside_maintenance_window"},
 		{name: "no-lease", policy: &agentlicense.UpdatePolicy{Enabled: true, Eligible: true, AutoInstall: true, TargetVersion: "0.3.1", MaintenanceWindowOpen: boolPointer(true), LeaseGranted: boolPointer(false)}, reason: "concurrent_update_limit_reached"},

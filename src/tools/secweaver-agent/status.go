@@ -127,6 +127,7 @@ func (s *statusTracker) allModulesHealthySince(since time.Time) bool {
 	for name, paths := range s.moduleOutputs {
 		outputs[name] = append([]string(nil), paths...)
 	}
+	modules := cloneModuleHealth(s.modules)
 	license := s.license
 	s.mu.Unlock()
 	if license.Enabled {
@@ -135,7 +136,13 @@ func (s *statusTracker) allModulesHealthySince(since time.Time) bool {
 			return false
 		}
 	}
-	for _, paths := range outputs {
+	for name, paths := range outputs {
+		// Quiet collectors may legitimately have no new event during the
+		// probation window. A supervisor-owned heartbeat proves that the module
+		// process is alive and being observed without fabricating an output event.
+		if healthAt, err := time.Parse(time.RFC3339, modules[name].LastHealthAt); err == nil && !healthAt.Before(since) {
+			continue
+		}
 		if len(paths) == 0 {
 			return false
 		}
@@ -214,6 +221,24 @@ func (s *statusTracker) moduleStarting(name string, pid int) {
 	health.LastError = ""
 	health.NextRestartAt = ""
 	health.CircuitOpenUntil = ""
+	s.modules[name] = health
+	s.writeLocked()
+}
+
+// moduleHeartbeat records local supervisor evidence for post-upgrade health.
+// It intentionally does not assert that a collector observed a security event;
+// it only proves that the child remains alive and under Agent supervision.
+func (s *statusTracker) moduleHeartbeat(name string) {
+	if s == nil {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	health := s.modules[name]
+	if health.Status != "running" {
+		return
+	}
+	health.LastHealthAt = time.Now().UTC().Format(time.RFC3339)
 	s.modules[name] = health
 	s.writeLocked()
 }

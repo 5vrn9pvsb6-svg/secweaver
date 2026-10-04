@@ -67,24 +67,27 @@ type State struct {
 }
 
 type Request struct {
-	EnterpriseID        string                           `json:"enterprise_id"`
-	DeviceID            string                           `json:"device_id"`
-	HostName            string                           `json:"host_name"`
-	HostIP              string                           `json:"host_ip"`
-	InternalIP          string                           `json:"internal_ip,omitempty"`
-	OS                  string                           `json:"os"`
-	OSVersion           string                           `json:"os_version,omitempty"`
-	Arch                string                           `json:"arch"`
-	AgentVersion        string                           `json:"agent_version"`
-	Registered          bool                             `json:"registered"`
-	Status              string                           `json:"status,omitempty"`
-	Modules             map[string]ModuleHealth          `json:"modules,omitempty"`
-	Labels              map[string]string                `json:"labels,omitempty"`
-	FingerprintVersion  string                           `json:"fingerprint_version,omitempty"`
-	HardwareFingerprint string                           `json:"hardware_fingerprint,omitempty"`
-	HardwareComponents  map[string]string                `json:"hardware_components,omitempty"`
-	UpdateStatus        *UpdateReport                    `json:"update_status,omitempty"`
-	BehaviorLearning    *behaviorlearning.StatusSnapshot `json:"behavior_learning,omitempty"`
+	EnterpriseID        string                  `json:"enterprise_id"`
+	DeviceID            string                  `json:"device_id"`
+	HostName            string                  `json:"host_name"`
+	HostIP              string                  `json:"host_ip"`
+	InternalIP          string                  `json:"internal_ip,omitempty"`
+	OS                  string                  `json:"os"`
+	OSVersion           string                  `json:"os_version,omitempty"`
+	Arch                string                  `json:"arch"`
+	AgentVersion        string                  `json:"agent_version"`
+	Registered          bool                    `json:"registered"`
+	Status              string                  `json:"status,omitempty"`
+	Modules             map[string]ModuleHealth `json:"modules,omitempty"`
+	Labels              map[string]string       `json:"labels,omitempty"`
+	FingerprintVersion  string                  `json:"fingerprint_version,omitempty"`
+	HardwareFingerprint string                  `json:"hardware_fingerprint,omitempty"`
+	HardwareComponents  map[string]string       `json:"hardware_components,omitempty"`
+	// UpdateCapabilities is optional so older Agents can continue to heartbeat
+	// against newer Agent Servers without being rejected for an unknown field.
+	UpdateCapabilities []string                         `json:"update_capabilities,omitempty"`
+	UpdateStatus       *UpdateReport                    `json:"update_status,omitempty"`
+	BehaviorLearning   *behaviorlearning.StatusSnapshot `json:"behavior_learning,omitempty"`
 }
 
 type UpdateReport struct {
@@ -108,9 +111,14 @@ type UpdateReport struct {
 }
 
 type UpdatePolicy struct {
-	Enabled                 bool     `json:"enabled"`
+	Enabled bool `json:"enabled"`
+	// AutoUpdateAllowed is a pointer for compatibility with older gateways
+	// that do not send the tenant permission field. When present and false, the
+	// Agent must remain in policy-deferred state even if a campaign is eligible.
+	AutoUpdateAllowed       *bool    `json:"auto_update_allowed,omitempty"`
 	Paused                  bool     `json:"paused,omitempty"`
 	Eligible                bool     `json:"eligible,omitempty"`
+	HealthUnknown           bool     `json:"health_unknown,omitempty"`
 	TargetVersion           string   `json:"target_version,omitempty"`
 	Channel                 string   `json:"channel,omitempty"`
 	ManifestURL             string   `json:"manifest_url,omitempty"`
@@ -139,10 +147,13 @@ type ModuleHealth struct {
 	RestartCount        int    `json:"restart_count,omitempty"`
 	ConsecutiveFailures int    `json:"consecutive_failures,omitempty"`
 	LastStartAt         string `json:"last_start_at,omitempty"`
-	LastExitAt          string `json:"last_exit_at,omitempty"`
-	NextRestartAt       string `json:"next_restart_at,omitempty"`
-	CircuitOpenUntil    string `json:"circuit_open_until,omitempty"`
-	LastError           string `json:"last_error,omitempty"`
+	// LastHealthAt is local lifecycle evidence, not proof of a newly collected
+	// event. The server uses it as a low-traffic alternative during probation.
+	LastHealthAt     string `json:"last_health_at,omitempty"`
+	LastExitAt       string `json:"last_exit_at,omitempty"`
+	NextRestartAt    string `json:"next_restart_at,omitempty"`
+	CircuitOpenUntil string `json:"circuit_open_until,omitempty"`
+	LastError        string `json:"last_error,omitempty"`
 }
 
 type Response struct {
@@ -418,12 +429,14 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 	}
 	req := buildRequest(enterpriseID, state, agentVersion, "online")
 	req.Modules = modules
+	req.UpdateCapabilities = supportedUpdateCapabilities()
 	req.UpdateStatus = updateStatus
 	req.BehaviorLearning = learning
 	if cfg.DeviceAuthEnabled() {
 		state = withCurrentHardwareObservation(state)
 		req = buildRequest(state.EnterpriseID, state, agentVersion, "online")
 		req.Modules = modules
+		req.UpdateCapabilities = supportedUpdateCapabilities()
 		req.UpdateStatus = updateStatus
 		req.BehaviorLearning = learning
 		req.EnterpriseID = state.EnterpriseID
@@ -437,6 +450,13 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 		return resp, DeniedError{Response: resp}
 	}
 	return resp, nil
+}
+
+// supportedUpdateCapabilities advertises only behaviors the local transaction
+// and health code actually implements. Returning a fresh slice prevents a
+// caller from mutating the shared compatibility contract between heartbeats.
+func supportedUpdateCapabilities() []string {
+	return []string{"update-transaction-lock-v2", "health-evidence-v1", "signed-manifest-v1"}
 }
 
 func (c Client) FetchRemoteConfig(ctx context.Context, cfg Config, enterpriseID, agentVersion string) (RemoteConfigResponse, error) {

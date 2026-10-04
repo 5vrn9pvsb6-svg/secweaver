@@ -103,8 +103,8 @@ func TestScheduledUpdateDisabledByDefault(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg != nil {
-		t.Fatalf("scheduled updater = %+v, want nil", cfg)
+	if cfg == nil || cfg.Enabled {
+		t.Fatalf("disabled scheduled updater config = %+v, want a disabled config for health recovery", cfg)
 	}
 }
 
@@ -133,8 +133,8 @@ func TestScheduledUpdateDefaults(t *testing.T) {
 	if cfg.RetryInitial != time.Minute || cfg.RetryMax != time.Hour {
 		t.Fatalf("retry range = %s..%s, want 1m..1h", cfg.RetryInitial, cfg.RetryMax)
 	}
-	if !cfg.AutoInstall {
-		t.Fatal("auto_install should default to true")
+	if cfg.AutoInstall {
+		t.Fatal("auto_install should default to false")
 	}
 	if cfg.Options.DeviceID != "" || cfg.Options.HostID != "" {
 		t.Fatal("update identity must not default to mutable hostname")

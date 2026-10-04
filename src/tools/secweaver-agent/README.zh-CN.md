@@ -1,5 +1,9 @@
 # secweaver-agent
 
+源码 0.3.73 将定时自动安装改为默认 fail closed，并增加带锁恢复持久化与采集模块健康证据。
+SLS SaaS Agent 必须同时得到企业工作台
+许可和签名服务端升级活动；独立 ES Agent 必须显式设置 `auto_install=true`。
+
 源码 0.3.71 增加 Linux 安装参数 `--learning-mode preserve|shadow|enable|disable`、
 Linux Doctor 学习检查和可选心跳进度上报。默认保留既有策略，不在升级时静默启用；
 详见[安装选择与状态](docs/behavior-learning.zh-CN.md#安装选择与状态0371)。
@@ -411,7 +415,7 @@ sudo secweaver-agent update rollback
     "jitter_seconds": 300,
     "retry_initial_seconds": 60,
     "retry_max_seconds": 3600,
-    "auto_install": true,
+    "auto_install": false,
     "require_server_policy": true,
     "health_timeout_seconds": 90,
     "lock_stale_seconds": 3600,
@@ -422,7 +426,7 @@ sudo secweaver-agent update rollback
 }
 ```
 
-`require_server_policy=true` 时，Agent 只有收到设备密钥认证后的服务端企业升级策略才会
+`require_server_policy=true` 时，Agent 只有在企业工作台许可开启且收到设备密钥认证后的服务端升级策略才会
 安装；SLS SaaS 使用已部署的 Agent Gateway 控制面，企业自建 ES 使用独立 Agent 配置，
 不需要 SecWeaver 服务端源码。托管控制面负责目标版本、固定活动设备范围、稳定灰度环、维护窗口、暂停、并发百分比
 和绝对台数、失败率熔断、受控回退以及自动安装开关。
@@ -530,7 +534,7 @@ Linux 示例见 [`config.example.json`](config.example.json)：
     "jitter_seconds": 300,
     "retry_initial_seconds": 60,
     "retry_max_seconds": 3600,
-    "auto_install": true,
+    "auto_install": false,
 	"public_key": "BASE64_ED25519_PUBLIC_KEY",
     "status_output": "/opt/secweaver-agent/logs/secweaver-agent-update.log"
   },

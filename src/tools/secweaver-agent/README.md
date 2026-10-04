@@ -1,5 +1,10 @@
 # secweaver-agent
 
+Source 0.3.73 makes scheduled automatic installation fail closed by default and
+adds locked recovery persistence plus collector-health evidence for managed upgrades.
+SLS SaaS Agents require both the enterprise workspace permission and a signed
+server campaign; standalone ES Agents must explicitly set `auto_install=true`.
+
 Source 0.3.71 adds Linux `--learning-mode preserve|shadow|enable|disable`,
 Linux Doctor learning checks and optional heartbeat progress. Existing policies
 remain unchanged by default; activation requires an explicit choice. See
@@ -472,7 +477,7 @@ Scheduled updates are disabled by default. Enable the `update` block in `config.
     "jitter_seconds": 300,
     "retry_initial_seconds": 60,
     "retry_max_seconds": 3600,
-    "auto_install": true,
+    "auto_install": false,
     "require_server_policy": true,
     "health_timeout_seconds": 90,
     "lock_stale_seconds": 3600,
@@ -483,7 +488,8 @@ Scheduled updates are disabled by default. Enable the `update` block in `config.
 }
 ```
 
-With `require_server_policy=true`, installation requires an enterprise rollout policy received over
+With `require_server_policy=true`, installation requires the enterprise workspace permission and a
+rollout policy received over
 a device-key-authenticated heartbeat. SLS SaaS uses the hosted Agent Gateway control plane. Self-managed
 ES deployments use the standalone Agent profile and do not require a SecWeaver server source tree. The
 service controls the target version, stable
@@ -607,7 +613,7 @@ Linux example: [`config.example.json`](config.example.json):
     "jitter_seconds": 300,
     "retry_initial_seconds": 60,
     "retry_max_seconds": 3600,
-    "auto_install": true,
+    "auto_install": false,
 	"public_key": "BASE64_ED25519_PUBLIC_KEY",
     "status_output": "/opt/secweaver-agent/logs/secweaver-agent-update.log"
   },

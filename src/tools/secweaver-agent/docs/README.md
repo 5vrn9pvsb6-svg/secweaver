@@ -12,5 +12,7 @@ Start with the [Agent engineering manual](../README.md) for installation and bui
 | Operations-health logs and shipping boundaries | [operations-health-report](operations-health-report.md) |
 | Recovery and disk protection | [reliability-and-disk-protection](reliability-and-disk-protection.md) |
 | Managed Bootstrap channel and release verification | [bootstrap-channel](bootstrap-channel.md) |
+| Upgrade requirements baseline | [agent-upgrade-requirements](agent-upgrade-requirements.md) |
+| Upgrade modules and architecture | [agent-upgrade-architecture](agent-upgrade-architecture.md) |
 
 For architecture, see [Linux eBPF/Audit design and historical review](../../../../docs_dev/history/28-secweaver-agent-audit-design.md). Historical TODOs are not a list of current-release defects.

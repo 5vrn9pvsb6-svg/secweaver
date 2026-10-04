@@ -195,6 +195,8 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 	nextWait := interval
 	timer := time.NewTimer(0)
 	defer timer.Stop()
+	lastPolicyKey := ""
+	lastPolicyPublishedAt := time.Time{}
 	for {
 		select {
 		case <-ctx.Done():
@@ -238,7 +240,7 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 					valueOrDash(resp.SubscriptionExpiresAt),
 				)
 				nextWait = interval
-				if resp.UpdatePolicy != nil && updatePolicies != nil {
+				if resp.UpdatePolicy != nil && updatePolicies != nil && shouldPublishUpdatePolicy(*resp.UpdatePolicy, lastPolicyKey, lastPolicyPublishedAt) {
 					select {
 					case <-updatePolicies:
 					default:
@@ -247,11 +249,34 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 					case updatePolicies <- *resp.UpdatePolicy:
 					default:
 					}
+					lastPolicyKey = updatePolicyDeliveryKey(*resp.UpdatePolicy)
+					lastPolicyPublishedAt = time.Now()
 				}
 			}
 			timer.Reset(nextWait)
 		}
 	}
+}
+
+// updatePolicyDeliveryKey excludes the short-lived lease timestamp. Stable
+// campaign changes wake the updater immediately; a lease refresh is delivered
+// at most every ten minutes so a three-minute heartbeat cannot cause an upgrade
+// attempt on every heartbeat while still renewing a lease before expiry.
+func updatePolicyDeliveryKey(policy agentlicense.UpdatePolicy) string {
+	return strings.Join([]string{
+		policy.CampaignID, fmt.Sprint(policy.PolicyRevision),
+		policy.TargetVersion, policy.Channel, fmt.Sprint(policy.Enabled),
+		fmt.Sprint(policy.AutoUpdateAllowed), fmt.Sprint(policy.Paused),
+		fmt.Sprint(policy.Eligible), fmt.Sprint(policy.AutoInstall),
+		fmt.Sprint(policy.LeaseGranted), policy.Reason, policy.RollbackReason,
+	}, "|")
+}
+
+func shouldPublishUpdatePolicy(policy agentlicense.UpdatePolicy, lastKey string, lastPublishedAt time.Time) bool {
+	if updatePolicyDeliveryKey(policy) != lastKey {
+		return true
+	}
+	return lastPublishedAt.IsZero() || time.Since(lastPublishedAt) >= 10*time.Minute
 }
 
 func updateHeartbeatReport(updater *scheduledUpdateConfig) *agentlicense.UpdateReport {

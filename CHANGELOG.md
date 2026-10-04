@@ -1,5 +1,27 @@
 # Changelog
 
+## Agent 0.3.73
+
+- Make update recovery persistence, health confirmation and rollback share one
+  transaction state lock, including failures from disabled scheduled updates.
+- Add collector module health heartbeats and fresh health evidence so low-traffic
+  hosts can pass probation without fabricating business events; missing evidence
+  remains `health_unknown` to the SaaS server.
+- Advertise update capabilities and tenant-policy compatibility while preserving
+  registration and collection for older Agents. Tenant policy changes are
+  deduplicated during heartbeats instead of recreating the same scheduler state.
+- Document the tenant rollout defaults, explicit maintenance-window requirement,
+  mixed-version behavior and release gates in the bilingual upgrade documents.
+
+## Agent 0.3.72
+
+- Make scheduled automatic installation fail closed by default in the Agent and
+  packaged Linux/Windows production examples.
+- Add the tenant permission state to the update heartbeat contract and defer
+  installation when the enterprise workspace switch is disabled.
+- Require the operator to pass `--auto-install` when publishing a campaign;
+  `--no-auto-install` remains a compatibility switch.
+
 ## Agent 0.3.71
 
 - Add Linux installer and Bootstrap `--learning-mode preserve|shadow|enable|disable`.

@@ -150,22 +150,22 @@ func Install(opts Options) (status Status, resultErr error) {
 	status.StatePath = filepath.Join(opts.StateDir, "state.json")
 	if strings.TrimSpace(opts.ManifestURL) == "" {
 		status.Reason = "missing_manifest_url"
-		_ = writeInstallState(status.StatePath, stateFromStatus(status, "failed"))
+		_ = writeStateExclusive(opts, status.StatePath, stateFromStatus(status, "failed"))
 		return status, fmt.Errorf("missing -manifest-url")
 	}
 	manifest, err := fetchManifest(opts.ManifestURL, opts)
 	if err != nil {
 		status.Reason = "manifest_fetch_failed"
-		_ = writeInstallState(status.StatePath, stateFromStatus(status, "failed"))
+		_ = writeStateExclusive(opts, status.StatePath, stateFromStatus(status, "failed"))
 		return status, err
 	}
 	status, err = checkManifest(manifest, opts, status)
 	if err != nil {
-		_ = writeInstallState(status.StatePath, stateFromStatus(status, "failed"))
+		_ = writeStateExclusive(opts, status.StatePath, stateFromStatus(status, "failed"))
 		return status, err
 	}
 	if status.Status != "update_available" {
-		_ = writeInstallState(status.StatePath, stateFromStatus(status, status.Status))
+		_ = writeStateExclusive(opts, status.StatePath, stateFromStatus(status, status.Status))
 		return status, nil
 	}
 	if !opts.SkipDownloadDelay && status.DownloadDelay != nil && *status.DownloadDelay > 0 {
@@ -176,7 +176,6 @@ func Install(opts Options) (status Status, resultErr error) {
 	if err != nil {
 		status.Status = "failed"
 		status.Reason = "update_lock_unavailable"
-		_ = writeInstallState(status.StatePath, stateFromStatus(status, "failed"))
 		return status, err
 	}
 	defer unlock()
@@ -582,6 +581,21 @@ func PrepareHealthCheck(opts Options, timeout time.Duration) (bool, Status, erro
 func MarkHealthy(opts Options) (State, error) {
 	opts = normalizeOptions(opts)
 	statePath := filepath.Join(opts.StateDir, "state.json")
+	// Health confirmation mutates the same recovery state as install and rollback.
+	// It must own the update lock for the read/validate/clear sequence so a late
+	// health goroutine cannot acknowledge a transaction already rolled back.
+	unlock, err := acquireLock(opts.StateDir, opts.LockStaleAfter)
+	if err != nil {
+		return State{}, err
+	}
+	defer unlock()
+	return markHealthyLocked(opts, statePath)
+}
+
+// markHealthyLocked performs the health transition while the caller owns the
+// update lock. Keeping the lock boundary explicit prevents accidental nested
+// acquisition when recovery code calls this helper in the future.
+func markHealthyLocked(opts Options, statePath string) (State, error) {
 	state, err := readState(statePath)
 	if err != nil {
 		return State{}, err
@@ -758,7 +772,26 @@ func RecordScheduledFailure(opts Options, status Status, err error, nextRetryAt 
 	status.NextRetryAt = nextRetryAt.UTC().Format(time.RFC3339)
 	state := stateFromStatus(status, "failed")
 	state.NextRetryAt = status.NextRetryAt
+	// Retry bookkeeping is a state mutation too. Serialize it with install and
+	// rollback; otherwise a retry result can overwrite a pending health marker.
+	unlock, lockErr := acquireLock(opts.StateDir, opts.LockStaleAfter)
+	if lockErr != nil {
+		return lockErr
+	}
+	defer unlock()
 	return writeState(status.StatePath, state)
+}
+
+// writeStateExclusive is used before Install has acquired its long transaction
+// lock. Early manifest/check failures still update state, but do so in a short
+// critical section so concurrent command invocations cannot clobber recovery.
+func writeStateExclusive(opts Options, path string, state State) error {
+	unlock, err := acquireLock(opts.StateDir, opts.LockStaleAfter)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	return writeState(path, state)
 }
 
 type updateLock struct {
