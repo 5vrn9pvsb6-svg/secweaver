@@ -48,11 +48,48 @@ class ReleaseChannelTests(unittest.TestCase):
             self.assertEqual(pointer.read_text(), "0.3.19\n")
             channel.promote(root, version)
             self.assertEqual(pointer.read_text(), version + "\n")
+            self.assertEqual((root / "latest-linux-version.txt").read_text(), version + "\n")
+            self.assertEqual((root / "latest-windows-version.txt").read_text(), version + "\n")
             archives[0].unlink()
             archives[0].symlink_to(archives[1])
             with self.assertRaises(ValueError):
                 channel.promote(root, version)
             self.assertEqual(pointer.read_text(), version + "\n")
+
+    def test_linux_and_windows_can_advance_independently(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            root.chmod(0o755)
+            legacy = "0.3.74"
+            linux = "0.3.75"
+            (root / legacy).mkdir()
+            (root / linux).mkdir()
+            (root / legacy).chmod(0o755)
+            (root / linux).chmod(0o755)
+
+            def add_archive(version, platform):
+                ext = ".tar.gz" if platform.startswith("linux") else ".zip"
+                archive = root / version / f"secweaver-agent_{version}_{platform}{ext}"
+                archive.write_bytes(f"{version}:{platform}".encode())
+                Path(str(archive) + ".sha256").write_text(
+                    hashlib.sha256(archive.read_bytes()).hexdigest() + "  " + archive.name + "\n"
+                )
+
+            # The legacy pointer must remain a complete five-platform release;
+            # the newer Linux pointer only needs the three Linux artifacts.
+            for platform in ("linux_amd64", "linux_arm64", "linux_loong64", "windows_amd64", "windows_arm64"):
+                add_archive(legacy, platform)
+            for platform in ("linux_amd64", "linux_arm64", "linux_loong64"):
+                add_archive(linux, platform)
+            (root / "latest-version.txt").write_text("0.3.73\n")
+            (root / "latest-linux-version.txt").write_text("0.3.73\n")
+            (root / "latest-windows-version.txt").write_text("0.3.73\n")
+
+            channel.promote(root, legacy, linux_version=linux)
+
+            self.assertEqual((root / "latest-version.txt").read_text(), legacy + "\n")
+            self.assertEqual((root / "latest-linux-version.txt").read_text(), linux + "\n")
+            self.assertEqual((root / "latest-windows-version.txt").read_text(), legacy + "\n")
 
     def test_invalid_versions_and_unpinned_templates(self):
         for version in ("../escape", "1.2.3\n", "latest", "1" * 66):
