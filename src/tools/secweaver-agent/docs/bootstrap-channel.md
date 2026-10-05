@@ -48,10 +48,13 @@ under `--no-start`, and records SLS intent before download. Doctor runs after co
 startup. See [collector lifecycle and verification](collector-lifecycle.md).
 
 Agent source 0.3.21 removes the installed-version constant from Linux and Windows
-Bootstrap scripts. The fixed installation URL resolves
-`https://agent-gateway.id-net.cn:30443/secweaver-agent/releases/latest-version.txt`
-once, then downloads the corresponding immutable version directory and SHA-256
-sidecar. An explicit `--version` / `-Version` remains for controlled testing.
+Bootstrap scripts. Newer Bootstrap releases resolve the OS-family pointer once:
+Linux reads `releases/latest-linux-version.txt` and Windows reads
+`releases/latest-windows-version.txt`. A legacy Gateway returning HTTP 404 for that
+family pointer falls back to `releases/latest-version.txt`; TLS, DNS, timeout, 5xx,
+empty and malformed responses fail closed. The selected immutable version directory
+and SHA-256 sidecar are then downloaded. An explicit `--version` / `-Version` remains
+for controlled testing.
 
 The pointer is one ASCII version (at most 64 characters), optionally followed by
 one LF. Empty, malformed, missing or unavailable pointers stop installation before
@@ -96,18 +99,26 @@ version and promote the channel, then verify token-only installation, identity r
 and upload on a controlled Linux test host; changing only the
 outer Bootstrap cannot repair the installer inside old 0.3.19 packages.
 
-Publish all five reviewed archives and matching sidecars under
-`<release-root>/<version>/`, using the original immutable bytes. Then run:
+Publish the complete legacy release and matching sidecars under
+`<release-root>/<legacy-version>/`, then publish any newer family archives under
+their own immutable version directory. For example, Linux can advance while the
+legacy and Windows pointers stay on the previous complete release:
 
 ```bash
-python3 scripts/publish-release-channel.py --release-root /srv/secweaver-agent/releases --version <reviewed-version> --runtime-user secweaver-agent-gateway
+python3 scripts/publish-release-channel.py \
+  --release-root /srv/secweaver-agent/releases \
+  --version <complete-legacy-version> \
+  --linux-version <linux-version> \
+  --windows-version <windows-version> \
+  --runtime-user secweaver-agent-gateway
 ```
 
-The publisher validates names, hashes, size and non-writable/non-symlink files,
-then atomically replaces only `latest-version.txt`. A failure preserves the old
-pointer. Keep the entire tree publisher-owned and serialize publications. An
-explicit older version may be promoted for new installs only; existing devices
-still require the signed downgrade authorization workflow.
+The publisher validates the five legacy archives plus only the selected Linux/Windows
+family archives, checks names, hashes, size and non-writable/non-symlink files, then
+atomically replaces each pointer. A failure before replacement preserves the old channel;
+each pointer is individually atomic, so serialize publishers. Older Agents continue to
+read `latest-version.txt`; newer Bootstraps use the family pointer. Existing devices still
+require the signed downgrade authorization workflow.
 
 To render only new Bootstrap scripts, retain all normal `BOOTSTRAP_*` configuration and optionally
 set `BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE=<existing-public-key>` before running
@@ -118,8 +129,8 @@ key silently.
 Regular packaging does not promote a channel automatically: promotion happens only
 after the archives have reached the actual serving directory.
 
-Agent Gateway (server rc.8+) serves the allowlisted pointer from
-`AGENT_RELEASE_ROOT/releases/latest-version.txt`; the query service cannot serve it.
+Agent Gateway (server rc.69+) serves the allowlisted global and family pointers from
+`AGENT_RELEASE_ROOT/releases/latest-*-version.txt`; the query service cannot serve them.
 Deploy `install.sh`, `install.ps1`, versioned archives, and the configured Logtail installer before
 claiming full installation/upgrade readiness. Publish the update public key and signed assets only
 when the optional signed-update mode is selected.

@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/mod/semver"
+
 	"secweaver-agent/pkg/agentupdate"
 )
 
@@ -235,6 +237,15 @@ func signManifestWithOptions(manifestPath, artifactDir, privateKeyPath, outputPa
 			Reason:        options.RollbackReason,
 			ExpiresAt:     expiresAt.UTC().Format(time.RFC3339),
 		}
+		// Keep the legacy global target while recording each selected OS family.
+		// Agents use their family entry first, so a Linux rollback cannot be
+		// accidentally authorized by the Windows target in a mixed release.
+		if len(manifest.LatestByPlatform) > 0 {
+			manifest.Rollback.TargetVersions = make(map[string]string, len(manifest.LatestByPlatform))
+			for family, latest := range manifest.LatestByPlatform {
+				manifest.Rollback.TargetVersions[family] = latest.Version
+			}
+		}
 	}
 	for platform, artifact := range manifest.Binaries {
 		name, err := artifactFileName(artifact.URL)
@@ -306,6 +317,14 @@ func validateReleaseManifestMetadata(manifest agentupdate.Manifest) error {
 	}
 	if err != nil || !expiresAt.After(time.Now().UTC()) || !expiresAt.After(generatedAt) {
 		return fmt.Errorf("manifest expires_at must be a future RFC3339 timestamp after generated_at")
+	}
+	for platform, latest := range manifest.LatestByPlatform {
+		if platform != "linux" && platform != "windows" {
+			return fmt.Errorf("manifest latest_by_platform contains unsupported platform %q", platform)
+		}
+		if !semver.IsValid("v" + strings.TrimPrefix(strings.TrimSpace(latest.Version), "v")) {
+			return fmt.Errorf("manifest latest_by_platform[%s].version is invalid", platform)
+		}
 	}
 	return nil
 }

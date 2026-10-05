@@ -1,5 +1,17 @@
 # Changelog
 
+## Agent 0.3.75
+
+- Select the immutable Linux or Windows family pointer during Bootstrap
+  installation, while falling back to the global pointer only for HTTP 404.
+- Select `latest_by_platform` in signed update manifests so one operating-system
+  family can receive a newer target without silently upgrading the other family.
+- Extend the release publisher and documentation with independently validated
+  `latest-linux-version.txt` and `latest-windows-version.txt` pointers.
+- Preserve legacy rollback fields while signing platform-specific rollback targets,
+  so mixed Linux/Windows manifests cannot authorize the wrong family version.
+
+
 ## Agent 0.3.74
 
 - Publish the committed managed-upgrade hardening baseline as a new immutable

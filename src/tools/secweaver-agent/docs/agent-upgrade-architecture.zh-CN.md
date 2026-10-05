@@ -112,7 +112,7 @@ secweaver-agent -> 本地状态、备份、JSONL 健康与升级日志
 }
 ```
 
-payload 的清单包含 `schema_version`、`app`、`channel`、`generated_at/generation`、`expires_at`、`latest`、按平台的 `binaries`，以及 standalone 使用的 `rollout`。受管模式中服务端已经决定资格，`download_spread_seconds` 只负责削峰。
+payload 的清单包含 `schema_version`、`app`、`channel`、`generated_at/generation`、`expires_at`、兼容旧 Agent 的 `latest`、可选的 `latest_by_platform`、按平台的 `binaries`，以及 standalone 使用的 `rollout`。签名回滚还可以携带 Linux/Windows 对应的 `rollback.target_versions`，同时保留 `rollback.target_version` 兼容旧 Agent。受管模式中服务端已经决定资格，`download_spread_seconds` 只负责削峰。
 
 清单接受顺序：读取 -> 解析 envelope -> 选择可信 key -> 验签 -> 严格解析 payload -> 校验代次/摘要/过期 -> 校验目标版本、平台和 URL -> 校验物料大小/SHA-256/二进制签名 -> 才能进入安装事务。
 

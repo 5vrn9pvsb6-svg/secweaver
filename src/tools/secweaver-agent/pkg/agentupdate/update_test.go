@@ -27,6 +27,73 @@ import (
 	"time"
 )
 
+func TestPlatformManifestSelectsOperatingSystemTarget(t *testing.T) {
+	platform := runtime.GOOS + "_" + runtime.GOARCH
+	manifest := Manifest{
+		SchemaVersion: "1",
+		App:           appName,
+		Channel:       "stable",
+		Latest:        ManifestLatest{Version: "0.3.1"},
+		LatestByPlatform: map[string]ManifestLatest{
+			"linux":   {Version: "0.3.2"},
+			"windows": {Version: "0.3.1"},
+		},
+		Binaries: map[string]Artifact{platform: {URL: "agent"}},
+	}
+	status := Status{Platform: platform}
+	result, err := checkManifest(manifest, Options{
+		CurrentVersion: "0.3.1",
+		DeviceID:       "platform-target-test",
+		Channel:        "stable",
+	}, status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime.GOOS == "linux" && result.LatestVersion != "0.3.2" {
+		t.Fatalf("linux target = %q, want 0.3.2", result.LatestVersion)
+	}
+	if runtime.GOOS == "windows" && result.LatestVersion != "0.3.1" {
+		t.Fatalf("windows target = %q, want 0.3.1", result.LatestVersion)
+	}
+}
+
+func TestPlatformRollbackUsesFamilyTarget(t *testing.T) {
+	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	manifest := Manifest{
+		// validateRollbackDirective is reached after envelope verification in
+		// production, so the fixture must carry the verified signer as well.
+		verifiedPublicKey: publicKey,
+		Latest:            ManifestLatest{Version: "0.3.1"},
+		LatestByPlatform: map[string]ManifestLatest{
+			"linux":   {Version: "0.3.2"},
+			"windows": {Version: "0.3.1"},
+		},
+		Rollback: &RollbackDirective{
+			Enabled:       true,
+			TargetVersion: "0.3.1",
+			TargetVersions: map[string]string{
+				"linux":   "0.3.2",
+				"windows": "0.3.1",
+			},
+			FromVersions: []string{"0.3.3"},
+			Reason:       "platform rollback test",
+			ExpiresAt:    time.Now().UTC().Add(time.Hour).Format(time.RFC3339),
+		},
+	}
+	err = validateRollbackDirective(manifest, Options{
+		AllowDowngrade:       true,
+		PolicyRollbackReason: "approved",
+		CurrentVersion:       "0.3.3",
+		PublicKey:            publicKey,
+	})
+	if err != nil {
+		t.Fatalf("platform rollback should use the Linux family target: %v", err)
+	}
+}
+
 func TestInstallVerifiesManifestAndArtifactSignatures(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("windows schedules replacement after process exit")

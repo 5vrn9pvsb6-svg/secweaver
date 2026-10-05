@@ -569,6 +569,46 @@ download() {
   fi
 }
 
+# Platform pointers are optional during the rolling rollout. A missing
+# platform pointer falls back to the legacy pointer, which keeps this Bootstrap
+# compatible with older Gateways while new publishers can advance Linux and
+# Windows independently.
+download_optional_pointer() {
+  local url="$1"
+  local output="$2" rc=0 status="" temp_output="${output}.tmp.$$"
+  if [[ "${SECWEAVER_BOOTSTRAP_ALLOW_FILE:-0}" == "1" && "${url}" =~ ^file:// ]]; then
+    cp "${url#file://}" "${output}" || return 2
+    return 0
+  fi
+  local tls=()
+  if command -v curl >/dev/null 2>&1; then
+    [[ "${ALLOW_HTTP}" == 1 ]] || tls=(--proto '=https' --proto-redir '=https' --tlsv1.2)
+    # Preserve the HTTP status separately so only a genuine 404 can trigger
+    # the legacy global-pointer fallback. TLS, DNS, timeout and 5xx failures
+    # must stop installation instead of silently selecting an old release.
+    status="$(timeout --kill-after=10 300 curl --fail --silent --show-error --location \
+      --connect-timeout 10 --max-time 120 --retry 1 --retry-delay 1 --retry-max-time 180 \
+      "${tls[@]}" --output "${temp_output}" --write-out '%{http_code}' "${url}")" || rc=$?
+  elif command -v wget >/dev/null 2>&1; then
+    [[ "${ALLOW_HTTP}" == 1 ]] || tls=(--https-only)
+    timeout --kill-after=10 300 wget --quiet --timeout=30 --dns-timeout=10 \
+      --connect-timeout=10 --tries=2 --waitretry=1 "${tls[@]}" --output-document="${temp_output}" "${url}" || rc=$?
+  else
+    return 2
+  fi
+  if [[ "${rc}" != 0 ]]; then
+    rm -f -- "${temp_output}"
+    [[ "${status}" == "404" ]] && return 1
+    return 2
+  fi
+  if [[ -n "${status}" && "${status}" != 2?? ]]; then
+    rm -f -- "${temp_output}"
+    [[ "${status}" == "404" ]] && return 1
+    return 2
+  fi
+  mv -- "${temp_output}" "${output}" || return 2
+}
+
 # Interpose only inside the vendor subprocess, leaving the pinned installer
 # byte-for-byte intact. Current vendor scripts invoke curl/wget by name. Absolute
 # paths or future download tools remain bounded by the overall 600-second limit.
@@ -771,7 +811,18 @@ step_begin "Resolve release version"
 # the installed Agent into signed-manifest verification.
 if [[ -z "${VERSION}" ]]; then
   VERSION_FILE="${TEMP_DIR}/latest-version.txt"
-  download "${RELEASE_BASE_URL}/latest-version.txt" "${VERSION_FILE}" agent-version-download
+  # Linux uses its family pointer first; older Gateways return 404 and use the
+  # legacy pointer without changing TLS or required-artifact failure handling.
+  if download_optional_pointer "${RELEASE_BASE_URL}/latest-linux-version.txt" "${VERSION_FILE}"; then
+    log "agent-version-download selected platform pointer linux"
+  else
+    pointer_rc=$?
+    if [[ "${pointer_rc}" != 1 ]]; then
+      fatal "stage=agent-version-download platform pointer failed (only HTTP 404 may fall back to latest-version.txt)"
+    fi
+    log "agent-version-download platform pointer unavailable (HTTP=404); using legacy global pointer"
+    download "${RELEASE_BASE_URL}/latest-version.txt" "${VERSION_FILE}" agent-version-download
+  fi
   (( $(wc -c <"${VERSION_FILE}") <= 65 )) || fatal "release version pointer exceeds 65 bytes"
   VERSION="$(cat "${VERSION_FILE}")"
   [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$ && ${#VERSION} -le 64 ]] || fatal "invalid release version pointer"

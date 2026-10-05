@@ -398,8 +398,9 @@ sed -n \
 The output must not contain `YOUR_DATA_CLOUD_HOST`, an empty `EMBEDDED_ENROLLMENT_ID`, or example
 values. The customer-facing command only contains `--enterprise-enrollment-token`; the server
 resolves `enterprise_id` from that token binding. The authorization origin, Logtail machine-group
-ID, AliUid, and region are embedded in `install.sh`. The Agent version is resolved
-from `releases/latest-version.txt` at installation time; it is not embedded.
+ID, AliUid, and region are embedded in `install.sh`. The Agent version is resolved from the
+OS-family pointer (`latest-linux-version.txt` or `latest-windows-version.txt`) at installation
+time; older Gateways fall back to `latest-version.txt` only on HTTP 404. It is not embedded.
 
 The `elasticsearch/` helper is copied into every platform archive for consistent distribution.
 Its Filebeat paths and standalone Agent procedure target Linux; the initializer itself can also

@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -22,13 +23,17 @@ type Manifest struct {
 	MinSupportedVersion string              `json:"min_supported_version,omitempty"`
 	Latest              ManifestLatest      `json:"latest"`
 	Binaries            map[string]Artifact `json:"binaries"`
-	Rollout             Rollout             `json:"rollout,omitempty"`
-	TrustUpdate         *TrustUpdate        `json:"trust_update,omitempty"`
-	EmergencyStop       *EmergencyStop      `json:"emergency_stop,omitempty"`
-	Rollback            *RollbackDirective  `json:"rollback,omitempty"`
-	verifiedKeyID       string
-	verifiedPublicKey   ed25519.PublicKey
-	verifiedDigest      string
+	// LatestByPlatform is optional so old manifests and old Agents continue to
+	// use latest.version. New Agents select Linux or Windows independently;
+	// architecture remains the binary lookup dimension inside Binaries.
+	LatestByPlatform  map[string]ManifestLatest `json:"latest_by_platform,omitempty"`
+	Rollout           Rollout                   `json:"rollout,omitempty"`
+	TrustUpdate       *TrustUpdate              `json:"trust_update,omitempty"`
+	EmergencyStop     *EmergencyStop            `json:"emergency_stop,omitempty"`
+	Rollback          *RollbackDirective        `json:"rollback,omitempty"`
+	verifiedKeyID     string
+	verifiedPublicKey ed25519.PublicKey
+	verifiedDigest    string
 }
 
 type ManifestEnvelope struct {
@@ -49,11 +54,14 @@ type EmergencyStop struct {
 }
 
 type RollbackDirective struct {
-	Enabled       bool     `json:"enabled"`
-	TargetVersion string   `json:"target_version"`
-	FromVersions  []string `json:"from_versions"`
-	Reason        string   `json:"reason"`
-	ExpiresAt     string   `json:"expires_at"`
+	Enabled       bool   `json:"enabled"`
+	TargetVersion string `json:"target_version"`
+	// TargetVersions lets a signed rollback authorize the selected release for
+	// each OS family independently. TargetVersion remains for older manifests.
+	TargetVersions map[string]string `json:"target_versions,omitempty"`
+	FromVersions   []string          `json:"from_versions"`
+	Reason         string            `json:"reason"`
+	ExpiresAt      string            `json:"expires_at"`
 }
 
 type ManifestLatest struct {
@@ -77,6 +85,18 @@ type Rollout struct {
 	DenyHosts             []string `json:"deny_hosts,omitempty"`
 	AllowDeviceIDs        []string `json:"allow_device_ids,omitempty"`
 	DenyDeviceIDs         []string `json:"deny_device_ids,omitempty"`
+}
+
+// latestForPlatform returns the platform-family target while retaining the
+// legacy global target as a compatibility fallback. A platform target is
+// deliberately independent of CPU architecture; a missing or empty family
+// entry cannot silently select another operating system's release.
+func latestForPlatform(manifest Manifest, platform string) ManifestLatest {
+	family := strings.SplitN(strings.ToLower(strings.TrimSpace(platform)), "_", 2)[0]
+	if latest, ok := manifest.LatestByPlatform[family]; ok && strings.TrimSpace(latest.Version) != "" {
+		return latest
+	}
+	return manifest.Latest
 }
 
 func fetchManifest(location string, opts Options) (Manifest, error) {
@@ -175,7 +195,6 @@ func checkManifest(manifest Manifest, opts Options, status Status) (result Statu
 	}
 	platform := status.Platform
 	status.Channel = firstNonEmpty(manifest.Channel, opts.Channel)
-	status.LatestVersion = manifest.Latest.Version
 	if manifest.SchemaVersion != "1" {
 		status.Reason = "manifest_schema_version_unsupported"
 		return status, fmt.Errorf("manifest schema_version %q is unsupported", manifest.SchemaVersion)
@@ -199,6 +218,12 @@ func checkManifest(manifest Manifest, opts Options, status Status) (result Statu
 		status.Reason = "manifest_invalid_latest_version"
 		return status, err
 	}
+	latest := latestForPlatform(manifest, platform)
+	if _, err := normalizeSemver(latest.Version); err != nil {
+		status.Reason = "manifest_invalid_platform_latest_version"
+		return status, err
+	}
+	status.LatestVersion = latest.Version
 	if _, err := normalizeSemver(opts.CurrentVersion); err != nil {
 		status.Reason = "invalid_current_version"
 		return status, err
@@ -208,7 +233,7 @@ func checkManifest(manifest Manifest, opts Options, status Status) (result Statu
 		return status, fmt.Errorf("immutable device_id is required for update rollout")
 	}
 	if opts.DesiredVersion != "" {
-		comparison, err := compareVersions(manifest.Latest.Version, opts.DesiredVersion)
+		comparison, err := compareVersions(latest.Version, opts.DesiredVersion)
 		if err != nil {
 			status.Reason = "invalid_desired_version"
 			return status, err
@@ -237,7 +262,7 @@ func checkManifest(manifest Manifest, opts Options, status Status) (result Statu
 	artifact := manifest.Binaries[platform]
 	status.BinaryURL = resolveArtifactLocation(opts.ManifestURL, artifact.URL)
 	status.BinarySHA256 = artifact.SHA256
-	versionComparison, err := compareVersions(manifest.Latest.Version, opts.CurrentVersion)
+	versionComparison, err := compareVersions(latest.Version, opts.CurrentVersion)
 	if err != nil {
 		status.Reason = "version_compare_failed"
 		return status, err
@@ -328,8 +353,15 @@ func validateRollbackDirective(manifest Manifest, opts Options) error {
 	if strings.TrimSpace(directive.Reason) == "" || strings.TrimSpace(opts.PolicyRollbackReason) == "" {
 		return fmt.Errorf("rollback requires manifest and policy reasons")
 	}
-	if directive.TargetVersion != manifest.Latest.Version {
-		return fmt.Errorf("rollback target %q does not match manifest latest %q", directive.TargetVersion, manifest.Latest.Version)
+	platform := runtime.GOOS + "_" + runtime.GOARCH
+	latest := latestForPlatform(manifest, platform)
+	family := strings.SplitN(strings.ToLower(platform), "_", 2)[0]
+	targetVersion := directive.TargetVersion
+	if selected, ok := directive.TargetVersions[family]; ok && strings.TrimSpace(selected) != "" {
+		targetVersion = selected
+	}
+	if targetVersion != latest.Version {
+		return fmt.Errorf("rollback target %q does not match manifest latest %q for %s", targetVersion, latest.Version, family)
 	}
 	expiresAt, err := time.Parse(time.RFC3339, strings.TrimSpace(directive.ExpiresAt))
 	if err != nil || !expiresAt.After(time.Now().UTC()) {

@@ -40,10 +40,11 @@ Agent 0.3.41 增加 Logtail/systemd 串行交接，`--no-start` 会停止供应�
 进程；下载前记录 SLS 安装意图，采集器启动后再执行 doctor。详见
 [采集器生命周期与验收](collector-lifecycle.zh-CN.md)。
 
-Agent 源码 0.3.21 移除 Linux/Windows Bootstrap 的固定安装版本。固定安装 URL 每次读取
-`https://agent-gateway.id-net.cn:30443/secweaver-agent/releases/latest-version.txt`，
-解析一次版本后下载对应不可变目录中的安装包和 SHA-256 文件。保留 `--version` / `-Version`
-用于受控测试，普通用户不需要填写版本。
+Agent 源码 0.3.21 移除 Linux/Windows Bootstrap 的固定安装版本。新版 Bootstrap 按操作系统族读取版本指针：
+Linux 读取 `releases/latest-linux-version.txt`，Windows 读取 `releases/latest-windows-version.txt`。
+旧 Gateway 对平台指针返回 HTTP 404 时才回退到 `releases/latest-version.txt`；TLS、DNS、超时、5xx、空响应和非法内容
+都会 fail closed。随后下载选定不可变目录中的安装包和 SHA-256 文件。保留 `--version` / `-Version` 用于受控测试，
+普通用户不需要填写版本。
 
 版本文件为最多 64 字符的 ASCII 版本，可带一个结尾 LF。缺失、为空、非法或不可达时，
 在修改主机前停止，不回退到旧版本。首次安装的信任机制仍为 HTTPS 发布和安装包 SHA-256，
@@ -77,15 +78,21 @@ Linux 安装器从同一次成功注册中取得企业 ID 和自动更新设备 
 旧安装方式。这不等于真实 SLS 上传验收。该修复从 0.3.22 开始提供。发布当前版本的新不可变包、提升动态版本
 指针后，在受控 Linux 测试主机上验证仅令牌安装、设备身份复用和上传链路；仅改外层 Bootstrap 不能修复旧 0.3.19 包内的安装器，禁止覆盖旧包。
 
-先将五个平台审核过的安装包和校验文件以原始不可变字节发布到 `<release-root>/<version>/`，再执行：
+先将完整 legacy 版本及校验文件以原始不可变字节发布到 `<release-root>/<legacy-version>/`，再把较新的 Linux/Windows
+平台包发布到各自不可变版本目录。例如只推进 Linux 时：
 
 ```bash
-python3 scripts/publish-release-channel.py --release-root /srv/secweaver-agent/releases --version <审核过的版本> --runtime-user secweaver-agent-gateway
+python3 scripts/publish-release-channel.py \
+  --release-root /srv/secweaver-agent/releases \
+  --version <完整 legacy 版本> \
+  --linux-version <Linux 版本> \
+  --windows-version <Windows 版本> \
+  --runtime-user secweaver-agent-gateway
 ```
 
-工具验证全部平台的名称、哈希、大小、权限和非符号链接条件后，原子替换 `latest-version.txt`。
-失败保留旧指针。整个目录应归发布者所有，发布操作需串行。可显式把新安装入口切回较旧版本，
-但已安装设备仍必须走签名授权的回滚流程，不能用修改指针绕过。
+工具验证完整 legacy 版本的五个平台包，以及指定 Linux/Windows 平台包的名称、哈希、大小和非符号链接条件后，分别原子替换三个指针。
+替换前失败会保留旧通道；每个指针单独原子更新，因此发布操作必须串行。旧 Agent 继续读取 `latest-version.txt`，新版 Bootstrap 使用平台指针。
+已安装设备仍必须走签名授权的回滚流程，不能用修改指针绕过。
 
 只重新生成 Bootstrap 时，保留正常 `BOOTSTRAP_*` 配置，可选设置
 `BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE=<已有公钥路径>`，再设置 `BOOTSTRAP_ONLY=1`、
@@ -93,8 +100,8 @@ python3 scripts/publish-release-channel.py --release-root /srv/secweaver-agent/r
 Agent 包；源码版本和来源门禁仍生效，脏构建仅用于测试。省略公钥即保留无签名升级模式，不能静默更换已有信任公钥。
 普通打包不会自动提升线上安装版本；必须在真实服务目录的全部包就绪后显式提升。
 
-Agent Gateway（服务端 rc.8+）通过白名单提供 `AGENT_RELEASE_ROOT/releases/latest-version.txt`；
-查询服务不会提供此路径。安装脚本、版本目录和配置好的 Logtail 安装脚本全部发布并验收后，
+Agent Gateway（服务端 rc.69+）通过白名单提供 `AGENT_RELEASE_ROOT/releases/latest-*-version.txt`；
+查询服务不会提供这些路径。安装脚本、版本目录和配置好的 Logtail 安装脚本全部发布并验收后，
 才能声明完整安装/升级可用；选择签名模式时还必须发布并验收对应公钥和签名升级资源。
 
 ## 验证

@@ -336,8 +336,9 @@ sed -n \
 
 输出中不能出现 `YOUR_DATA_CLOUD_HOST`、空的 `EMBEDDED_ENROLLMENT_ID` 或示例值。客户侧
 安装命令只包含 `--enterprise-enrollment-token`；服务端从令牌绑定解析
-`enterprise_id`。授权地址、Logtail 机器组标识、AliUid 和 region 已写入 `install.sh`；Agent 版本在安装时读取
-`releases/latest-version.txt`，不再固定在脚本内。
+`enterprise_id`。授权地址、Logtail 机器组标识、AliUid 和 region 已写入 `install.sh`；Agent 版本在安装时按平台读取
+`latest-linux-version.txt` 或 `latest-windows-version.txt`，旧 Gateway 的平台指针只有在 HTTP 404 时才回退到
+`latest-version.txt`，不再固定在脚本内。
 
 为保持各平台分发内容一致，每个平台归档都复制 `elasticsearch/` 辅助目录。其中 Filebeat
 路径和独立 Agent 安装流程面向 Linux；初始化脚本本身也可以由管理员工作站对获准的

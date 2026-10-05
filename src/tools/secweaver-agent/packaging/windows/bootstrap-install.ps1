@@ -140,8 +140,16 @@ if ($EmbeddedUpdatePublicKey -and $EmbeddedUpdatePublicKey -notmatch '^[A-Za-z0-
 # Initial trust and unsigned updates use HTTPS + SHA-256. When an update public
 # key is embedded, the installed Agent also requires manifest signatures.
 if (-not $Version) {
-  $versionUrl = "$($EmbeddedReleaseBaseUrl.TrimEnd('/'))/latest-version.txt"
-  $Version = ConvertFrom-AgentVersionPointer (Invoke-BootstrapDownload 'agent-version' $versionUrl) $versionUrl
+  # Prefer the Windows family pointer, then fall back only when an older
+  # Gateway has not published it. Other failures remain actionable errors.
+  $platformVersionUrl = "$($EmbeddedReleaseBaseUrl.TrimEnd('/'))/latest-windows-version.txt"
+  try {
+    $Version = ConvertFrom-AgentVersionPointer (Invoke-BootstrapDownload 'agent-version-platform' $platformVersionUrl) $platformVersionUrl
+  } catch {
+    if ($_.Exception.Message -notmatch 'HTTP=404') { throw }
+    $versionUrl = "$($EmbeddedReleaseBaseUrl.TrimEnd('/'))/latest-version.txt"
+    $Version = ConvertFrom-AgentVersionPointer (Invoke-BootstrapDownload 'agent-version' $versionUrl) $versionUrl
+  }
 }
 if ($Version.Length -gt 64 -or $Version -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9.-]+)?$' -or $Version.Contains("`n")) {
   throw "Invalid Agent version."

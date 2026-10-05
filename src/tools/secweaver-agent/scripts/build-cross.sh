@@ -104,7 +104,12 @@ download_spread_seconds="${UPDATE_DOWNLOAD_SPREAD_SECONDS:-}"
   if [[ -n "${expires_at}" ]]; then
     printf '  "expires_at": "%s",\n' "${expires_at}"
   fi
-  printf '  "latest": {"version": "%s"},\n' "${VERSION}"
+  printf '  "latest": {"version": "%s"},\n' "$VERSION"
+  # Keep the global latest field for old Agents while making the OS-family
+  # target explicit for new Agents. Separate artifact versions use separate
+  # platform manifest URLs; this all-platform build intentionally points both
+  # families at the same immutable release.
+  printf '  "latest_by_platform": {"linux": {"version": "%s"}, "windows": {"version": "%s"}},\n' "$VERSION" "$VERSION"
   if [[ -n "${rollout_percentage}" || -n "${download_spread_seconds}" ]]; then
     printf '  "rollout": {'
     first_rollout=1

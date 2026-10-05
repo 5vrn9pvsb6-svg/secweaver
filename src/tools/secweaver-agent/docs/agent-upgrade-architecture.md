@@ -98,7 +98,7 @@ Policy fields include identity/version (`campaign_id`, `policy_revision`, `targe
 }
 ```
 
-The payload includes schema/app/channel/generation/expiry, latest version, platform binaries, and standalone rollout controls. Managed mode uses server eligibility; `download_spread_seconds` only spreads authorized downloads.
+The payload includes schema/app/channel/generation/expiry, a legacy `latest` version, optional `latest_by_platform` targets, platform binaries, and standalone rollout controls. A signed rollback may carry matching `rollback.target_versions` for Linux and Windows while retaining `rollback.target_version` for older Agents. Managed mode uses server eligibility; `download_spread_seconds` only spreads authorized downloads.
 
 Acceptance order is read -> parse envelope -> select trusted key -> verify -> parse payload -> validate generation/expiry -> validate target/platform/URL -> validate size/SHA/signature -> enter install transaction.
 
