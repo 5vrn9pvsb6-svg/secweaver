@@ -451,6 +451,7 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             details = list((agent_root / "install-logs").glob("install.log.*"))
             self.assertEqual(len(details), 1)
             detail = details[0].read_text()
+            self.assertIn("platform pointer unavailable", detail)
             self.assertEqual(details[0].stat().st_mode & 0o777, 0o600)
             self.assertIn("package checksum verified", detail)
             self.assertIn("child-config-noise", detail)
@@ -469,6 +470,19 @@ class TestSecWeaverAgentModules(unittest.TestCase):
                 (logtail_dir / "user_defined_id").read_text(encoding="utf-8").strip(),
                 enrollment_id,
             )
+
+            # A valid Linux pointer must be selected independently, even when
+            # the legacy pointer is malformed. Missing platform pointers above
+            # exercise the older-Gateway fallback without any real network I/O.
+            linux_pointer = pointer.with_name("latest-linux-version.txt")
+            linux_pointer.write_text(version + "\n", encoding="ascii")
+            pointer.write_text("invalid legacy pointer", encoding="ascii")
+            platform_selected = subprocess.run(result.args, cwd=REPO_ROOT, env=env, text=True, capture_output=True, timeout=30)
+            self.assertEqual(platform_selected.returncode, 0, platform_selected.stderr)
+            latest_detail = max((agent_root / "install-logs").glob("install.log.*"), key=lambda path: path.stat().st_mtime_ns)
+            self.assertIn("selected platform pointer linux", latest_detail.read_text())
+            linux_pointer.unlink()
+            pointer.write_text(version + "\n", encoding="ascii")
 
             # Exercise actual top-level errexit/reporting, not only formatters.
             # Neither child failure nor a diagnostic error may print stage OK

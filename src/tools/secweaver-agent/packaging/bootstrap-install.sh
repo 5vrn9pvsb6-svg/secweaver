@@ -575,30 +575,42 @@ download() {
 # Windows independently.
 download_optional_pointer() {
   local url="$1"
-  local output="$2" rc=0 status="" temp_output="${output}.tmp.$$"
+  local output="$2" rc=0 status="" temp_output response_headers http_error=22
+  # Bash expands all local RHS values before assigning them. Initialize the
+  # derived path separately so nounset cannot read an uninitialized output.
+  temp_output="${output}.tmp.$$"
   if [[ "${SECWEAVER_BOOTSTRAP_ALLOW_FILE:-0}" == "1" && "${url}" =~ ^file:// ]]; then
-    cp "${url#file://}" "${output}" || return 2
-    return 0
-  fi
-  local tls=()
-  if command -v curl >/dev/null 2>&1; then
-    [[ "${ALLOW_HTTP}" == 1 ]] || tls=(--proto '=https' --proto-redir '=https' --tlsv1.2)
-    # Preserve the HTTP status separately so only a genuine 404 can trigger
-    # the legacy global-pointer fallback. TLS, DNS, timeout and 5xx failures
-    # must stop installation instead of silently selecting an old release.
-    status="$(timeout --kill-after=10 300 curl --fail --silent --show-error --location \
-      --connect-timeout 10 --max-time 120 --retry 1 --retry-delay 1 --retry-max-time 180 \
-      "${tls[@]}" --output "${temp_output}" --write-out '%{http_code}' "${url}")" || rc=$?
-  elif command -v wget >/dev/null 2>&1; then
-    [[ "${ALLOW_HTTP}" == 1 ]] || tls=(--https-only)
-    timeout --kill-after=10 300 wget --quiet --timeout=30 --dns-timeout=10 \
-      --connect-timeout=10 --tries=2 --waitretry=1 "${tls[@]}" --output-document="${temp_output}" "${url}" || rc=$?
+    # Test-only file fixtures model a missing endpoint as HTTP 404. Copy errors
+    # and dangling symlinks remain failures, not reasons to choose a legacy release.
+    [[ -e "${url#file://}" || -L "${url#file://}" ]] || return 1
+    cp "${url#file://}" "${temp_output}" || rc=$?
   else
-    return 2
+    local tls=()
+    if command -v curl >/dev/null 2>&1; then
+      [[ "${ALLOW_HTTP}" == 1 ]] || tls=(--proto '=https' --proto-redir '=https' --tlsv1.2)
+      # HTTP status and transport exit code are independent: a timeout after
+      # receiving 404 headers must not authorize the legacy-pointer fallback.
+      status="$(timeout --kill-after=10 300 curl --fail --silent --show-error --location \
+        --connect-timeout 10 --max-time 120 --retry 1 --retry-delay 1 --retry-max-time 180 \
+        "${tls[@]}" --output "${temp_output}" --write-out '%{http_code}' "${url}")" || rc=$?
+    elif command -v wget >/dev/null 2>&1; then
+      [[ "${ALLOW_HTTP}" == 1 ]] || tls=(--https-only)
+      http_error=8
+      response_headers="${temp_output}.headers"
+      # GNU wget reports server errors with exit 8. Read only the final HTTP
+      # status (after redirects/retries), in C locale; never infer it from a
+      # localized error message or expose response headers in terminal output.
+      LC_ALL=C timeout --kill-after=10 300 wget --quiet --server-response --timeout=30 --dns-timeout=10 \
+        --connect-timeout=10 --tries=2 --waitretry=1 "${tls[@]}" --output-document="${temp_output}" "${url}" 2>"${response_headers}" || rc=$?
+      status="$(awk '$1 ~ /^HTTP\/[0-9.]+$/ && $2 ~ /^[0-9][0-9][0-9]$/ {code=$2} END {print code}' "${response_headers}")" || rc=2
+      rm -f -- "${response_headers}"
+    else
+      return 2
+    fi
   fi
   if [[ "${rc}" != 0 ]]; then
     rm -f -- "${temp_output}"
-    [[ "${status}" == "404" ]] && return 1
+    [[ "${rc}" == "${http_error}" && "${status}" == "404" ]] && return 1
     return 2
   fi
   if [[ -n "${status}" && "${status}" != 2?? ]]; then
@@ -606,7 +618,10 @@ download_optional_pointer() {
     [[ "${status}" == "404" ]] && return 1
     return 2
   fi
-  mv -- "${temp_output}" "${output}" || return 2
+  if ! mv -- "${temp_output}" "${output}"; then
+    rm -f -- "${temp_output}"
+    return 2
+  fi
 }
 
 # Interpose only inside the vendor subprocess, leaving the pinned installer

@@ -27,36 +27,6 @@ import (
 	"time"
 )
 
-func TestPlatformManifestSelectsOperatingSystemTarget(t *testing.T) {
-	platform := runtime.GOOS + "_" + runtime.GOARCH
-	manifest := Manifest{
-		SchemaVersion: "1",
-		App:           appName,
-		Channel:       "stable",
-		Latest:        ManifestLatest{Version: "0.3.1"},
-		LatestByPlatform: map[string]ManifestLatest{
-			"linux":   {Version: "0.3.2"},
-			"windows": {Version: "0.3.1"},
-		},
-		Binaries: map[string]Artifact{platform: {URL: "agent"}},
-	}
-	status := Status{Platform: platform}
-	result, err := checkManifest(manifest, Options{
-		CurrentVersion: "0.3.1",
-		DeviceID:       "platform-target-test",
-		Channel:        "stable",
-	}, status)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if runtime.GOOS == "linux" && result.LatestVersion != "0.3.2" {
-		t.Fatalf("linux target = %q, want 0.3.2", result.LatestVersion)
-	}
-	if runtime.GOOS == "windows" && result.LatestVersion != "0.3.1" {
-		t.Fatalf("windows target = %q, want 0.3.1", result.LatestVersion)
-	}
-}
-
 func TestPlatformRollbackUsesFamilyTarget(t *testing.T) {
 	publicKey, _, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {

@@ -56,9 +56,19 @@ empty and malformed responses fail closed. The selected immutable version direct
 and SHA-256 sidecar are then downloaded. An explicit `--version` / `-Version` remains
 for controlled testing.
 
+Agent 0.3.76 fixes Linux pointer initialization with Bash `set -u`. Both curl
+and GNU wget permit legacy fallback only after a completed HTTP 404 error;
+a timeout after receiving 404 headers is still a failure. Temporary bodies and
+wget response-header files are removed on download failure. Test-only `file://`
+fixtures treat an absent family file as 404, but copy errors still fail closed;
+this does not enable local-file installation in production. Publish newly rendered
+0.3.76 Bootstrap scripts to repair the public entry point; never replace archives
+already published as 0.3.75.
+
 The pointer is one ASCII version (at most 64 characters), optionally followed by
-one LF. Empty, malformed, missing or unavailable pointers stop installation before
-host changes; there is no old-version fallback. Initial installation trusts the
+one LF. Except for the family-pointer 404 fallback above, empty, malformed,
+missing or unavailable pointers stop installation before host changes; no cached
+or embedded old version is selected. Initial installation trusts the
 HTTPS publication plus archive SHA-256, not a detached signature on this pointer.
 After installation, unsigned updates are accepted by default with HTTPS plus artifact SHA-256/size
 verification. Configure an update public key to require signed manifests; signed trust changes,
@@ -142,3 +152,8 @@ from the repository root checks Linux resolution, explicit pins, missing/invalid
 pointers and failed promotion. Server `TestReleaseVersionPointer` checks GET/HEAD,
 no-store, invalid content and query-route isolation. Windows syntax/flow must also
 be verified on a real Windows test host; source checks are not OS acceptance.
+
+In the Agent directory, run `go test . ./pkg/agentupdate -run 'TestBootstrapOptionalPointer|TestPlatformManifest'`.
+These regressions use deterministic transports and explicit Linux/Windows platform
+identities, independent of the test host OS. They cover only version selection
+and validation, not Windows SCM upgrade or actual cloud upload acceptance.

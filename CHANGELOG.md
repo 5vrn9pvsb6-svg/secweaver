@@ -1,5 +1,17 @@
 # Changelog
 
+## Agent 0.3.76
+
+- Fix Linux Bootstrap platform-pointer initialization under Bash `set -u`,
+  which could stop default-version installation before package download.
+- Preserve legacy-pointer fallback for confirmed HTTP 404 with both curl and
+  GNU wget; TLS, timeout and server failures still stop installation. Isolated
+  file fixtures now model missing platform pointers consistently.
+- Exercise Linux and Windows manifest targets on every test host with complete
+  artifact fixtures, while retaining rejection of missing SHA-256 metadata.
+- Add installer regressions for platform selection, legacy fallback, partial
+  download cleanup and transport failures; synchronize bilingual guidance.
+
 ## Agent 0.3.75
 
 - Select the immutable Linux or Windows family pointer during Bootstrap

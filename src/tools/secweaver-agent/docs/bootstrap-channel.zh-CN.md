@@ -46,8 +46,15 @@ Linux 读取 `releases/latest-linux-version.txt`，Windows 读取 `releases/late
 都会 fail closed。随后下载选定不可变目录中的安装包和 SHA-256 文件。保留 `--version` / `-Version` 用于受控测试，
 普通用户不需要填写版本。
 
-版本文件为最多 64 字符的 ASCII 版本，可带一个结尾 LF。缺失、为空、非法或不可达时，
-在修改主机前停止，不回退到旧版本。首次安装的信任机制仍为 HTTPS 发布和安装包 SHA-256，
+Agent 0.3.76 修复 Linux 在 Bash `set -u` 下初始化版本指针变量时中断的问题。
+curl 与 GNU wget 都只在确认完整 HTTP 404 错误后回退旧入口；收到 404 响应头后超时
+仍然失败。下载失败时清理临时响应内容和 wget 响应头文件。仅测试使用的 `file://`
+夹具把不存在的平台文件视为 404，复制错误仍然 fail closed；这不开放生产本地文件安装。
+公开入口需发布重新生成的 0.3.76 Bootstrap 脚本才能修复；不得替换已发布的 0.3.75 归档。
+
+版本文件为最多 64 字符的 ASCII 版本，可带一个结尾 LF。除上述平台指针 404 允许读取旧入口外，
+缺失、为空、非法或不可达时，在修改主机前停止，不使用缓存或内嵌的旧版本。
+首次安装的信任机制仍为 HTTPS 发布和安装包 SHA-256，
 该版本文件本身没有独立签名；安装后的升级默认使用 HTTPS 加文件大小、SHA-256 校验。
 配置升级公钥后才强制验证签名清单；信任变更、紧急停止和远程回退仍只能在签名模式使用。此入口仅决定新安装版本，
 不会强制升级存量设备。
@@ -110,3 +117,7 @@ Agent Gateway（服务端 rc.69+）通过白名单提供 `AGENT_RELEASE_ROOT/rel
 覆盖 Linux 动态选择、显式版本、缺失/非法入口和提升失败保护。服务端 `TestReleaseVersionPointer`
 覆盖 GET/HEAD、no-store、非法内容和查询端隔离。Windows 仍需真实主机验证语法与安装流程，
 源码检查不等于 Windows 验收。
+
+在 Agent 目录执行 `go test . ./pkg/agentupdate -run 'TestBootstrapOptionalPointer|TestPlatformManifest'`。
+回归使用确定性下载替身以及显式 Linux/Windows 平台标识，不依赖测试主机操作系统。
+这些检查只证明版本选择和校验，不代替 Windows SCM 升级或真实云端上传验收。
