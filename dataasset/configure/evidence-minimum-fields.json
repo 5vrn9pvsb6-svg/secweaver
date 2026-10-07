@@ -429,6 +429,7 @@
 	"process_start": "host_process",
 	"process_exit": "host_process",
 	"process_change": "host_process",
+	"process_kernel_thread_summary": "host_process",
 	"listening_socket_snapshot": "host_socket",
 	"listening_socket_change": "host_socket",
 	"login_session_snapshot": "host_identity",

@@ -1,5 +1,12 @@
 # secweaver-agent
 
+源码 0.3.78 为重复 SYSTEM PowerShell CDXML 脚本增加独立的 Windows 风险日志学习。
+新装默认累计 24 个健康小时，升级保留原选择，关键安全事件始终输出。
+详见 [Windows 风险日志学习](docs/behavior-learning.zh-CN.md#windows-风险日志0378)。
+
+源码 0.3.77 在 0.3.73 的升级 fail closed 基线之上，默认聚合 Linux host-process 的常规
+kworker 增量噪声，并保留显式逐条采集开关；同时更新资产契约和运维文档。
+
 源码 0.3.73 将定时自动安装改为默认 fail closed，并增加带锁恢复持久化与采集模块健康证据。
 SLS SaaS Agent 必须同时得到企业工作台
 许可和签名服务端升级活动；独立 ES Agent 必须显式设置 `auto_install=true`。
@@ -630,7 +637,7 @@ listener 对账默认每 5 分钟运行一次，实时 clone/exec 归属仍由 e
 
 `host-persistence` 使用模块 JSON 配置。Linux 可把 [`host-persistence.example.json`](host-persistence.example.json) 复制到 `/opt/secweaver-agent/etc/host-persistence.json` 后调整；Windows 安装脚本会把 [`host-persistence.windows.example.json`](host-persistence.windows.example.json) 复制到 `C:\ProgramData\SecWeaver\Agent\etc\host-persistence.json`。首次启动默认只建立 baseline，不输出已有文件；后续新增、修改、删除会输出 `asset_type=host_persistence`、`event_type=persistence_change` 的 JSON Lines。事件会自动识别并输出 `host_ip`；多网卡主机可在模块 JSON 中设置 `host_ip`，或使用 `-host-ip` 覆盖自动识别结果。Linux 默认输出 `/opt/secweaver-agent/logs/host-persistence.log`，auditd 可用时会富化 `user`、`process`、`command` 等字段；模块每分钟把已配置且当前存在的 watch 路径与内核规则对账，补齐新路径或原子替换后失效的 watch。audit reader 异常退出会触发模块重启，不会静默丢失富化。Windows 默认输出 `C:\ProgramData\SecWeaver\Agent\logs\host-persistence.log`，关闭 audit 富化，监控计划任务、启动目录、组策略脚本、PowerShell profile 等文件型持久化位置。小文本文件会输出受限 `content_diff`。如果 Linux 同机 audit 事件量很大、且已由其他模块集中消费 audit.log，可设置 `audit.follow_log=false` 关闭本模块的 audit.log follower；此时仍可管理 watch 规则，但事件不会带 actor/process 富化。
 
-`host-process-snapshot` 在 Linux/Windows 默认开启。启动时输出完整 `process_snapshot` 基线，之后每 10 分钟只输出 `process_start`、`process_exit`、`process_change`，每 24 小时重发完整基线。增量身份键为 `pid+start_time`，状态原子保存到平台默认状态目录。完整基线仅保留 `command_hash`；高价值增量事件保留脱敏后的命令。Linux 读取 `/proc`，Windows 使用一次 PowerShell/CIM 批量查询。详见 `docs_user/32-host-process-snapshot.zh-CN.md`。
+`host-process-snapshot` 在 Linux/Windows 默认开启。启动时输出完整 `process_snapshot` 基线，之后每 10 分钟只输出增量，每 24 小时重发完整基线。Linux 默认将标准 `kworker/*` 的启动、退出和仅命令哈希变化聚合为 `process_kernel_thread_summary`，完整基线仍保留这些线程；增加 `-include-kernel-threads` 可恢复逐条事件。增量身份键为 `pid+start_time`，状态原子保存到平台默认状态目录。完整基线仅保留 `command_hash`；高价值增量事件保留脱敏后的命令。Linux 读取 `/proc`，Windows 使用一次 PowerShell/CIM 批量查询。详见 `docs_user/32-host-process-snapshot.zh-CN.md`。
 
 `host-state-snapshot` 在 Linux/Windows 默认开启。监听端口、身份和服务均每 5 分钟检查，内核与容器上下文每 10 分钟检查。各类采集首次输出完整基线，中间只输出变化，每 24 小时重发完整基线。Linux 端口归属扫描默认最多检查 10 万个 FD；任一采集不完整时不更新状态，避免产生假删除事件。详见 `docs_user/33-host-state-snapshot.zh-CN.md`。
 

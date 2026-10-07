@@ -25,6 +25,20 @@ type Context struct {
 	Windows *WindowsContext `json:"windows,omitempty"`
 	// Operation is absent for exec, preserving existing execution fingerprints.
 	Operation *Operation `json:"operation,omitempty"`
+	// Risk uses native Event Log identity, not invented Sysmon process ancestry.
+	// Omission preserves all existing execution/network/file fingerprints.
+	Risk *WindowsRiskContext `json:"windows_risk,omitempty"`
+}
+
+// WindowsRiskContext binds a complete script to its exact origin and content.
+// Fragment IDs and process IDs group evidence but are not stable match keys.
+type WindowsRiskContext struct {
+	Provider     string `json:"provider"`
+	Channel      string `json:"channel"`
+	UserSID      string `json:"user_sid"`
+	Path         string `json:"path"`
+	ModuleClass  string `json:"module_class"`
+	ScriptSHA256 string `json:"script_sha256"`
 }
 
 // Operation separates network/file matching from exec and includes the exact

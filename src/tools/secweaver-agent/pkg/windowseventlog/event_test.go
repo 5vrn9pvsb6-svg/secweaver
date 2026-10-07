@@ -43,6 +43,18 @@ func TestParseEventsXMLParsesEventData(t *testing.T) {
 	}
 }
 
+// 4104 reconstruction must not remove whitespace at fragment edges. The native
+// Security SID is the script identity; localized names are not a substitute.
+func TestParseScriptPreservesWhitespaceAndNativeSID(t *testing.T) {
+	events, err := ParseEventsXML(`<Event><System><EventID>4104</EventID><Security UserID="S-1-5-18"/></System><EventData><Data Name="ScriptBlockText"> leading &amp; trailing &#10;</Data><Data Name="MessageNumber"> 1 </Data></EventData></Event>`)
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events=%v err=%v", events, err)
+	}
+	if events[0].System.UserID != "S-1-5-18" || events[0].Fields()["ScriptBlockText"] != " leading & trailing \n" || events[0].Field("MessageNumber") != "1" {
+		t.Fatal("native SID or exact script text lost")
+	}
+}
+
 func TestParseEventsXMLParsesMultipleFragments(t *testing.T) {
 	events, err := ParseEventsXML(`<Event><System><EventID>1</EventID></System></Event>
 <Event><System><EventID>3</EventID></System></Event>`)

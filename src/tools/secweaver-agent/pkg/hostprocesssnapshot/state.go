@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +32,78 @@ func processIdentityKey(process processInfo) (string, bool) {
 	return strconv.Itoa(process.PID) + "\x00" + start, true
 }
 
+// kernelThreadDelta bounds routine Linux worker-thread churn to one record per
+// scan. Names are retained only as a small diagnostic sample; the full process
+// baseline remains the authoritative inventory for incident investigation.
+type kernelThreadDelta struct {
+	starts  int
+	exits   int
+	changes int
+	names   map[string]struct{}
+}
+
+func newKernelThreadDelta() kernelThreadDelta {
+	return kernelThreadDelta{
+		names: make(map[string]struct{}),
+	}
+}
+
+func (d *kernelThreadDelta) addStart(name string) {
+	d.starts++
+	d.names[name] = struct{}{}
+}
+
+func (d *kernelThreadDelta) addExit(name string) {
+	d.exits++
+	d.names[name] = struct{}{}
+}
+
+func (d *kernelThreadDelta) addChange(name string) {
+	d.changes++
+	d.names[name] = struct{}{}
+}
+
+func (d kernelThreadDelta) empty() bool {
+	return d.starts == 0 && d.exits == 0 && d.changes == 0
+}
+
+// sortedNames returns a deterministic, bounded diagnostic sample. The counts
+// remain exact even when a busy host produces more than the sample limit.
+func (d kernelThreadDelta) sortedNames() []string {
+	const maxSamples = 32
+	names := make([]string, 0, len(d.names))
+	for name := range d.names {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) > maxSamples {
+		names = names[:maxSamples]
+	}
+	return names
+}
+
+// isRoutineKernelWorker identifies the standard Linux kworker shape without
+// relying on a PID or a mutable name suffix. A nonempty executable or command
+// payload is retained as evidence because it may indicate an unusual kernel
+// thread impersonation or a permission/collection anomaly.
+func isRoutineKernelWorker(process processInfo) bool {
+	return process.KernelThread || (runtime.GOOS == "linux" && strings.HasPrefix(process.Process, "kworker/") &&
+		strings.TrimSpace(process.Exe) == "" && len(process.Command) == 0)
+}
+
+func onlyKernelWorkerCommandChange(old, current processInfo, changes []string) bool {
+	return isRoutineKernelWorker(old) && isRoutineKernelWorker(current) &&
+		len(changes) == 1 && changes[0] == "command_hash"
+}
+
 func processEvents(current []processInfo, previous persistedProcessState, fullPeriod time.Duration, host, hostIP, snapshotID string, now time.Time, durationMS int64) ([]processEvent, persistedProcessState, bool, error) {
+	return processEventsWithOptions(current, previous, fullPeriod, host, hostIP, snapshotID, now, durationMS, false)
+}
+
+// processEventsWithOptions emits a full baseline on schedule and bounded deltas
+// between baselines. Routine kworker churn is aggregated by default, while the
+// explicit includeKernelThreads option restores the legacy per-thread stream.
+func processEventsWithOptions(current []processInfo, previous persistedProcessState, fullPeriod time.Duration, host, hostIP, snapshotID string, now time.Time, durationMS int64, includeKernelThreads bool) ([]processEvent, persistedProcessState, bool, error) {
 	currentMap := make(map[string]processInfo, len(current))
 	for _, process := range current {
 		if key, ok := processIdentityKey(process); ok {
@@ -64,16 +136,27 @@ func processEvents(current []processInfo, previous persistedProcessState, fullPe
 
 	keys := sortedProcessKeys(currentMap)
 	events := make([]processEvent, 0)
+	kernelDelta := newKernelThreadDelta()
 	for _, key := range keys {
 		process := currentMap[key]
 		old, exists := previous.Processes[key]
 		if !exists {
+			if !includeKernelThreads && isRoutineKernelWorker(process) {
+				kernelDelta.addStart(process.Process)
+				next.Processes[key] = process
+				continue
+			}
 			events = append(events, makeEvent(process, "process_start", "started", nil, nil, true, host, hostIP, snapshotID, now, len(current), durationMS))
 			next.Processes[key] = process
 			continue
 		}
 		changes, oldValues := processChanges(old, process)
 		if len(changes) > 0 {
+			if !includeKernelThreads && onlyKernelWorkerCommandChange(old, process, changes) {
+				kernelDelta.addChange(process.Process)
+				next.Processes[key] = process
+				continue
+			}
 			events = append(events, makeEvent(process, "process_change", "changed", changes, oldValues, true, host, hostIP, snapshotID, now, len(current), durationMS))
 			next.Processes[key] = process
 			continue
@@ -87,7 +170,14 @@ func processEvents(current []processInfo, previous persistedProcessState, fullPe
 			continue
 		}
 		old := previous.Processes[key]
+		if !includeKernelThreads && isRoutineKernelWorker(old) {
+			kernelDelta.addExit(old.Process)
+			continue
+		}
 		events = append(events, makeEvent(old, "process_exit", "exited", nil, nil, true, host, hostIP, snapshotID, now, len(current), durationMS))
+	}
+	if !includeKernelThreads && !kernelDelta.empty() {
+		events = append(events, makeKernelThreadSummaryEvent(kernelDelta, host, hostIP, snapshotID, now, len(current), durationMS))
 	}
 	return events, next, true, nil
 }

@@ -24,7 +24,9 @@
       "pid", "ppid", "uid", "user", "process", "comm", "exe", "command", "command_line",
       "cwd", "state", "state_name", "start_time", "elapsed_seconds", "cpu_time_ms",
       "rss_bytes", "virtual_bytes", "thread_count", "session_id", "cgroup",
-      "command_hash", "change_fields", "previous", "command_redacted", "is_secweaver_agent", "evidence_id", "parser_version", "enterprise_id"
+      "command_hash", "change_fields", "previous", "command_redacted", "is_secweaver_agent",
+      "kernel_thread_aggregate", "kernel_thread_start_count", "kernel_thread_exit_count",
+      "kernel_thread_change_count", "kernel_thread_name_samples", "evidence_id", "parser_version", "enterprise_id"
     ],
     "time_field": "time",
     "retention_days": 30
@@ -41,7 +43,7 @@
   "quality": {
     "required_fields": ["snapshot_id", "pid", "process"],
     "expected_event_type": "process_snapshot",
-	"expected_event_types": ["process_snapshot", "process_start", "process_exit", "process_change"],
+	"expected_event_types": ["process_snapshot", "process_start", "process_exit", "process_change", "process_kernel_thread_summary"],
     "notes": [
 	  "默认每 10 分钟做增量比对，每 24 小时输出完整基线；纯全量兼容模式建议至少使用 1 小时间隔。",
       "Linux 直接读取 /proc；Windows 使用一次 PowerShell/CIM 批量查询。",

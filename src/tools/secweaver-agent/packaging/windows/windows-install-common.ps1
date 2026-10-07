@@ -45,6 +45,13 @@ function Set-WindowsLearningMode([string]$ConfigPath, [ValidateSet('preserve','e
   $Module.args = @($Module.args | Where-Object { $_ -cnotmatch '^--?(behavior-learning|learning-shadow)(=|$)' })
   $Module.args += @('-behavior-learning=' + $(if ($Mode -eq 'disable') {'false'} else {'true'}))
   $Module.args += @('-learning-shadow=' + $(if ($Mode -eq 'shadow') {'true'} else {'false'}))
+  # Only the unified reader implements risk learning. It has a separate state
+  # and generation; explicit migration changes activation, not learned history.
+  if ($Config.modules.'windows-eventlog-risk-json' -eq $Module) {
+    $Module.args = @($Module.args | Where-Object { $_ -cnotmatch '^--?(risk-behavior-learning|risk-learning-shadow)(=|$)' })
+    $Module.args += @('-risk-behavior-learning=' + $(if ($Mode -eq 'disable') {'false'} else {'true'}))
+    $Module.args += @('-risk-learning-shadow=' + $(if ($Mode -eq 'shadow') {'true'} else {'false'}))
+  }
   [IO.File]::WriteAllText($ConfigPath, ($Config | ConvertTo-Json -Depth 100), (New-Object Text.UTF8Encoding($false)))
 }
 
@@ -52,6 +59,11 @@ function Write-WindowsLearningSummary([string]$ConfigPath, [string[]]$PreflightL
   $Config = Get-Content -LiteralPath $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
   $Module = Get-WindowsLearningOwner $Config
   if (-not $Module) { return }
+  if ($Config.modules.'windows-eventlog-risk-json' -eq $Module) {
+    $RiskEnabled = Get-WindowsBooleanFlag $Module.args 'risk-behavior-learning'
+    $RiskShadow = Get-WindowsBooleanFlag $Module.args 'risk-learning-shadow'
+    Write-InstallResult $(if ($RiskEnabled) {'OK'} else {'WARN'}) 'risk-learning-policy' "Enabled=$RiskEnabled; shadow=$RiskShadow; independent native PowerShell CDXML baseline; protected security events retain originals. Use -LearningMode enable or shadow to migrate."
+  }
   if (-not (Get-WindowsBooleanFlag $Module.args 'behavior-learning')) {
     Write-InstallResult 'WARN' 'learning' 'Disabled in existing configuration; use -LearningMode shadow or enable for an explicit migration'
     return
@@ -63,9 +75,9 @@ function Write-WindowsLearningSummary([string]$ConfigPath, [string[]]$PreflightL
   # absent/unknown evidence must never be reported as active suppression.
   $Channel = 'windows-channel/Microsoft-Windows-Sysmon/Operational:'
   if (@($PreflightLines | Where-Object { ([string]$_).StartsWith('[OK] ' + $Channel) }).Count) {
-    Write-InstallResult 'INFO' 'learning-readiness' 'Sysmon channel available; baseline filtering still requires registered identity, eligible GUID/SHA256 context and a completed baseline. Security 4688, risk events and incomplete context retain originals.'
+    Write-InstallResult 'INFO' 'learning-readiness' 'Sysmon channel available; exec filtering still requires registered identity, eligible GUID/SHA256 context and a completed baseline. Security 4688, protected risk events and incomplete context retain originals.'
   } elseif (@($PreflightLines | Where-Object { $_ -match '^\[(WARN|ERROR)\] windows-channel/Microsoft-Windows-Sysmon/Operational:' }).Count) {
-    Write-InstallResult 'WARN' 'learning-readiness' 'Sysmon is missing or its channel is inaccessible: Sysmon-based whitelist reduction is unavailable. Security 4688 process events and risk events remain full-output; collection continues.'
+    Write-InstallResult 'WARN' 'learning-readiness' 'Sysmon is missing or its channel is inaccessible: Sysmon-based exec reduction is unavailable. Native PowerShell risk learning is independent. Security 4688 and protected risk events remain full-output.'
   } else {
     Write-InstallResult 'WARN' 'learning-readiness' 'Sysmon capability was not verified; run doctor. Without eligible GUID/SHA256 context, events retain originals; enabled policy alone does not prove whitelist reduction.'
   }

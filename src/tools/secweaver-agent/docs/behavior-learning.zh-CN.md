@@ -101,7 +101,71 @@ System 完整性级别，才可能合格。程序须为 Windows System32 或 Pro
 Security 4688 没有执行时哈希和 GUID，始终全量输出。Agent 安装程序不会自动安装/配置 Sysmon。
 没有 Sysmon、SHA256、ParentUser 或字段不完整时，不能形成可用名单；名单为空则降级全量输出。
 PowerShell、cmd、脚本解释器、敏感工具、交互/提权/身份不一致、历史事件、延迟超过 10 分钟的
-事件继续输出，风险日志不参与过滤。尤其只有 4688 的主机，不承诺减量。
+事件继续输出，关键风险告警不参与过滤；普通 PowerShell 风险日志的独立学习见下一节。
+尤其只有 4688 的主机，不承诺进程执行日志减量。
+
+### Windows 风险日志（0.3.78）
+
+统一读取器 `windows-eventlog-risk-json` 新增**独立**风险日志基线，代码支持 Windows
+amd64/arm64。需要正式注册设备身份、原生 `Microsoft-Windows-PowerShell/Operational`
+通道及 4104 事件，不依赖 Sysmon。新装配置默认带 `-risk-behavior-learning`，升级保留
+旧配置；显式迁移时以管理员身份重新执行包内安装器，指定 `-LearningMode shadow`
+观察或 `-LearningMode enable` 允许匹配过滤。显式选择同时调整 exec 和风险学习的启用
+状态，不重置各自时长/代数；disable 关闭二者，preserve 不静默添加缺失的开关。
+源码实现不代表已上线安装包。
+
+候选范围刻意收窄：SYSTEM（`S-1-5-18`）身份生成的网络/计划任务 CDXML 定义，限定
+NetTCPConnection、NetUDPEndpoint、NetIPAddress、NetIPInterface、NetRoute、NetNeighbor、
+NetCompartment、NetIPv4Protocol、NetIPv6Protocol、NetOffloadGlobalSetting、NetPrefixPolicy、
+NetTCPSetting、NetTransportFilter、NetUDPSetting、ScheduledTask 和 ClusteredScheduledTask
+类。兼容原生 `$script:ClassName` 和生成的 `__cmdletization_ClassName` 字面声明，变量名
+不区分大小写；计算值和未知类保持原文。定义结构和固定类集是候选筛选启发式，
+**不是**微软签名或主机未入侵的证明。非空路径必须是 Windows System32 下 PowerShell
+内置模块的字面路径，生成定义允许空路径。业务脚本、任意标记和仅模块名称相同都不合格；
+仍须完整脚本精确匹配。应在已知干净的主机上学习，无法识别所有已有入侵。
+
+匹配键包含注册设备身份、**完整脚本 SHA-256**、精确提供者/通道、原生用户 SID、模块类
+和精确来源路径。PID、ScriptBlockId、记录 ID 只用于组装证据，不参与稳定名单匹配。
+沿用 24 个**健康**小时、10 分钟保护期、至少 5 次/3 个健康小时桶/跨度 6 小时的晋级阈值、
+冻结名单、30 天闲置过期和 5 分钟频率异常保护。首日、名单外、脚本变化、频率突增及 shadow
+全部保留原文；历史/回看事件不能训练。登录、凭据、权限、账号、服务安装、审计清除以及
+high/critical 事件始终保留，不因频繁而进入免报名单。
+
+4104 分片可跨查询页组装，但只保留在一次完整轮询内：最多 64 片、完整脚本 512 KiB、
+同时 64 个待拼脚本、8 MiB 计费组装预算。边界空白不丢失，拼齐后再次检测跨片可疑命令。
+缺片、冲突、超预算恢复原始记录；未拼齐的片段在保存游标**之前**落盘，不跨已提交轮询
+仅留在内存。查询缺口、审计/通道清除、状态损坏、写入失败均保留原文；已知源缺口需
+增加 `-risk-learning-generation` 对可读基线重新学习。可选 Sysmon 不可用不影响这套能力。
+
+在统一读取器 args 中使用独立参数：
+
+```text
+-risk-behavior-learning
+-risk-learning-duration 24h
+-risk-learning-generation 0
+-risk-learning-shadow=false
+```
+
+`-risk-learning-state-dir` 可指定绝对路径。默认状态目录为游标文件旁的
+`behavior-learning-windows-risk`，通常位于 `C:\ProgramData\SecWeaver\Agent\data`。
+校验基线只保存指纹和计数，不保存脚本正文。exec 的 `-learning-generation` 不重置这份
+基线，SaaS 现有 exec 学习状态也不代表风险基线状态。运行
+`secweaver-agent doctor -config <config.json>`，检查 `risk-learning/config`、
+`risk-learning/identity`、`risk-learning/status` 的进度和实际过滤状态。
+
+风险 parser `0.3.2` 保留原生 `event_id=4104`、记录/分片 ID，增加 `user_sid`、学习决策
+字段和 `script_block_sha256`（完整脚本，与每片的 `script_sha256` 不同）。摘要/状态为
+`asset_type=host_behavior_summary`、`source_stream=windows_risk`，行为计数另带
+`source_event_type=powershell_script_block`、`count_unit=script_blocks`、`risk_level=info`。
+仍写 `windows-eventlog-risk-json.log`，沿用 SLS `host-sys-messages`/ES 风险日志路由，
+不走 exec 摘要路由，不增加 shipper 文件绑定。摘要不是安全告警，免报脚本块数不等于
+原生分片数；退出 stats 中 `risk_learning_suppressed` 按**分片**计数。摘要周期 5 分钟，
+为游标持久化可能提前写出行为计数；SQL 聚合新字段需要配置相应 SLS 字段索引。
+实际减量取决于合格稳定脚本占比，不承诺固定比例。
+
+验证须覆盖 Go 风险/引擎/解析测试和 Windows 安装契约，再在真实 Windows/SLS/ES 中
+验收 shadow、关键安全原文、游标重启、完整脚本匹配及摘要入库。本次不宣称已完成
+真实机器 24 小时学习或 Windows SCM 验收。
 
 从 0.3.39 开始，新装 Windows 显式启用 `exec,active_connect,file_op`，每类使用独立指纹、计数
 和合格证据。网络/文件事件必须在本次 reader 运行中先观察到合格 Event 1，并用相同主机和
@@ -115,7 +179,7 @@ ProcessGuid、程序路径、用户关联；数字 PID 复用不会继承资格�
 | `exec` | 原有 Event 1 SHA256、服务身份及完整命令验证 | 4688、敏感工具、字段不完整/交互身份 |
 | `active_connect` | Sysmon 3、`Initiated=true` 外连、精确内网目标 IP/端口、TCP/UDP、精确源 IP 和执行身份 | 公网/特殊地址、入站、方向/协议未知、SSH/RDP/SMB/RPC/DNS/认证/管理端口 |
 | `file_op` | Sysmon 11、指定 `file_roots` 内普通 `.log` 的精确创建路径和执行身份 | 删除、重命名、不明确动作、其他扩展名、敏感路径、审计/认证/安全/Agent 日志 |
-| 认证、风险、持久化、身份/服务变化 | 不自动免报 | 原有关键证据全部保留 |
+| 认证、关键风险、持久化、身份/服务变化 | 不自动免报（普通 CDXML 风险学习见独立策略） | 原有关键证据全部保留 |
 | 进程/端口/主机状态快照 | 沿用已有快照增量机制 | 不用白名单丢弃基线和状态变化 |
 
 文件目录只限定学习范围，不是路径通配白名单，每个完整路径仍须满足学习晋级阈值。

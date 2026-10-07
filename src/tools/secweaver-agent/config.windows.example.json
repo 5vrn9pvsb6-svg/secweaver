@@ -73,6 +73,7 @@
         "-min-level",
         "medium",
         "-behavior-learning",
+        "-risk-behavior-learning",
         "-learning-event-types",
         "exec,active_connect,file_op",
         "-learning-file-roots",

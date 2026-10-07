@@ -6,7 +6,7 @@
 
 ## Collection
 
-The built-in `host-process-snapshot` module emits an initial full baseline, scans for deltas every 10 minutes, and emits another full baseline every 24 hours. Linux reads `/proc` directly and resolves UIDs from one `/etc/passwd` read. Windows runs one non-profile PowerShell/CIM batch query per interval. Events are `process_snapshot`, `process_start`, `process_exit`, and `process_change`; records from one scan share `snapshot_id`. A collection is canceled after 45 seconds by default. Adjust the timeout with `-collection-timeout`. Windows excludes the PowerShell process used for collection.
+The built-in `host-process-snapshot` module emits an initial full baseline, scans for deltas every 10 minutes, and emits another full baseline every 24 hours. Linux reads `/proc` directly and resolves UIDs from one `/etc/passwd` read. Windows runs one non-profile PowerShell/CIM batch query per interval. Events are `process_snapshot`, `process_start`, `process_exit`, `process_change`, and the Linux-only `process_kernel_thread_summary`; records from one scan share `snapshot_id`. A collection is canceled after 45 seconds by default. Adjust the timeout with `-collection-timeout`. Windows excludes the PowerShell process used for collection.
 
 On an installed Linux Agent, run a one-shot check with your configured enterprise ID:
 
@@ -17,6 +17,13 @@ sudo SECWEAVER_ENTERPRISE_ID=YOUR_16_CHAR_ID \
 
 Delta identity is strictly `pid + start_time`; processes without a start time appear in full baselines but are excluded from delta matching to prevent PID-reuse errors. State defaults to `/opt/secweaver-agent/data/host-process-snapshot-state.json` on Linux and `C:\ProgramData\SecWeaver\Agent\data\host-process-snapshot-state.json` on Windows. State is atomically replaced after output is checkpointed. Corrupt state is quarantined and a new baseline is built. POSIX state files use mode `0600`.
 
+On Linux, full baselines still retain every process, including `kworker/*`. By default, routine
+`kworker/*` starts, exits, and changes that contain only a `command_hash` delta are compressed into
+one `process_kernel_thread_summary` event per scan. The summary has exact start, exit, and change
+counts plus at most 32 name samples. A worker with an executable, a non-standard shape, or another
+changed attribute remains an individual `process_start`, `process_exit`, or `process_change` event.
+Add `-include-kernel-threads` to the module arguments to retain every routine worker event.
+
 Default outputs are `/opt/secweaver-agent/logs/host-process-snapshot.log` on Linux and `C:\ProgramData\SecWeaver\Agent\logs\host-process-snapshot.log` on Windows. Full baselines omit repeated `command` and `command_line` payloads and retain `command_hash`; start, exit, and tracked change events retain the full redacted command. Common password, token, URL credential, and `sshpass -p` arguments are redacted before output. For legacy full-only collection, use at least a one-hour scan/full-baseline interval. Logs default to a 100 MB active file and five rotated backups.
 
 The default continuous settings are equivalent to:
@@ -26,6 +33,12 @@ secweaver-agent module host-process-snapshot \
   -interval 10m \
   -full-snapshot-interval 24h \
   -state /opt/secweaver-agent/data/host-process-snapshot-state.json
+```
+
+To retain individual routine Linux kernel-worker deltas:
+
+```bash
+secweaver-agent module host-process-snapshot -include-kernel-threads
 ```
 
 ## Event fields
@@ -55,6 +68,26 @@ Only a `process_snapshot` scan describes a complete process set; delta scans can
   "thread_count": 4
 }
 ```
+
+An aggregate event looks like this:
+
+```json
+{
+  "asset_type": "host_process",
+  "event_type": "process_kernel_thread_summary",
+  "action": "aggregated",
+  "pid": "0",
+  "process": "kworker/*",
+  "kernel_thread_aggregate": true,
+  "kernel_thread_start_count": 12,
+  "kernel_thread_exit_count": 11,
+  "kernel_thread_change_count": 24,
+  "kernel_thread_name_samples": ["kworker/0:1-events"]
+}
+```
+
+`pid=0` is an aggregate sentinel, not evidence about the PID 0 process. The three count fields are
+the authoritative event totals.
 
 Core fields include `time`, `host`, `host_ip`, `snapshot_id`, `event_type`, `action`, `pid`, `ppid`, `uid`, `user`, `process`, `exe`, `command_hash`, `change_fields`, `start_time`, `cpu_time_ms`, `rss_bytes`, `thread_count`, and `cgroup`. Additional fields depend on platform capabilities and may include `cwd`, `state`, `virtual_bytes`, `session_id`, and `is_secweaver_agent`.
 

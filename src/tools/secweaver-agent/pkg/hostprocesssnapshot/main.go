@@ -25,7 +25,11 @@ import (
 )
 
 const (
-	parserVersion             = "0.3.0"
+	// 0.3.1 marks the additive kernel-thread summary event and its fields. The
+	// persisted process state remains backward-compatible, so upgrading does
+	// not discard the existing baseline or force a full rescan solely for this
+	// parser-contract change.
+	parserVersion             = "0.3.1"
 	defaultInterval           = 10 * time.Minute
 	defaultFullSnapshotPeriod = 24 * time.Hour
 	defaultCollectionTimeout  = 45 * time.Second
@@ -61,73 +65,84 @@ type processInfo struct {
 	CommandHash     string   `json:"command_hash,omitempty"`
 	CommandRedacted bool     `json:"command_redacted,omitempty"`
 	IsAgent         bool     `json:"is_secweaver_agent,omitempty"`
+	KernelThread    bool     `json:"kernel_thread,omitempty"`
 }
 
 type processEvent struct {
-	EvidenceID           string         `json:"evidence_id"`
-	AssetType            string         `json:"asset_type"`
-	EventType            string         `json:"event_type"`
-	Action               string         `json:"action"`
-	Time                 string         `json:"time"`
-	Timestamp            string         `json:"timestamp"`
-	SnapshotID           string         `json:"snapshot_id"`
-	SnapshotProcessCount int            `json:"snapshot_process_count"`
-	SnapshotDurationMS   int64          `json:"snapshot_duration_ms"`
-	Host                 string         `json:"host"`
-	HostName             string         `json:"host_name"`
-	HostIP               string         `json:"host_ip,omitempty"`
-	OS                   string         `json:"os"`
-	Arch                 string         `json:"arch"`
-	PID                  string         `json:"pid"`
-	PPID                 string         `json:"ppid,omitempty"`
-	UID                  string         `json:"uid,omitempty"`
-	User                 string         `json:"user,omitempty"`
-	Process              string         `json:"process,omitempty"`
-	Comm                 string         `json:"comm,omitempty"`
-	Exe                  string         `json:"exe,omitempty"`
-	Command              []string       `json:"command,omitempty"`
-	CommandLine          string         `json:"command_line,omitempty"`
-	CWD                  string         `json:"cwd,omitempty"`
-	State                string         `json:"state,omitempty"`
-	StateName            string         `json:"state_name,omitempty"`
-	StartTime            string         `json:"start_time,omitempty"`
-	ElapsedSeconds       int64          `json:"elapsed_seconds,omitempty"`
-	CPUTimeMS            int64          `json:"cpu_time_ms,omitempty"`
-	RSSBytes             int64          `json:"rss_bytes,omitempty"`
-	VirtualBytes         int64          `json:"virtual_bytes,omitempty"`
-	ThreadCount          int            `json:"thread_count,omitempty"`
-	SessionID            int            `json:"session_id,omitempty"`
-	Cgroup               string         `json:"cgroup,omitempty"`
-	CommandHash          string         `json:"command_hash,omitempty"`
-	ChangeFields         []string       `json:"change_fields,omitempty"`
-	Previous             map[string]any `json:"previous,omitempty"`
-	CommandRedacted      bool           `json:"command_redacted,omitempty"`
-	IsAgent              bool           `json:"is_secweaver_agent,omitempty"`
-	ParserVersion        string         `json:"parser_version"`
+	EvidenceID            string         `json:"evidence_id"`
+	AssetType             string         `json:"asset_type"`
+	EventType             string         `json:"event_type"`
+	Action                string         `json:"action"`
+	Time                  string         `json:"time"`
+	Timestamp             string         `json:"timestamp"`
+	SnapshotID            string         `json:"snapshot_id"`
+	SnapshotProcessCount  int            `json:"snapshot_process_count"`
+	SnapshotDurationMS    int64          `json:"snapshot_duration_ms"`
+	Host                  string         `json:"host"`
+	HostName              string         `json:"host_name"`
+	HostIP                string         `json:"host_ip,omitempty"`
+	OS                    string         `json:"os"`
+	Arch                  string         `json:"arch"`
+	PID                   string         `json:"pid"`
+	PPID                  string         `json:"ppid,omitempty"`
+	UID                   string         `json:"uid,omitempty"`
+	User                  string         `json:"user,omitempty"`
+	Process               string         `json:"process,omitempty"`
+	Comm                  string         `json:"comm,omitempty"`
+	Exe                   string         `json:"exe,omitempty"`
+	Command               []string       `json:"command,omitempty"`
+	CommandLine           string         `json:"command_line,omitempty"`
+	CWD                   string         `json:"cwd,omitempty"`
+	State                 string         `json:"state,omitempty"`
+	StateName             string         `json:"state_name,omitempty"`
+	StartTime             string         `json:"start_time,omitempty"`
+	ElapsedSeconds        int64          `json:"elapsed_seconds,omitempty"`
+	CPUTimeMS             int64          `json:"cpu_time_ms,omitempty"`
+	RSSBytes              int64          `json:"rss_bytes,omitempty"`
+	VirtualBytes          int64          `json:"virtual_bytes,omitempty"`
+	ThreadCount           int            `json:"thread_count,omitempty"`
+	SessionID             int            `json:"session_id,omitempty"`
+	Cgroup                string         `json:"cgroup,omitempty"`
+	CommandHash           string         `json:"command_hash,omitempty"`
+	ChangeFields          []string       `json:"change_fields,omitempty"`
+	Previous              map[string]any `json:"previous,omitempty"`
+	CommandRedacted       bool           `json:"command_redacted,omitempty"`
+	IsAgent               bool           `json:"is_secweaver_agent,omitempty"`
+	KernelThreadAggregate bool           `json:"kernel_thread_aggregate,omitempty"`
+	KernelThreadStarts    int            `json:"kernel_thread_start_count,omitempty"`
+	KernelThreadExits     int            `json:"kernel_thread_exit_count,omitempty"`
+	KernelThreadChanges   int            `json:"kernel_thread_change_count,omitempty"`
+	KernelThreadNames     []string       `json:"kernel_thread_name_samples,omitempty"`
+	ParserVersion         string         `json:"parser_version"`
 }
 
 type stats struct {
-	Snapshots      int `json:"snapshots"`
-	DeltaScans     int `json:"delta_scans"`
-	ProcessStarts  int `json:"process_starts"`
-	ProcessExits   int `json:"process_exits"`
-	ProcessChanges int `json:"process_changes"`
-	Untracked      int `json:"untracked_without_start_time"`
-	ProcessesRead  int `json:"processes_read"`
-	EventsWritten  int `json:"events_written"`
-	ScanErrors     int `json:"scan_errors"`
+	Snapshots             int `json:"snapshots"`
+	DeltaScans            int `json:"delta_scans"`
+	ProcessStarts         int `json:"process_starts"`
+	ProcessExits          int `json:"process_exits"`
+	ProcessChanges        int `json:"process_changes"`
+	Untracked             int `json:"untracked_without_start_time"`
+	ProcessesRead         int `json:"processes_read"`
+	EventsWritten         int `json:"events_written"`
+	ScanErrors            int `json:"scan_errors"`
+	KernelThreadSummaries int `json:"kernel_thread_summaries"`
+	KernelThreadStarts    int `json:"kernel_thread_starts"`
+	KernelThreadExits     int `json:"kernel_thread_exits"`
+	KernelThreadChanges   int `json:"kernel_thread_changes"`
 }
 
 type runConfig struct {
-	OutputPath         string
-	StatePath          string
-	HostIP             string
-	Interval           time.Duration
-	FullSnapshotPeriod time.Duration
-	CollectionTimeout  time.Duration
-	Once               bool
-	RedactSensitive    bool
-	Collector          func(context.Context, time.Time) ([]processInfo, error)
+	OutputPath           string
+	StatePath            string
+	HostIP               string
+	Interval             time.Duration
+	FullSnapshotPeriod   time.Duration
+	CollectionTimeout    time.Duration
+	Once                 bool
+	RedactSensitive      bool
+	IncludeKernelThreads bool
+	Collector            func(context.Context, time.Time) ([]processInfo, error)
 }
 
 func Main(args []string) int {
@@ -141,6 +156,7 @@ func Main(args []string) int {
 	collectionTimeout := defaultCollectionTimeout
 	once := false
 	redactSensitive := true
+	includeKernelThreads := false
 	showStats := false
 	showVersion := false
 	fs.StringVar(&outputPath, "output", outputPath, "JSON Lines output path; - for stdout")
@@ -151,6 +167,7 @@ func Main(args []string) int {
 	fs.DurationVar(&collectionTimeout, "collection-timeout", collectionTimeout, "maximum duration of one process inventory collection")
 	fs.BoolVar(&once, "once", once, "collect one process snapshot and exit")
 	fs.BoolVar(&redactSensitive, "redact-sensitive", redactSensitive, "redact common password/token command arguments")
+	fs.BoolVar(&includeKernelThreads, "include-kernel-threads", includeKernelThreads, "emit individual routine Linux kworker start/exit/change events")
 	fs.BoolVar(&showStats, "stats", showStats, "print collection statistics to stderr on exit")
 	fs.BoolVar(&showVersion, "version", showVersion, "print version and exit")
 	if err := fs.Parse(args); err != nil {
@@ -194,7 +211,7 @@ func Main(args []string) int {
 	err = run(ctx, runConfig{
 		OutputPath: outputPath, StatePath: statePath, HostIP: hostIP, Interval: interval,
 		FullSnapshotPeriod: fullSnapshotPeriod, CollectionTimeout: collectionTimeout, Once: once,
-		RedactSensitive: redactSensitive, Collector: collector,
+		RedactSensitive: redactSensitive, IncludeKernelThreads: includeKernelThreads, Collector: collector,
 	}, out, st)
 	if showStats {
 		body, _ := json.Marshal(st)
@@ -255,7 +272,7 @@ func run(ctx context.Context, cfg runConfig, out io.Writer, st *stats) error {
 			}
 			duration := time.Since(started).Milliseconds()
 			snapshotID := stableID("process-snapshot", host, started.Format(time.RFC3339Nano))
-			events, nextState, delta, eventErr := processEvents(processes, state, cfg.FullSnapshotPeriod, host, cfg.HostIP, snapshotID, started, duration)
+			events, nextState, delta, eventErr := processEventsWithOptions(processes, state, cfg.FullSnapshotPeriod, host, cfg.HostIP, snapshotID, started, duration, cfg.IncludeKernelThreads)
 			if eventErr != nil {
 				st.ScanErrors++
 				if cfg.Once {
@@ -283,6 +300,11 @@ func run(ctx context.Context, cfg runConfig, out io.Writer, st *stats) error {
 					st.ProcessExits++
 				case "process_change":
 					st.ProcessChanges++
+				case "process_kernel_thread_summary":
+					st.KernelThreadSummaries++
+					st.KernelThreadStarts += event.KernelThreadStarts
+					st.KernelThreadExits += event.KernelThreadExits
+					st.KernelThreadChanges += event.KernelThreadChanges
 				}
 			}
 			st.Untracked += len(processes) - len(nextState.Processes)
@@ -310,6 +332,25 @@ func run(ctx context.Context, cfg runConfig, out io.Writer, st *stats) error {
 			return nil
 		case <-timer.C:
 		}
+	}
+}
+
+// makeKernelThreadSummaryEvent creates one bounded record for routine kworker
+// churn in a delta scan. The sentinel PID is intentional: the record describes
+// an aggregate, not a real process, and the explicit aggregate flag prevents
+// consumers from treating it as PID 0 evidence.
+func makeKernelThreadSummaryEvent(delta kernelThreadDelta, host, hostIP, snapshotID string, now time.Time, count int, durationMS int64) processEvent {
+	timestamp := now.Format(time.RFC3339Nano)
+	return processEvent{
+		EvidenceID: stableID("host-process-kernel-thread", snapshotID),
+		AssetType:  "host_process", EventType: "process_kernel_thread_summary", Action: "aggregated",
+		Time: timestamp, Timestamp: timestamp, SnapshotID: snapshotID,
+		SnapshotProcessCount: count, SnapshotDurationMS: durationMS,
+		Host: host, HostName: host, HostIP: hostIP, OS: runtime.GOOS, Arch: runtime.GOARCH,
+		PID: "0", Process: "kworker/*", Comm: "kworker/*",
+		KernelThreadAggregate: true, KernelThreadStarts: delta.starts,
+		KernelThreadExits: delta.exits, KernelThreadChanges: delta.changes,
+		KernelThreadNames: delta.sortedNames(), ParserVersion: parserVersion,
 	}
 }
 

@@ -1,5 +1,14 @@
 # secweaver-agent
 
+Source 0.3.78 adds independent Windows risk learning for repetitive SYSTEM
+PowerShell CDXML blocks. Fresh Windows installs learn for 24 healthy hours;
+upgrades preserve choices and protected security events always retain originals.
+See [Windows risk learning](docs/behavior-learning.md#windows-risk-logs-0378).
+
+Source 0.3.77 builds on the 0.3.73 fail-closed update baseline by aggregating routine Linux
+host-process kworker delta noise by default, while retaining an explicit per-worker mode; it
+also updates the asset contract and operations documentation.
+
 Source 0.3.73 makes scheduled automatic installation fail closed by default and
 adds locked recovery persistence plus collector-health evidence for managed upgrades.
 SLS SaaS Agents require both the enterprise workspace permission and a signed
@@ -707,7 +716,7 @@ Remote config is fail-closed. Enabling `remote_config` requires `public_key`, an
 
 `host-persistence` uses a module JSON config. On Linux, copy [`host-persistence.example.json`](host-persistence.example.json) to `/opt/secweaver-agent/etc/host-persistence.json`; on Windows, `install-service.ps1` copies [`host-persistence.windows.example.json`](host-persistence.windows.example.json) to `C:\ProgramData\SecWeaver\Agent\etc\host-persistence.json`. The first start builds a baseline without emitting existing files; later creates, modifies, and deletes emit `asset_type=host_persistence`, `event_type=persistence_change` JSON Lines. Events auto-detect and include `host_ip`; multi-homed hosts can set `host_ip` in the module JSON or use `-host-ip` to override the detected address. Linux defaults write `/opt/secweaver-agent/logs/host-persistence.log` and use auditd actor/process enrichment when available. Once per minute, configured paths that currently exist are reconciled against kernel watch rules so new paths and watches invalidated by atomic replacement are restored. An audit reader failure restarts the module instead of silently disabling enrichment. Windows defaults write `C:\ProgramData\SecWeaver\Agent\logs\host-persistence.log`, disable audit enrichment, and monitor scheduled-task, startup-folder, Group Policy script, and PowerShell profile file locations. Small text files include a bounded `content_diff`. If Linux audit volume is high and another local component already consumes `audit.log`, set `audit.follow_log=false` to disable this module's follower; it can still manage watch rules, but events will not include actor/process enrichment.
 
-`host-process-snapshot` is enabled by default on Linux and Windows. It emits a full `process_snapshot` baseline at startup, then scans every 10 minutes for `process_start`, `process_exit`, and `process_change`, with another full baseline every 24 hours. Delta identity is `pid+start_time`; state is atomically persisted in the platform state directory. Baselines retain `command_hash` instead of repeated command payloads, while high-value deltas retain redacted commands. See `docs_user/32-host-process-snapshot.md`.
+`host-process-snapshot` is enabled by default on Linux and Windows. It emits a full `process_snapshot` baseline at startup, then scans every 10 minutes for deltas, with another full baseline every 24 hours. On Linux, routine `kworker/*` starts, exits, and command-hash-only changes are aggregated into one `process_kernel_thread_summary` per scan; add `-include-kernel-threads` to retain individual events, while full baselines still include those threads. Delta identity is `pid+start_time`; state is atomically persisted in the platform state directory. Baselines retain `command_hash` instead of repeated command payloads, while high-value deltas retain redacted commands. See `docs_user/32-host-process-snapshot.md`.
 
 `host-state-snapshot` is enabled by default on Linux and Windows. It checks listening sockets, identities, and services/tasks every five minutes, and kernel/container context every ten minutes. Every collection emits an initial baseline, then differences, plus a full baseline every 24 hours. Linux socket-owner discovery is capped at 100,000 file descriptors per run by default; an incomplete collection is rejected so it cannot create false deletion events. See `docs_user/33-host-state-snapshot.md`.
 

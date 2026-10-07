@@ -1,5 +1,32 @@
 # Changelog
 
+## Agent 0.3.78
+
+- Add an independent 24-hour Windows risk-log learning baseline for eligible,
+  repetitive SYSTEM PowerShell 4104 network/scheduler CDXML definitions. Match
+  full script SHA-256, native SID, provider/channel, module class and exact path;
+  protected security events and unknown/changed scripts retain originals.
+- Reassemble bounded script fragments across query pages, fail open on incomplete
+  blocks before cursor checkpoints, and detect suspicious tokens across fragment
+  boundaries. Preserve native event IDs, record IDs and exact script whitespace.
+- Enable risk learning in fresh Windows configurations, preserve upgrade choices,
+  extend explicit installer learning modes and Doctor diagnostics, and write
+  bounded counters/status into the existing risk stream without new shipper routes.
+- Bump the Windows risk parser contract to 0.3.2, update public/private risk asset
+  fields and bilingual guides, and add assembly, identity, failure and rate tests.
+
+## Agent 0.3.77
+
+- Reduce Linux host-process snapshot noise from routine `kworker/*` churn without
+  weakening the daily full process baseline. Starts, exits, and command-hash-only
+  changes now produce one bounded `process_kernel_thread_summary` per scan by
+  default; unusual kernel-thread shapes remain individual evidence.
+- Bump the host-process `parser_version` to `0.3.1` for the additive event contract;
+  existing state files remain readable and are not discarded during upgrade.
+- Add `-include-kernel-threads` for operators that require the legacy per-thread
+  stream, and update the host-process assets, event mapping, bilingual collector
+  guides, and regression tests for the new aggregate event.
+
 ## Agent 0.3.76
 
 - Fix Linux Bootstrap platform-pointer initialization under Bash `set -u`,

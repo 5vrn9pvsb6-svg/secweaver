@@ -16,6 +16,12 @@ sudo SECWEAVER_ENTERPRISE_ID=YOUR_16_CHAR_ID \
 - 单轮采集默认 45 秒超时，可用 `-collection-timeout` 调整。
 - `process_snapshot` 表示每日完整基线；`process_start`、`process_exit`、`process_change` 分别表示启动、退出和关键属性变化。
 - 每轮扫描共享一个 `snapshot_id`，只有 `event_type=process_snapshot` 的轮次能够恢复完整进程集合。
+- Linux 默认仍把所有进程（包括 `kworker/*`）写入完整基线；为了避免内核工作队列的正常
+  名称变化和短生命周期造成噪声，增量扫描默认把标准 `kworker/*` 的启动、退出和仅
+  `command_hash` 变化合并为一条 `process_kernel_thread_summary`。该事件带有精确的启动、
+  退出、变化计数和最多 32 个名称样本，完整基线不受影响。若需要逐条保留这些事件，给模块
+  参数增加 `-include-kernel-threads`；带可执行文件、非标准内核线程形态或其他属性变化的
+  事件仍按原始 `process_start`/`process_exit`/`process_change` 输出。
 - 增量身份键严格使用 `pid + start_time`，不能只使用 PID。无法读取 `start_time` 的进程会进入每日基线，但不会参加增量比对，以避免 PID 复用误报。
 - Linux 状态默认保存到 `/opt/secweaver-agent/data/host-process-snapshot-state.json`；Windows 状态默认保存到 `C:\ProgramData\SecWeaver\Agent\data\host-process-snapshot-state.json`。状态文件使用原子替换和 `0600` 权限，损坏时会隔离后重建基线。
 - 默认输出分别为 `/opt/secweaver-agent/logs/host-process-snapshot.log` 和 `C:\ProgramData\SecWeaver\Agent\logs\host-process-snapshot.log`。
@@ -30,6 +36,13 @@ secweaver-agent module host-process-snapshot \
   -state /opt/secweaver-agent/data/host-process-snapshot-state.json
 ```
 
+如需保留标准 Linux 内核工作线程的逐条增量事件：
+
+```bash
+secweaver-agent module host-process-snapshot \
+  -include-kernel-threads
+```
+
 如果必须使用旧式纯全量模式，建议把扫描和完整基线周期都设置为 `1h`，避免每 10 分钟重复写整机进程清单。
 
 ## 主要字段
@@ -38,7 +51,7 @@ secweaver-agent module host-process-snapshot \
 {
   "asset_type": "host_process",
   "event_type": "process_change",
-	"action": "changed",
+  "action": "changed",
   "snapshot_id": "process-snapshot-...",
   "snapshot_process_count": 237,
   "time": "2026-07-16T12:00:00+08:00",
@@ -57,6 +70,25 @@ secweaver-agent module host-process-snapshot \
   "thread_count": 4
 }
 ```
+
+聚合事件的示例为：
+
+```json
+{
+  "asset_type": "host_process",
+  "event_type": "process_kernel_thread_summary",
+  "action": "aggregated",
+  "pid": "0",
+  "process": "kworker/*",
+  "kernel_thread_aggregate": true,
+  "kernel_thread_start_count": 12,
+  "kernel_thread_exit_count": 11,
+  "kernel_thread_change_count": 24,
+  "kernel_thread_name_samples": ["kworker/0:1-events"]
+}
+```
+
+这里的 `pid=0` 是聚合记录的哨兵值，不代表 PID 0 进程；完整事件数量以三个计数字段为准。
 
 还会按系统能力输出 `uid`、`cwd`、`state`、`cpu_time_ms`、`virtual_bytes`、`session_id`、`cgroup`、`is_secweaver_agent` 等字段。完整基线不重复写 `command`/`command_line`，只保留 `command_hash`；启动、退出、命令/可执行文件/cgroup/UID/用户变化事件保留脱敏后的完整命令。常见 password、token、URL 口令和 `sshpass -p` 参数默认在 Agent 落盘前脱敏。
 

@@ -507,3 +507,54 @@ Windows Sysmon 代码已在 0.3.38 接入；真实平台验收、受控脚本身
 首日全量成本仍存在；若业务主要是变化命令或首期强制保留的脚本，减量可能有限。
 先用 shadow 数据计算 eligible_exec 占比及字节收益，决定是否扩大部署。
 异常事件不因“太多”而被自动学习，保护调查能力优先于固定减量指标。
+
+## 13. Windows 风险日志实现补充（0.3.78）
+
+统一 reader 仍拥有单一事件源和游标；新增 windowseventlogriskjson/learning.go 管理
+独立风险 Engine、锁、健康租约、ticker 和输出持久化，learning_script.go 负责有界
+4104 分片组装与候选筛选。复用 behaviorlearning 的 HMAC 存储、晋级、频率保护和降级
+状态机，不复用 Sysmon 的进程身份缓存，也不创建第二个读取器。
+
+新的可选 Context.windows_risk 不改变既有 Linux/Windows exec 指纹序列化。
+适配器仅提交完整 SYSTEM 网络/计划任务 CDXML 定义的原生来源与完整脚本哈希；
+Engine 的同步 original 回调用决策元数据输出适配器当前持有的原始分片，保留原生
+event_id=4104。脚本正文不进入基线或 exec 祖先重放缓存。所有输出与后台状态摘要由
+适配器锁串行；不能在回调内重新获取该锁。
+
+完整轮询包含多页查询，结束时先写出未拼齐分片，再执行 Engine/输出 checkpoint，
+最后保存游标。内存组装预算最多 64 块/每块 64 片/完整脚本 512 KiB/计费 8 MiB；
+超预算或上下文不完整立即保留原文。风险摘要复用现有风险日志路由，按完整脚本块
+计数，不作为进程图边或安全告警。Sysmon 缺失不使风险代数降级，PowerShell 源缺口
+和审计清除会；两套基线代数互不影响。完整契约、参数、迁移和待完成的真实验收见
+[行为学习指南](../src/tools/secweaver-agent/docs/behavior-learning.zh-CN.md#windows-风险日志0378)。
+
+```mermaid
+flowchart LR
+    Source[单一 Event Log reader] --> Cursor[分页与游标]
+    Cursor --> Exec[既有 Sysmon exec 适配器]
+    Cursor --> Risk[风险适配器锁与有界分片]
+    Exec --> ExecEngine[exec Engine 与独立存储]
+    Risk --> RiskEngine[风险 Engine 与独立存储]
+    RiskEngine -->|同步决策| Risk
+    Risk --> RiskLog[既有风险日志与 shipper 路由]
+    ExecEngine --> ExecLog[exec 原文与摘要日志]
+    Timer[1 秒健康时钟] --> Risk
+```
+
+```mermaid
+flowchart TD
+    Read[读取原生事件] --> Protected{关键安全事件?}
+    Protected -->|是| Emit[保留原文]
+    Protected -->|普通 4104| Assemble[同轮询跨页组装]
+    Assemble --> Complete{完整且满足候选资格?}
+    Complete -->|否或超预算| Emit
+    Complete -->|是| Match{健康且冻结名单精确命中?}
+    Match -->|学习期/变化/shadow/频率异常| Emit
+    Match -->|允许免报| Counter[累加完整脚本块计数]
+    Emit --> Barrier[轮询末尾落盘未拼齐分片]
+    Counter --> Barrier
+    Barrier --> Sync[基线与原文/计数 checkpoint]
+    Sync --> Success{持久化成功?}
+    Success -->|是| Save[保存 EventRecordID 游标]
+    Success -->|否| Retry[不推进游标并降级]
+```

@@ -164,6 +164,80 @@ func TestProcessEventsTreatPIDReuseAsExitAndStart(t *testing.T) {
 	}
 }
 
+func TestProcessEventsAggregatesRoutineKernelWorkerDeltas(t *testing.T) {
+	now := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	initial := []processInfo{
+		{PID: 10, Process: "kworker/0:1-events", CommandLine: "kworker/0:1-events", KernelThread: true, StartTime: now.Add(-time.Hour).Format(time.RFC3339Nano)},
+		{PID: 11, Process: "kworker/1:1-events", CommandLine: "kworker/1:1-events", KernelThread: true, StartTime: now.Add(-time.Hour).Format(time.RFC3339Nano)},
+	}
+	for i := range initial {
+		initial[i].CommandHash = processCommandHash(initial[i])
+	}
+	_, state, _, err := processEvents(initial, persistedProcessState{}, 24*time.Hour, "host-a", "10.0.0.1", "snapshot-1", now, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := initial[0]
+	changed.Process = "kworker/0:1-flush-8:0"
+	changed.CommandLine = changed.Process
+	changed.CommandHash = processCommandHash(changed)
+	started := processInfo{PID: 12, Process: "kworker/2:1-events", CommandLine: "kworker/2:1-events", KernelThread: true, StartTime: now.Add(time.Minute).Format(time.RFC3339Nano)}
+	started.CommandHash = processCommandHash(started)
+	events, next, delta, err := processEvents([]processInfo{changed, started}, state, 24*time.Hour, "host-a", "10.0.0.1", "snapshot-2", now.Add(10*time.Minute), 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !delta || len(events) != 1 || events[0].EventType != "process_kernel_thread_summary" {
+		t.Fatalf("routine kernel churn was not aggregated: delta=%v events=%+v", delta, events)
+	}
+	summary := events[0]
+	if summary.KernelThreadStarts != 1 || summary.KernelThreadExits != 1 || summary.KernelThreadChanges != 1 || !summary.KernelThreadAggregate {
+		t.Fatalf("unexpected kernel summary: %+v", summary)
+	}
+	if len(next.Processes) != 2 {
+		t.Fatalf("aggregated events did not advance state: %+v", next.Processes)
+	}
+}
+
+func TestProcessEventsCanRetainRoutineKernelWorkerDeltas(t *testing.T) {
+	now := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
+	initial := processInfo{PID: 10, Process: "kworker/0:1-events", CommandLine: "kworker/0:1-events", KernelThread: true, StartTime: now.Add(-time.Hour).Format(time.RFC3339Nano)}
+	initial.CommandHash = processCommandHash(initial)
+	_, state, _, err := processEvents([]processInfo{initial}, persistedProcessState{}, 24*time.Hour, "host-a", "10.0.0.1", "snapshot-1", now, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	changed := initial
+	changed.Process = "kworker/0:1-flush-8:0"
+	changed.CommandLine = changed.Process
+	changed.CommandHash = processCommandHash(changed)
+	events, _, _, err := processEventsWithOptions([]processInfo{changed}, state, 24*time.Hour, "host-a", "10.0.0.1", "snapshot-2", now.Add(10*time.Minute), 1, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].EventType != "process_change" {
+		t.Fatalf("explicit kernel-thread mode did not retain change: %+v", events)
+	}
+}
+
+func TestKernelThreadSummaryKeepsExactCountsWhenSamplesAreBounded(t *testing.T) {
+	delta := newKernelThreadDelta()
+	for i := 0; i < 40; i++ {
+		name := "kworker/" + strconv.Itoa(i) + ":events"
+		delta.addStart(name)
+		delta.addExit(name)
+		delta.addChange(name)
+	}
+
+	event := makeKernelThreadSummaryEvent(delta, "host-a", "10.0.0.1", "snapshot-2", time.Unix(0, 0).UTC(), 40, 1)
+	if event.KernelThreadStarts != 40 || event.KernelThreadExits != 40 || event.KernelThreadChanges != 40 {
+		t.Fatalf("summary counts must remain exact: %+v", event)
+	}
+	if len(event.KernelThreadNames) != 32 {
+		t.Fatalf("summary sample must be bounded to 32 names: %d", len(event.KernelThreadNames))
+	}
+}
+
 func TestProcessEventsDoNotDeltaTrackMissingStartTime(t *testing.T) {
 	now := time.Date(2026, 7, 29, 12, 0, 0, 0, time.UTC)
 	process := processInfo{PID: 7, Process: "restricted", CommandLine: "restricted"}

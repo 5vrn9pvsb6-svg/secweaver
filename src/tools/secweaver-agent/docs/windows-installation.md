@@ -1,4 +1,11 @@
-# Windows service and Data Cloud delivery (0.3.58)
+# Windows service and Data Cloud delivery (0.3.78)
+
+0.3.78 enables independent native PowerShell risk learning in fresh installations.
+Existing configs are preserved; `-LearningMode enable|shadow|disable` explicitly
+controls both exec and risk policies on the unified reader. Ordinary eligible
+SYSTEM CDXML blocks learn for 24 healthy hours; protected security events retain
+originals. Sysmon is not required for risk learning. Doctor reports the independent
+`risk-learning/*` state. See [scope, limits and verification](behavior-learning.md#windows-risk-logs-0378).
 
 0.3.58 separates installation results: green OK for verified steps, cyan INFO for
 normal behavior/configuration, yellow WARN for limited or unverified capabilities,
@@ -9,7 +16,8 @@ a startup error path. Failure diagnostics use only a current detail file up to 1
 
 Learning summaries reuse preflight without another channel query. Missing or
 inaccessible Sysmon explicitly means Sysmon-based whitelist reduction is unavailable;
-Security 4688 process events and risk events retain originals and collection continues.
+Security 4688 process events and protected risk events retain originals; native risk
+learning is independent of Sysmon and collection continues.
 An accessible Sysmon channel does not prove a completed baseline or active filtering.
 Cloud receipt retains a PENDING VERIFICATION warning: the installer does not query
 SLS/ES, so this means neither confirmed upload failure nor verified receipt. Verify
@@ -83,7 +91,7 @@ Enable explicitly permits eligible matching, shadow learns while retaining all o
 and disable turns learning off. Only the enabled event owner is changed; duration, scope,
 generation and state survive, and no second reader is started. Prefer shadow for migration.
 An enabled flag does not certify suppression: enrolled identity and eligible Sysmon
-GUID/SHA256/context are required. Security 4688, risk alerts and incomplete context remain
+GUID/SHA256/context are required for exec learning. Security 4688, protected risk alerts and incomplete context remain
 full-output. Doctor distinguishes these conditions.
 
 Installation uses green `[OK]`, yellow `[WARN]` and red `[ERROR]` stages for collection,
@@ -103,8 +111,10 @@ credential input in transcripts or embedding it in publicly readable scripts.
 Agent 0.3.51 uses Windows risk parser_version 0.3.1. A complete 4104 script fragment is retained
 in `command`, with UTF-8 `script_bytes` and exact-content `script_sha256`. Message contains a
 summary; byte-identical ScriptBlockText/CommandLine copies are removed from fields. Different
-content, ScriptBlockId, MessageNumber and MessageTotal survive. No fragment merging, risk
-downgrade or PowerShell/CIM keyword suppression occurs. Explicit raw_xml output still contains
+content, ScriptBlockId, MessageNumber and MessageTotal survive. Native output fragments are
+not merged or risk-downgraded. From 0.3.78, parser 0.3.2 reassembles scripts only for exact
+risk-learning decisions and cross-fragment suspicious-command detection; an unqualified
+block retains every original fragment. No keyword alone authorizes suppression. Explicit raw_xml output still contains
 the original XML. Custom queries must read command rather than rely on message or
 fields.ScriptBlockText for full scripts; historical data remains readable. Public asset
 templates select all fields and required fields remain. Optional indexes can expose the hash.

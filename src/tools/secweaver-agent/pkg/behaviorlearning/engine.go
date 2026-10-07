@@ -247,10 +247,11 @@ func (e *Engine) Process(o Observation) error {
 		}
 		suppress = qualified && e.state.Mode == "enforcing" && healthy && !expired && now.After(e.warmUntil) && now.After(c.AnomalyUntil) && !e.cfg.Shadow
 	}
-	// Only exec records occupy ancestor evidence slots. Repeated operations from
-	// the same process must not overwrite its execution evidence or consume a
+	// Only exec records occupy ancestor evidence slots. Native script blocks have
+	// no verified process ancestry and must never invent or replay a process edge.
+	// Repeated operations from the same process must not overwrite its execution evidence or consume a
 	// second process instance. Their adapters already require a verified exec.
-	if suppress && o.Context.Operation == nil && !e.cache(o, now) {
+	if suppress && o.Context.Operation == nil && o.Context.Risk == nil && !e.cache(o, now) {
 		suppress = false
 		reason = "context_budget"
 	}
@@ -276,7 +277,11 @@ func (e *Engine) Process(o Observation) error {
 			reason = "shadow"
 		}
 	}
-	replayed, err := e.replay(o.ParentInstance, now)
+	var replayed uint64
+	var err error
+	if o.Context.Risk == nil {
+		replayed, err = e.replay(o.ParentInstance, now)
+	}
 	if err != nil {
 		e.faultLocked("context_output_failed")
 		if c != nil {
@@ -315,6 +320,12 @@ func (e *Engine) remember(id string, now time.Time) {
 
 // complete validates the backend-neutral contract again at the trust boundary.
 func complete(c Context) bool {
+	if r := c.Risk; r != nil {
+		_, err := hex.DecodeString(r.ScriptSHA256)
+		return c.Windows == nil && c.Operation == nil && c.Capability == "windows-powershell-cdxml-v1" &&
+			r.Provider == "Microsoft-Windows-PowerShell" && r.Channel == "Microsoft-Windows-PowerShell/Operational" &&
+			r.UserSID == "S-1-5-18" && r.ModuleClass != "" && len(r.ScriptSHA256) == 64 && err == nil
+	}
 	if w := c.Windows; w != nil {
 		return c.Capability == "windows-sysmon-sha256-v1" && c.Service != "" && c.Parent != "" &&
 			c.Executable != "" && len(c.Digest) == 64 && len(c.Args) == 1 && c.Args[0] != "" && c.CWD != "" &&

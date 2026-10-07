@@ -83,6 +83,9 @@ func readLinuxProcess(procRoot string, pid int, bootTime time.Time, ticks int64,
 	if cgroup, err := os.ReadFile(filepath.Join(base, "cgroup")); err == nil {
 		process.Cgroup = compactCgroup(string(cgroup))
 	}
+	// Linux kernel workers have no executable or argv; persist this classification
+	// so a restart can aggregate exits from a state file created by this version.
+	process.KernelThread = strings.HasPrefix(process.Process, "kworker/") && process.Exe == "" && len(process.Command) == 0
 	process.IsAgent = filepath.Base(process.Exe) == "secweaver-agent" || process.Process == "secweaver-agent"
 	return process, nil
 }

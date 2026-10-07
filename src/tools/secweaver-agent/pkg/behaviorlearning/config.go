@@ -83,7 +83,7 @@ func (c Config) Normalize() (Config, error) {
 	}
 	seen := map[string]bool{}
 	for _, eventType := range c.EventTypes {
-		if (eventType != "exec" && eventType != "active_connect" && eventType != "file_op") || seen[eventType] {
+		if (eventType != "exec" && eventType != "active_connect" && eventType != "file_op" && eventType != "powershell_script_block") || seen[eventType] {
 			return c, fmt.Errorf("invalid or duplicate learning event type %q", eventType)
 		}
 		seen[eventType] = true

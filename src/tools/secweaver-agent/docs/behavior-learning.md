@@ -116,8 +116,83 @@ Security 4688 remains fully emitted because it lacks execution-time hashes/GUIDs
 Agent does not install/configure Sysmon. Missing Sysmon, missing SHA256/ParentUser or incomplete
 records cannot produce a usable whitelist. An empty baseline degrades to full output. PowerShell,
 cmd, script interpreters, sensitive utilities, interactive/elevated/different identities, historical
-records and records delayed over ten minutes remain emitted. Risk logs are never filtered.
+records and records delayed over ten minutes remain emitted. Protected risk alerts remain
+unfiltered; ordinary native PowerShell risk learning is independent, as described below.
 No guaranteed reduction percentage applies, especially on 4688-only deployments.
+
+### Windows Risk Logs (0.3.78)
+
+The unified `windows-eventlog-risk-json` reader now also supports an **independent** risk
+baseline on Windows amd64/arm64. It requires enrolled device identity, the native
+`Microsoft-Windows-PowerShell/Operational` channel and its 4104 events; Sysmon is not required.
+Fresh configurations enable `-risk-behavior-learning`; existing configurations are preserved.
+On upgrades, rerun the packaged administrator installer with `-LearningMode shadow` (observe)
+or `-LearningMode enable` (allow qualified matching). These explicit choices apply to both
+exec and risk activation, without resetting either duration/generation. `disable` disables
+both; `preserve` never silently adds missing flags. This code change is not a live release.
+
+Candidate admission is deliberately narrow: SYSTEM (`S-1-5-18`) generated CDXML definitions
+for NetTCPConnection, NetUDPEndpoint, NetIPAddress, NetIPInterface, NetRoute, NetNeighbor,
+NetCompartment, NetIPv4Protocol, NetIPv6Protocol, NetOffloadGlobalSetting, NetPrefixPolicy,
+NetTCPSetting, NetTransportFilter, NetUDPSetting, ScheduledTask and ClusteredScheduledTask
+classes. Native `$script:ClassName` and generated `__cmdletization_ClassName` literal
+declarations are recognized case-insensitively; computed values/unknown classes stay emitted.
+Required definition structure and a
+fixed class set are heuristics, **not** proof of a Microsoft signature or a clean host.
+Nonempty paths must be literal built-in Windows System32 PowerShell module paths;
+generated definitions may have an empty path. Ordinary business scripts, arbitrary marker
+strings and module names alone do not qualify. Exact full-script content is still required.
+Learning should begin on a known-clean host; it cannot detect all preexisting compromise.
+
+Matching includes registered device identity, full script SHA-256, exact provider/channel,
+native user SID, module class and exact source path. PID/ScriptBlockId/record IDs only group
+evidence, not whitelist identity. The same 24 **healthy** hours, ten-minute warm-up, at least
+5 observations across 3 healthy-hour buckets and a 6-hour span, frozen baseline, 30-day idle
+expiry and five-minute rate guard apply. First-day, unknown, changed, burst and shadow events
+retain originals. Historical/lookback events cannot train. Logon, credentials, privileges,
+accounts, service installation, audit clearing and high/critical events are never suppressed.
+
+4104 fragments are assembled across pages within one polling round: at most 64 fragments,
+512 KiB per complete script, 64 pending blocks and an 8 MiB accounted assembly budget.
+Whitespace is preserved at boundaries; suspicious commands are checked after assembly too.
+Missing, conflicting and over-budget fragments remain original records. Incomplete fragments
+flush **before** cursor checkpointing and never survive only in RAM across committed rounds.
+Query gaps, audit/channel clearing, corrupt state or sink errors retain originals; a known
+source gap requires increasing `-risk-learning-generation` to relearn a readable baseline.
+An unavailable optional Sysmon channel does not invalidate this independent risk capability.
+
+Independent flags on the unified reader are:
+
+```text
+-risk-behavior-learning
+-risk-learning-duration 24h
+-risk-learning-generation 0
+-risk-learning-shadow=false
+```
+
+`-risk-learning-state-dir` accepts an absolute override. The default is
+`behavior-learning-windows-risk` beside the EventRecordID cursor, normally under
+`C:\ProgramData\SecWeaver\Agent\data`. The authenticated baseline stores fingerprints/counters,
+not script bodies. Neither `-learning-generation` nor the SaaS exec-learning status resets or
+represents this baseline. Run `secweaver-agent doctor -config <config.json>` and inspect
+`risk-learning/config`, `risk-learning/identity` and `risk-learning/status` for progress/readiness.
+
+Risk parser `0.3.2` preserves native `event_id=4104`, record/fragment IDs and adds `user_sid`,
+learning decision fields and `script_block_sha256` (whole script, distinct from each fragment's
+`script_sha256`). Counters/status use `asset_type=host_behavior_summary`,
+`source_stream=windows_risk`, `source_event_type=powershell_script_block` for behavior counters,
+`count_unit=script_blocks` and `risk_level=info`. They share `windows-eventlog-risk-json.log`
+and its existing SLS `host-sys-messages`/ES risk route, not the exec summary route. Existing
+shippers require no additional file binding. Do not treat summaries as security alerts or
+their suppressed script-block counts as native fragment counts; exit stats additionally
+report `risk_learning_suppressed` **fragments**. Summary interval is five minutes; durability
+checkpoints may flush behavior counters earlier. Custom SLS field indexes must expose new
+counter fields for SQL aggregation. Exact reduction depends on eligible stable blocks.
+
+Verification: run Go risk/engine/parser tests and Windows installer contract fixtures;
+then validate shadow behavior, unchanged security events, cursor restart, complete-script
+matching and summary receipt on real Windows/SLS/ES. This change does not claim a completed
+24-hour real-machine learning run or Windows SCM acceptance.
 
 Since 0.3.39, fresh Windows configurations explicitly enable `exec,active_connect,file_op`.
 Each type has separate exact fingerprints, counters and qualification evidence. Network/file
@@ -133,7 +208,7 @@ faults invalidate context. Missing Event 5 delivery cannot be inferred from sile
 | `exec` | Existing Event 1 SHA256, service-token and exact-command checks | 4688, sensitive tools, incomplete/interactive identities |
 | `active_connect` | Sysmon 3, outbound `Initiated=true`, exact private destination IP/port, TCP/UDP, exact source IP and execution context | Public/special destinations, inbound, unknown direction/protocol, SSH/RDP/SMB/RPC/DNS/authentication/management ports |
 | `file_op` | Sysmon 11, exact ordinary `.log` creation path under explicit `file_roots` and verified execution context | Delete, rename, ambiguous actions, other extensions, sensitive paths, audit/auth/security/Agent logs |
-| Authentication, risk, persistence, identity/service changes | No automatic suppression | All existing evidence remains emitted |
+| Authentication, protected risk, persistence, identity/service changes | No automatic suppression (ordinary CDXML risk has its independent policy) | All existing critical evidence remains emitted |
 | Process/socket/host-state snapshots | Existing snapshot delta strategy | Do not discard baseline/state changes through this whitelist |
 
 File roots are a learning scope, not a wildcard whitelist: every exact path still needs the

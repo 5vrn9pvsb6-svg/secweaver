@@ -11,7 +11,7 @@ func Descriptor() modulecontract.Descriptor {
 		Platforms:   []string{"linux", "windows"},
 		Flags: modulecontract.Flags(
 			[]string{"output", "state", "host-ip", "interval", "full-snapshot-interval", "collection-timeout"},
-			[]string{"once", "redact-sensitive", "stats", "version"},
+			[]string{"once", "redact-sensitive", "include-kernel-threads", "stats", "version"},
 		),
 		OutputPaths:           modulecontract.FlagOutputPaths(defaultOutputPath(), "output"),
 		UpgradeOutputRequired: true,

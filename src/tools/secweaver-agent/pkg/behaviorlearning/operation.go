@@ -9,6 +9,9 @@ import (
 // SourceEventType gives old exec-only entries their original semantics without
 // changing their stored fingerprints or requiring a format migration.
 func (c Context) SourceEventType() string {
+	if c.Risk != nil {
+		return "powershell_script_block"
+	}
 	if c.Operation != nil {
 		return c.Operation.EventType
 	}
@@ -28,6 +31,12 @@ func (e *Engine) operationReason(c Context) string {
 	}
 	if !enabled {
 		return "event_type_not_enabled"
+	}
+	if c.Risk != nil {
+		if !complete(c) {
+			return "risk_adapter_unverified"
+		}
+		return ""
 	}
 	op := c.Operation
 	if op == nil {

@@ -45,11 +45,14 @@ try {
   $ArgsAfter = $Migrated.modules.'windows-eventlog-risk-json'.args
   Assert-True (Get-WindowsBooleanFlag $ArgsAfter 'behavior-learning') 'Shadow did not enable learning'
   Assert-True (Get-WindowsBooleanFlag $ArgsAfter 'learning-shadow') 'Shadow discarded originals'
+  Assert-True (Get-WindowsBooleanFlag $ArgsAfter 'risk-behavior-learning') 'Shadow did not enable independent risk learning'
+  Assert-True (Get-WindowsBooleanFlag $ArgsAfter 'risk-learning-shadow') 'Risk shadow discarded originals'
   Assert-True ($ArgsAfter -contains '48h' -and $ArgsAfter -contains '7') 'Migration reset baseline scope or clock'
   Assert-True ($Migrated.modules.'windows-process-execmon'.enabled -eq $false) 'Migration started duplicate event reader'
   Set-WindowsLearningMode $ConfigPath 'disable'
   $Migrated = Get-Content $ConfigPath -Raw -Encoding UTF8 | ConvertFrom-Json
   Assert-True (-not (Get-WindowsBooleanFlag $Migrated.modules.'windows-eventlog-risk-json'.args 'behavior-learning')) 'Disable ignored'
+  Assert-True (-not (Get-WindowsBooleanFlag $Migrated.modules.'windows-eventlog-risk-json'.args 'risk-behavior-learning')) 'Risk disable ignored'
   Assert-Fails { Get-WindowsBooleanFlag @('-behavior-learning=not-a-bool') 'behavior-learning' }
   Assert-True ([IO.File]::ReadAllBytes($ConfigPath)[0] -eq 123) 'Migration wrote a BOM'
 

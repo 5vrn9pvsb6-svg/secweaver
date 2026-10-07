@@ -25,3 +25,19 @@ func TestLearningDiagnosticsDoNotCertifyIncompleteWindowsSetup(t *testing.T) {
 		}
 	}
 }
+
+func TestRiskLearningDiagnosticsAreIndependentOfSysmon(t *testing.T) {
+	cfg := agentConfig{}
+	cfg.License.StatePath = t.TempDir() + "/missing.json"
+	modules := []runtimeModule{{Spec: moduleSpec{Name: "windows-eventlog-risk-json"}, Config: moduleConfig{Args: []string{"-risk-behavior-learning"}}}}
+	checks := map[string]doctorLevel{}
+	doctorCheckWindowsLearning(cfg, modules, false, func(level doctorLevel, component, _, _ string) { checks[component] = level })
+	if checks["risk-learning/config"] != doctorOK || checks["risk-learning/identity"] != doctorWarn || checks["learning/config"] != doctorWarn {
+		t.Fatal("risk policy was hidden behind disabled exec learning or certified without identity")
+	}
+	modules[0].Config.Args = []string{"-risk-behavior-learning=invalid", "-risk-learning-duration", "24h"}
+	doctorCheckWindowsLearning(cfg, modules, false, func(level doctorLevel, component, _, _ string) { checks[component] = level })
+	if checks["risk-learning/config"] != doctorError {
+		t.Fatal("valid duration hid malformed boolean flag")
+	}
+}

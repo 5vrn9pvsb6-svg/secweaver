@@ -1,4 +1,10 @@
-# Windows 服务与 Data Cloud 输送（0.3.58）
+# Windows 服务与 Data Cloud 输送（0.3.78）
+
+0.3.78 新装默认开启独立的原生 PowerShell 风险日志学习。升级保留旧配置；
+统一读取器通过 `-LearningMode enable|shadow|disable` 显式调整 exec 和风险两套策略。
+普通合格 SYSTEM CDXML 脚本累计学习 24 个健康小时，关键安全事件始终保留。
+风险学习不依赖 Sysmon，Doctor 独立显示 `risk-learning/*` 状态。
+见[候选范围、限制与验收](behavior-learning.zh-CN.md#windows-风险日志0378)。
 
 0.3.58 调整安装输出：绿色 OK 表示对应步骤已通过；青色 INFO 表示正常机制或配置说明；
 黄色 WARN 表示能力受限或仍需验证；红色 ERROR 表示失败。Windows 自动升级的退出后替换、
@@ -6,7 +12,8 @@
 成功时不显示启动错误文件路径；失败时仅显示本次产生、大小不超过 16 KiB 的详情文件。
 
 学习提示复用预检，不额外查询事件通道：Sysmon 缺失或不可访问时，明确告知基于 Sysmon
-的白名单降量不可用，Security 4688 进程事件及风险事件全量保留，采集继续。
+的 exec 白名单降量不可用，Security 4688 及关键风险事件全量保留；原生风险学习
+独立于 Sysmon，采集继续。
 Sysmon 通道可用只表明可以读取，不证明已经完成基线学习或正在过滤。
 云端状态保留 PENDING VERIFICATION 告警：安装器没有查询 SLS/ES，既不表示上传失败，
 也不能代表已经入库；需查询本机最近事件验证。验收时检查安装输出、doctor 和云端新事件。
@@ -66,8 +73,8 @@ Bootstrap 和 install-service.ps1 均接受 `-LearningMode preserve|enable|shado
 默认 preserve 不改旧选择；新安装沿用模板的学习默认值。enable 显式开启匹配过滤，
 shadow 学习但保留全部原文，disable 关闭；只调整当前启用的事件读取器，保留学习时长、
 范围、代数和状态，不启动第二个读取器。修改现存策略应优先用 shadow 观察。
-开启不代表过滤已生效：需要正式设备身份以及 Sysmon GUID/SHA256 和足够上下文；
-Security 4688、风险告警和上下文不足的事件始终输出。Doctor 会区分这些状态。
+开启不代表过滤已生效：exec 学习需要正式设备身份以及 Sysmon GUID/SHA256 和足够上下文；
+Security 4688、关键风险告警和上下文不足的事件始终输出。Doctor 会区分这些状态。
 
 安装输出绿色 `[OK]`、黄色 `[WARN]`、红色 `[ERROR]`，分别说明采集、授权、学习、
 上传配置与云端验收状态。`run -dry-run -strict-preflight` 在一次检查中校验完整配置及
@@ -84,8 +91,9 @@ PowerShell 5.1 执行脚本可使用 `powershell.exe -NoProfile -ExecutionPolicy
 Agent 0.3.51 的 Windows 风险 parser_version 为 0.3.1。4104 完整脚本片段保留在
 `command`，新增 UTF-8 字节长度 `script_bytes` 与精确内容 `script_sha256`；message
 只存摘要，从 fields 中删除与 command 字节相同的 ScriptBlockText/CommandLine 副本。
-不同内容、ScriptBlockId、MessageNumber、MessageTotal 均保留；不合并分片、不降级风险、
-不按 PowerShell/CIM 关键词过滤事件。启用 raw_xml 时原始 XML 仍会带完整内容。
+不同内容、ScriptBlockId、MessageNumber、MessageTotal 均保留；输出仍保留原生分片，不降级风险。
+从 0.3.78 的 parser 0.3.2 起，仅为完整脚本精确学习匹配与跨片可疑命令判断拼接脚本，
+不合格时所有分片保留；单个关键词不构成免报依据。启用 raw_xml 时原始 XML 仍会带完整内容。
 自定义查询应读取 command，不能再依赖 message/fields.ScriptBlockText 保存完整脚本；
 旧数据继续兼容。公开资产模板 select *，现有必需字段保留；自定义索引可增设哈希精确查询。
 

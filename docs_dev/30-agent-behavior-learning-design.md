@@ -496,3 +496,60 @@ Existing compromise can poison learning; filtering cannot provide complete origi
 The first day retains full cost. Highly variable commands or conservatively retained scripts may
 yield limited reduction. Use shadow measurements of eligible exec share and actual bytes to guide
 deployment, never automatic learning of unknown events just to achieve a volume target.
+
+## 13. Windows Risk Implementation Addendum (0.3.78)
+
+The unified reader retains single source/cursor ownership. New
+windowseventlogriskjson/learning.go owns the independent risk Engine, lock, health
+lease, ticker and output checkpoints; learning_script.go implements bounded 4104
+assembly/admission. It reuses behaviorlearning HMAC storage, promotion, rate guards
+and degradation, not Sysmon process identity caches or a second reader.
+
+Optional Context.windows_risk leaves existing exec fingerprint serialization
+unchanged. The adapter submits native origin and whole-script hashes only for
+complete SYSTEM network/scheduler CDXML definitions. Synchronous original callbacks
+apply decision metadata to adapter-owned fragments while preserving event_id=4104.
+Script bodies enter neither baseline state nor exec ancestry caches. Sink writes
+and background summaries serialize under the adapter mutex; callbacks must not
+reacquire it.
+
+A polling round includes all query pages. Incomplete fragments emit before
+Engine/output checkpointing, then the cursor persists. Bounds are 64 blocks,
+64 fragments each, 512 KiB per whole script and an 8 MiB accounted assembly budget.
+Budget exhaustion/incomplete identity retain originals. Risk summaries share the
+existing risk route and count whole blocks, not graph edges or security alerts.
+Missing Sysmon does not degrade this native capability; PowerShell gaps and audit
+clearing do. Risk and exec generations are independent. See the
+[learning guide](../src/tools/secweaver-agent/docs/behavior-learning.md#windows-risk-logs-0378)
+for the full contract, migration, flags and pending native acceptance.
+
+```mermaid
+flowchart LR
+    Source[Single Event Log reader] --> Cursor[Paging and cursor]
+    Cursor --> Exec[Existing Sysmon exec adapter]
+    Cursor --> Risk[Risk mutex and bounded assembly]
+    Exec --> ExecEngine[Exec Engine and independent store]
+    Risk --> RiskEngine[Risk Engine and independent store]
+    RiskEngine -->|Synchronous decision| Risk
+    Risk --> RiskLog[Existing risk log and shipper route]
+    ExecEngine --> ExecLog[Exec originals and summaries]
+    Timer[One-second health clock] --> Risk
+```
+
+```mermaid
+flowchart TD
+    Read[Read native event] --> Protected{Protected security event?}
+    Protected -->|Yes| Emit[Retain original]
+    Protected -->|Ordinary 4104| Assemble[Assemble across pages in round]
+    Assemble --> Complete{Complete and eligible?}
+    Complete -->|No or budget exceeded| Emit
+    Complete -->|Yes| Match{Healthy exact frozen-baseline match?}
+    Match -->|Learning/changed/shadow/burst| Emit
+    Match -->|Suppression permitted| Counter[Count complete script blocks]
+    Emit --> Barrier[Flush incomplete fragments at round end]
+    Counter --> Barrier
+    Barrier --> Sync[Checkpoint state and originals/counters]
+    Sync --> Success{Durable output succeeded?}
+    Success -->|Yes| Save[Persist EventRecordID cursor]
+    Success -->|No| Retry[Keep cursor replayable and degrade]
+```

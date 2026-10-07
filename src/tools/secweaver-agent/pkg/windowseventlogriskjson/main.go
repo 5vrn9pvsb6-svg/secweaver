@@ -21,7 +21,7 @@ import (
 	"secweaver-agent/pkg/windowseventlog"
 )
 
-const parserVersion = "0.3.1"
+const parserVersion = "0.3.2"
 
 const defaultStateFile = layout.WindowsData + `\windows-eventlog-risk-json.cursor.json`
 
@@ -53,6 +53,7 @@ type riskEvent struct {
 	RuleID          string            `json:"rule_id"`
 	RuleName        string            `json:"rule_name"`
 	User            string            `json:"user,omitempty"`
+	UserSID         string            `json:"user_sid,omitempty"`
 	SrcIP           string            `json:"src_ip,omitempty"`
 	LogonType       string            `json:"logon_type,omitempty"`
 	Process         string            `json:"process,omitempty"`
@@ -66,12 +67,13 @@ type riskEvent struct {
 }
 
 type stats struct {
-	Queries         int `json:"queries"`
-	QueryErrors     int `json:"query_errors"`
-	EventsRead      int `json:"events_read"`
-	EventsWritten   int `json:"events_written"`
-	EvidenceWritten int `json:"evidence_written"`
-	Suppressed      int `json:"suppressed"`
+	Queries                int `json:"queries"`
+	QueryErrors            int `json:"query_errors"`
+	EventsRead             int `json:"events_read"`
+	EventsWritten          int `json:"events_written"`
+	EvidenceWritten        int `json:"evidence_written"`
+	Suppressed             int `json:"suppressed"`
+	RiskLearningSuppressed int `json:"risk_learning_suppressed"`
 }
 
 func Main(args []string) int {
@@ -99,6 +101,8 @@ func Main(args []string) int {
 	var showVersion bool
 	var learning windowsevidence.LearningOptions
 	learning.RegisterFlags(flag.CommandLine)
+	var riskLearningOptions RiskLearningOptions
+	riskLearningOptions.RegisterFlags(flag.CommandLine)
 
 	flag.StringVar(&channelsCSV, "channels", "Security,System,Microsoft-Windows-PowerShell/Operational,Microsoft-Windows-Sysmon/Operational", "comma-separated Windows Event Log channels")
 	flag.StringVar(&outputPath, "output", layout.WindowsLogs+`\windows-eventlog-risk-json.log`, "JSON Lines output path; - for stdout")
@@ -147,13 +151,15 @@ func Main(args []string) int {
 		}
 	}
 	defer closeEvidence()
-	// Summary and risk records must never share a sink, even in standalone mode.
+	// Exec summaries have a separate route; they must not collide with the risk
+	// sink. Native risk-learning summaries deliberately use the risk stream.
 	if learning.Enabled && evidenceOut != nil && strings.EqualFold(windowsevidence.LearningOutputPath(evidenceOutputPath, learning.Output), outputPath) {
 		fatalf("learning output must differ from risk output")
 	}
 
 	cfg := runConfig{
-		Learning: learning, EvidencePath: evidenceOutputPath,
+		RiskLearning: riskLearningOptions,
+		Learning:     learning, EvidencePath: evidenceOutputPath,
 		Channels:         channels,
 		StateFile:        stateFile,
 		Lookback:         lookback,
@@ -178,6 +184,7 @@ func Main(args []string) int {
 }
 
 type runConfig struct {
+	RiskLearning     RiskLearningOptions
 	Learning         windowsevidence.LearningOptions
 	EvidencePath     string
 	Channels         []string
@@ -203,13 +210,16 @@ func run(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *sta
 	}
 	var closeLearning func() error
 	evidenceOut, closeLearning = windowsevidence.WrapLearning(evidenceOut, cfg.Learning, cfg.StateFile, cfg.EvidencePath, cfg.PollInterval)
+	var closeRiskLearning func() error
+	out, closeRiskLearning = wrapRiskLearning(out, cfg.RiskLearning, cfg.StateFile, cfg.PollInterval)
 	defer func() {
 		if runErr != nil {
 			windowsevidence.SourceFault(evidenceOut, "windows_reader_failed")
+			if w, ok := out.(*riskLearning); ok {
+				w.engine.Fault("windows_reader_failed")
+			}
 		}
-		if err := closeLearning(); runErr == nil {
-			runErr = err
-		}
+		runErr = errors.Join(runErr, closeLearning(), closeRiskLearning())
 	}()
 	seenWithoutRecordID := map[string]bool{}
 	for {
@@ -245,13 +255,30 @@ func run(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *sta
 	}
 }
 
-func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *stats, cursors map[string]uint64, seenWithoutRecordID map[string]bool) error {
+// collectOnce drains pages before flushing incomplete script groups. Cursor
+// persistence occurs only after this barrier and both output checkpoints.
+func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer, st *stats, cursors map[string]uint64, seenWithoutRecordID map[string]bool) (runErr error) {
 	enc := json.NewEncoder(out)
+	w, riskEnabled := out.(*riskLearning)
+	riskHealthy := false
+	if riskEnabled {
+		beforeSuppressed := w.suppressed
+		defer func() {
+			n, err := w.finishRound(riskHealthy && runErr == nil)
+			st.EventsWritten += n
+			st.RiskLearningSuppressed += w.suppressed - beforeSuppressed
+			st.Suppressed += w.suppressed - beforeSuppressed
+			runErr = errors.Join(runErr, err)
+		}()
+	}
 	pageSize := cfg.MaxEvents
 	if pageSize <= 0 {
 		pageSize = 200
 	}
 	for _, channel := range cfg.Channels {
+		if riskEnabled && channel == powerShellChannel {
+			riskHealthy = true
+		}
 		lookback := cfg.Lookback
 		if cursors[channel] > 0 {
 			lookback = 0
@@ -266,6 +293,10 @@ func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer,
 				// the poll degraded so a skipped provider record remains observable.
 				st.QueryErrors++
 				windowsevidence.SourceFault(evidenceOut, "windows_source_partial_parse")
+				if riskEnabled && channel == powerShellChannel {
+					riskHealthy = false
+					w.engine.Fault("risk_source_partial_parse")
+				}
 				fmt.Fprintf(os.Stderr, "WARN: channel %s returned a partial XML page: %v; retained=%d\n", channel, err, len(events))
 			} else if err != nil {
 				// Normal service stop cancels wevtutil; it is not a collection gap.
@@ -275,6 +306,10 @@ func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer,
 				st.QueryErrors++
 				if ctx.Err() == nil {
 					windowsevidence.SourceFault(evidenceOut, "windows_source_query_failed")
+				}
+				if riskEnabled && channel == powerShellChannel {
+					riskHealthy = false
+					w.engine.Fault("risk_source_query_failed")
 				}
 				if cfg.FailOnQueryError {
 					return err
@@ -300,6 +335,12 @@ func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer,
 					}
 				}
 				st.EventsRead++
+				// Audit/channel clearing breaks baseline continuity even though
+				// the protected event itself always remains visible.
+				if riskEnabled && ((event.System.Channel == "Security" && event.EventIDInt() == 1102) ||
+					(event.System.Provider == "Microsoft-Windows-Eventlog" && event.EventIDInt() == 104)) {
+					w.engine.Fault("risk_source_continuity_changed")
+				}
 				if isInternalPowerShellEvent(event) {
 					st.Suppressed++
 					if recordID > cursors[channel] {
@@ -317,6 +358,14 @@ func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer,
 				for _, item := range classifyRiskEvent(event, cfg.IncludeRaw) {
 					if severityRank[item.Severity] < severityRank[cfg.MinLevel] {
 						st.Suppressed++
+						continue
+					}
+					if riskEnabled && item.EventType == "powershell_script_block" {
+						n, err := w.observe(event, item)
+						st.EventsWritten += n
+						if err != nil {
+							return err
+						}
 						continue
 					}
 					if err := enc.Encode(item); err != nil {
@@ -352,6 +401,7 @@ func classifyRiskEvent(event windowseventlog.Event, includeRaw bool) []riskEvent
 		Provider:        event.System.Provider,
 		EventID:         event.System.EventID,
 		WindowsRecordID: event.System.EventRecordID,
+		UserSID:         event.System.UserID,
 		ParserVersion:   parserVersion,
 		Fields:          fields,
 	}
@@ -387,7 +437,9 @@ func classifyRiskEvent(event windowseventlog.Event, includeRaw bool) []riskEvent
 	case 4104:
 		// Keep the exact script fragment once. Classification still sees its full
 		// contents; compaction must not act as an allowlist or merge 4104 fragments.
-		command = firstNonEmpty(event.Field("ScriptBlockText"), command)
+		if script := fields["ScriptBlockText"]; script != "" {
+			command = script
+		}
 		severity := "medium"
 		if containsSuspiciousCommand(command) {
 			severity = "high"

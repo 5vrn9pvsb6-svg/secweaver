@@ -35,6 +35,7 @@ type SystemData struct {
 	Computer      string
 	ProcessID     string
 	ThreadID      string
+	UserID        string
 }
 
 type DataField struct {
@@ -70,6 +71,9 @@ type systemXML struct {
 		ProcessID string `xml:"ProcessID,attr"`
 		ThreadID  string `xml:"ThreadID,attr"`
 	} `xml:"Execution"`
+	Security struct {
+		UserID string `xml:"UserID,attr"`
+	} `xml:"Security"`
 }
 
 type eventDataXML struct {
@@ -311,6 +315,7 @@ func ParseEventsXML(text string) ([]Event, error) {
 				Computer:      strings.TrimSpace(parsed.System.Computer),
 				ProcessID:     strings.TrimSpace(parsed.System.Execution.ProcessID),
 				ThreadID:      strings.TrimSpace(parsed.System.Execution.ThreadID),
+				UserID:        strings.TrimSpace(parsed.System.Security.UserID),
 			},
 			RawXML: strings.TrimSpace(fragment),
 		}
@@ -319,9 +324,15 @@ func ParseEventsXML(text string) ([]Event, error) {
 			if name == "" {
 				name = fmt.Sprintf("Data%d", idx+1)
 			}
+			value := strings.TrimSpace(field.Value)
+			// Fragment boundaries can split whitespace inside a token. Keep exact
+			// script text so reassembly/hash cannot conflate different scripts.
+			if name == "ScriptBlockText" {
+				value = field.Value
+			}
 			event.EventData = append(event.EventData, DataField{
 				Name:  name,
-				Value: strings.TrimSpace(field.Value),
+				Value: value,
 			})
 		}
 		if len(event.EventData) == 0 && strings.TrimSpace(parsed.UserData.Inner) != "" {
