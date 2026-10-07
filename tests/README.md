@@ -5,6 +5,10 @@
 Unified test entry for the open-source edition. From the repository root, run `make setup` first; direct commands use `.venv/bin/python` without activation. See [development prerequisites](../docs_dev/01-new-contributor-quickstart.md#environment-and-command-conventions) for the additional tools required by full CI.
 
 For just the existing UI regression suite, use `.venv/bin/python -m unittest tests.test_dataasset_ui`; pytest is not required.
+Credential-form JavaScript regressions also need Node.js 18+ on `PATH`. Run
+`.venv/bin/python -m unittest tests.test_dataasset_ui_credential_form` or
+`node tests/ui/credential-form.cjs`. The Python wrapper reports a skip when Node.js
+is absent. Tests use synthetic DOM/API state and never read or change a real Vault.
 
 ```bash
 make test
@@ -27,6 +31,20 @@ make test
 
 ## Regression suites
 
+- `tests/test_quickstart.py` checks default Vault-before-download ordering, explicit
+  offline opt-out, Make option forwarding, and failure-before-completion behavior.
+- `tests/test_vault_init.py` checks dependency/placeholder guards and, with native
+  SOPS/age-keygen available, disposable first/repeat initialization, mode 600,
+  existing ciphertext and key preservation, restricted/external policies,
+  interrupted-publication recovery, lock contention, and the Bash 3.2 facade.
+- `tests/test_dataasset_ui_vault.py` checks save-before-write rejection, actionable
+  errors, and timeout behavior. With SOPS and age-keygen on PATH or in documented
+  Homebrew directories, it also runs isolated native crypto tests for valid,
+  missing, mismatched, and external keys, invalid policies, and key groups.
+  Missing crypto tools explicitly skip only those integration cases.
+- `tests/test_dataasset_ui_credential_form.py` executes the real UI save and
+  type-selection logic: independent namespace/type pairs, initial AK/SK-to-YAML
+  synchronization, invalid references, and preservation of existing or user-entered IDs.
 - `tests/test_public_onboarding_docs.py` checks the first-run guide, case routing,
   read-only discovery and SaaS/SLS/ES query previews, current Agent log paths in Attack Lab docs,
   bilingual fenced JSON against the actual Schemas, private asset-root guidance,

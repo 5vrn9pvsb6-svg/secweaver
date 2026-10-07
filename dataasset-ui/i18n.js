@@ -228,10 +228,10 @@
       "credential.valueFields": "凭证内容",
       "credential.noInputFields": "该凭证类型没有额外输入字段。",
       "credential.selectType": "请选择凭证类型",
-      "credential.selectTypeHint": "请先选择凭证类型，系统会用该类型作为凭证 ID 的 namespace。",
+      "credential.selectTypeHint": "请先选择凭证类型。新建凭证会提供默认 ID，你也可以指定独立的 namespace 分组。",
       "credential.customYamlHint": "Custom 类型不提供预设输入字段，请在下方手动编辑 YAML 内容。",
       "credential.typeRequired": "请先选择凭证类型。",
-      "credential.namespaceMismatch": "凭证 ID 的 namespace 必须与凭证类型一致：{type}。",
+      "credential.invalidRef": "凭证 ID 必须使用 vault://namespace/name 格式，路径段不能为空或为 .、..。",
       "credential.statusConfirm": "确认{action}凭证 {id}？此操作只修改运营状态，不会修改或删除加密文件。",
       "credential.statusUpdated": "凭证 {id} 状态已更新为 {status}。",
       "credential.statusFailed": "凭证状态更新失败：{message}",
@@ -617,7 +617,7 @@
       "onboarding.loadFail": "加载失败：{message}",
       "credential.fields": "凭证基础字段",
       "credential.typeReplaceConfirm": "切换类型会用该类型的示例字段替换当前 YAML 内容，是否继续？",
-      "credential.fieldHint": "凭证类型就是凭证 ID 的 namespace。保存时会调用本地 SOPS 生成加密文件，成功后状态自动变为 active。"
+      "credential.fieldHint": "namespace 是凭证分组，无需与凭证类型相同。例如 vault://sls/sls-proxy-query 的类型为 aliyun_ram。保存时调用本地 SOPS 加密，成功后状态变为 active。"
     },
     en: {
       "app.title": "SecWeaver Data Source Management",
@@ -809,10 +809,10 @@
       "credential.valueFields": "Credential Values",
       "credential.noInputFields": "This credential type has no additional input fields.",
       "credential.selectType": "Select a credential type",
-      "credential.selectTypeHint": "Select a credential type first; it becomes the namespace in the Credential ID.",
+      "credential.selectTypeHint": "Select a credential type first. New credentials get a suggested ID; you can specify an independent namespace group.",
       "credential.customYamlHint": "Custom credentials have no preset fields. Edit the YAML content below manually.",
       "credential.typeRequired": "Select a credential type first.",
-      "credential.namespaceMismatch": "The Credential ID namespace must match the credential type: {type}.",
+      "credential.invalidRef": "Credential ID must use vault://namespace/name; empty path segments and dot segments (. or ..) are not allowed.",
       "credential.statusConfirm": "Confirm {action} for credential {id}? This only changes operational status and does not modify or delete encrypted files.",
       "credential.statusUpdated": "Credential {id} status is now {status}.",
       "credential.statusFailed": "Credential status update failed: {message}",
@@ -1199,7 +1199,7 @@
       "onboarding.loadFail": "Load failed: {message}",
       "credential.fields": "Credential Fields",
       "credential.typeReplaceConfirm": "Changing type will replace the current YAML with the selected template. Continue?",
-      "credential.fieldHint": "The credential type is the namespace in the Credential ID. Saving invokes local SOPS; after encryption succeeds, status is automatically active."
+      "credential.fieldHint": "Namespace groups credentials and need not match their type. For example, vault://sls/sls-proxy-query has type aliyun_ram. Saving encrypts with local SOPS; after success, status becomes active."
     }
   };
 

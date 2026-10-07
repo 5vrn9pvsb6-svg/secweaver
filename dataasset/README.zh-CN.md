@@ -290,11 +290,12 @@ Connector Catalog 必须使用 `format_version: "2.0"`；预览优先的迁移�
 | 平台运行时从本机 Vault 解密注入 | 写入 AI 对话或 Skill 文件 |
 
 先按[数据源配置](../docs_user/03-configure-data-sources.zh-CN.md)选择资产目录：默认 `export DATAASSET_ROOT=dataasset`；隔离时使用 `export DATAASSET_ROOT=dataasset_my`。UI、CLI 和智能体保持一致。
-推荐在本地 UI 初始化和编辑凭证；命令行替代步骤如下，需要 Bash 4+、SOPS 和 age：
+选择资产目录后运行 `make quickstart` 安全初始化/检查该 Vault，再用本地 UI 编辑凭证。
+需要 Python 3.10+、Bash 3.2+、SOPS 和 age；未运行 quickstart 时可用以下命令行替代步骤：
 
 ```bash
 source .venv/bin/activate
-# 仅对尚未初始化的本地 Vault 执行；已有密钥和策略必须保留。
+# 幂等：已有密钥和策略只检查，不覆盖。
 bash src/dataasset/credentials/sops-vault.sh init
 bash src/dataasset/credentials/sops-vault.sh edit vault://sls/security-readonly
 ```

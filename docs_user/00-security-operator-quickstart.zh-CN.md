@@ -55,6 +55,11 @@ make --version
 
 Python 应为 3.10 或更高版本，Make 应能显示版本。若提示找不到命令，先安装对应工具或请管理员协助，再继续：
 
+默认 quickstart 也会准备本机加密 Vault。请先安装 SOPS 和 age：已有 Homebrew 的 macOS
+执行 `brew install sops age`，Linux/WSL2 使用本机认可的软件包来源。如果仅体验零凭证
+离线 demo，且未安装这些工具，可运行 `make quickstart SKIP_VAULT=1`；该模式不初始化
+Vault，后续编辑凭证前须另行初始化。
+
 ```bash
 make quickstart
 ```
@@ -66,6 +71,11 @@ Agent。WSL2 复用由 Ubuntu 公共 CI 持续验证的 Linux/POSIX 流程；当
 
 成功后会创建 `.venv`、校验 DataAsset、运行四个离线 demo，并生成五种智能体的薄适配器。
 适配器只引用 `src/skills/`，不复制 Skill。不要把“适配器生成成功”当成 AI 已完成分析。
+下载 Python 依赖前，默认会初始化 `DATAASSET_ROOT` 下的 Vault（默认 `dataasset`）。
+首次仅创建权限为 `600` 的本机 age 私钥和 SOPS 策略，不加密示例凭证；重复运行保留
+密钥、策略和已有凭证，只用合成数据验证 SOPS 加密/解密。在运行前设置所选
+`DATAASSET_ROOT`；已有密文时不能靠重新生成密钥恢复。详见
+[Vault 恢复与备份](../dataasset/credentials/README.zh-CN.md)。
 安装依赖前，启动器会检查选定解释器和已有虚拟环境；任一版本低于 Python 3.10，
 初始化都会输出处理提示并退出。直接在原生 Windows 调用会退出并提示安装 WSL2。
 终端出现 `SecWeaver quickstart completed.` 表示初始化完成。接着在智能体中打开同一个项目目录，执行第 2 步。
@@ -146,6 +156,8 @@ make ai-showcase
 | 仓库位于 `/mnt/c/...` 且命令较慢 | 在 WSL 内把仓库克隆或移动到 `~/src/secweaver-community` |
 | 报告中的主机显示为 IP | 对照样例映射：web-01=`10.0.1.5`，db-01=`10.0.2.10`，app-02=`10.0.2.20` |
 | 依赖安装失败 | 检查 Python 版本和包下载网络，再执行 `make quickstart` |
+| Vault 初始化提示缺少加密工具 | 安装 SOPS 和 age；`SKIP_VAULT=1` 仅用于零凭证离线 demo |
+| Vault 初始化提示已有策略/密钥不可用 | 恢复原策略和匹配私钥，不删除密文或重新生成密钥 |
 | 适配器提示拒绝覆盖 | 备份或手动合并已有智能体配置，不删除用户自己的规则 |
 | 智能体找不到案例文件 | 确认智能体打开的是仓库根目录，并允许本地读取和命令执行 |
 | 脚本缺依赖 | 使用快速上手入口；直接调用时使用 `.venv/bin/python` |

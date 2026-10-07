@@ -3,6 +3,10 @@
 **Languages:** English (this page) | [简体中文](README.zh-CN.md)
 
 Connector JSON files contain **only** `credentials_ref`. Real secrets live in **SOPS-encrypted files**.
+References use `vault://namespace/name`: `namespace` groups storage directories,
+not the YAML `type`. For example, `vault://sls/sls-proxy-query` has type `aliyun_ram`,
+and `vault://db/ai-readonly` can use `mysql`. UI and CLI preserve these references;
+no renaming or Connector changes are needed.
 
 ```text
 vault://sls/security-readonly
@@ -38,45 +42,107 @@ Use `dataasset/` directly by default, or optionally copy to `dataasset_my/` for 
 Use a Linux/macOS POSIX terminal or WSL2 with Python 3.10+ and Make. Windows users
 must first complete the [WSL2 quickstart](../../docs_user/00-security-operator-quickstart.md);
 native Windows is not a supported Community credential-client environment. CLI
-initialization requires Bash 4+, `sops`, `age`, and `age-keygen`. On macOS with Homebrew installed:
+initialization requires Bash 3.2+, `sops`, and `age-keygen` (provided by age).
+On macOS with Homebrew installed:
 
 ```bash
-brew install bash sops age
+brew install sops age
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-bash --version
 ```
 
-Confirm Bash is version 4 or newer. On Linux, install the tools through your local package
+The macOS bundled Bash is supported. On Linux, install the tools through your local package
 management process. Without Homebrew, have an administrator provide executables on PATH;
 do not run brew commands blindly. Then prepare the default asset directory:
 
 ```bash
+export DATAASSET_ROOT=dataasset
 make quickstart
 source .venv/bin/activate
-export DATAASSET_ROOT=dataasset
 ```
 
-For isolation, optionally run this before saving; preserve an existing directory:
+For isolation, choose this root **before quickstart** instead of the default.
+Copy a fresh public registry, not a directory containing local private keys or real
+credentials; preserve an existing directory:
 
 ```bash
 if [ ! -e dataasset_my ]; then
   cp -R dataasset dataasset_my
 fi
 export DATAASSET_ROOT=dataasset_my
+make quickstart
 ```
 
-Use the same selected root for UI, CLI, and the AI agent. In new terminals, set `DATAASSET_ROOT` and activate the virtual environment again; specify the root to desktop agents. Alternatively, run `make ui` to initialize/edit credentials; the UI also requires SOPS/age.
+Use the same selected root for UI, CLI, and the AI agent. In new terminals, set `DATAASSET_ROOT` and activate the virtual environment again; specify the root to desktop agents. After initialization, run `make ui` to edit credentials; the UI also requires SOPS/age and never initializes the Vault automatically on save.
 
-### 2. Initialize the local Vault
+### 2. Verify the local Vault
 
-Only initialize a new local Vault; preserve existing keys and SOPS policy:
+Community 0.3.24+ quickstart initializes the selected Vault automatically. A
+separate `init` is unnecessary after a successful default quickstart. If you used
+`make setup`, an older quickstart, or `SKIP_VAULT=1`, use the same idempotent entry:
 
 ```bash
 bash src/dataasset/credentials/sops-vault.sh init
 ```
 
-`init` generates the local age private key `.age/key.txt` and `.sops.yaml`.
+For an empty Vault with a missing policy or the exact bundled placeholder,
+`init` generates the local age private key `.age/key.txt` (mode `600`) and `.sops.yaml`.
+Existing keys are reused, never regenerated. Existing non-placeholder policies are
+preserved byte-for-byte and checked with native SOPS; external keys remain supported.
 Full `bootstrap` is unnecessary: it encrypts all placeholder templates, not usable sources.
+
+**Lifecycle and failure behavior:** `quickstart.py` and the Bash `init` facade call
+`src/dataasset/credentials/init_vault.py`. It serializes initializers with the
+persistent `.age/init.lock`, stages candidates privately, verifies synthetic
+encryption/decryption, then flushes and atomically publishes the key before the policy.
+Failed candidates are removed; an interruption between publication steps leaves
+the key available for safe reuse. Never remove the lock file while an initializer
+is running. Missing/uninitialized policy with existing `secrets/*.enc.yaml`, a
+custom policy containing placeholders, invalid keys/policies, missing tools, or a
+30-second native crypto timeout stop setup without modifying existing trust material.
+No system packages are installed automatically; no real credential is opened.
+
+The default synthetic check uses `vault://sls/sls-proxy-query`. For a restricted
+existing policy, use a matching path:
+
+```bash
+make quickstart VAULT_CHECK_REF=vault://es/private-query
+# Or, without rerunning the full quickstart:
+bash src/dataasset/credentials/sops-vault.sh init --check-ref vault://es/private-query
+```
+
+`make quickstart SKIP_VAULT=1` / `quickstart.py --skip-vault` skips only Vault setup,
+with an explicit warning. It is for credential-free demos; it does not enable UI
+saves or live queries. `make setup` remains Python-only.
+
+If UI saving reports `unknown recipient type: "REPLACE_WITH_YOUR_AGE_PUBLIC_KEY"`,
+the selected asset root still uses the uninitialized public `.sops.yaml` template;
+refreshing the browser cannot fix this. Initialize the Vault with the same
+`DATAASSET_ROOT`, then save again. Each UI save reads the local policy; no restart
+is needed. If ciphertext already exists, restore the original policy and matching
+private key instead of generating a new key or overwriting the policy.
+Back up `.age/key.txt` securely: losing it prevents decryption of saved credentials.
+Never commit or publicly share the private key.
+
+Starting with Community 0.3.23, UI saves and the ES onboarding wizard check the
+Vault before writing submitted credential plaintext. A non-sensitive native SOPS
+probe verifies encryption/decryption for the current ref, without reading saved
+credentials. Missing/unreadable policies, placeholder recipients, missing SOPS,
+invalid policies, unavailable decryption keys, or a 30-second check timeout stop
+the save while preserving form input and existing files. The check never
+initializes, replaces policy, or creates keys. External `SOPS_AGE_KEY_FILE`, native
+SOPS key discovery, and advanced policy formats remain SOPS's responsibility;
+a local `.age/key.txt` is not mandatory, but the UI must be able to decrypt the probe.
+On timeout, the UI terminates the check's dedicated Bash/SOPS process group.
+
+To check a ref manually in the same environment:
+
+```bash
+bash src/dataasset/credentials/sops-vault.sh check vault://sls/sls-proxy-query
+```
+
+The UI imposes a 30-second total check timeout. Direct CLI `check` has no total
+timeout; use a process timeout tool as needed for external key services. A passed
+check does not establish data-source connectivity or replace subsequent save-error handling.
 
 ### 3. Edit the credential you actually use
 

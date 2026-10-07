@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -116,13 +117,55 @@ class QuickstartTests(unittest.TestCase):
 
             self.assertEqual(result, root.resolve() / ".venv/bin/python")
             self.assertEqual(commands[0][1:3], ["-m", "venv"])
-            self.assertEqual(commands[2][1:4], ["-m", "pip", "install"])
-            self.assertEqual(commands[3][1:], ["src/secweaver.py", "validate"])
-            self.assertEqual(commands[4][1:4], ["src/secweaver.py", "demo", "all"])
+            self.assertEqual(commands[2][1:], ["src/dataasset/credentials/init_vault.py", "--check-ref", "vault://sls/sls-proxy-query"])
+            self.assertEqual(commands[3][1:4], ["-m", "pip", "install"])
+            self.assertEqual(commands[4][1:], ["src/secweaver.py", "validate"])
+            self.assertEqual(commands[5][1:4], ["src/secweaver.py", "demo", "all"])
             self.assertEqual(
-                commands[5][1:],
+                commands[6][1:],
                 ["src/scripts/ai_host_setup.py", "--host", "all"],
             )
+
+    def test_explicit_offline_skip_does_not_invoke_vault(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interpreter = root / ".venv/bin/python"
+            interpreter.parent.mkdir(parents=True)
+            interpreter.touch()
+            commands = []
+            quickstart.run_quickstart(repo_root=root, platform_name="posix", skip_vault=True,
+                                     runner=lambda command, _cwd: commands.append(list(command)))
+            self.assertFalse(any("init_vault.py" in " ".join(command) for command in commands))
+            self.assertFalse((root / "dataasset/credentials").exists())
+
+    def test_vault_failure_stops_before_dependency_download_and_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            interpreter = root / ".venv/bin/python"
+            interpreter.parent.mkdir(parents=True)
+            interpreter.touch()
+            commands = []
+
+            def runner(command, _cwd):
+                """Model an unready Vault without touching local keys or tools."""
+                commands.append(list(command))
+                if "src/dataasset/credentials/init_vault.py" in command:
+                    raise subprocess.CalledProcessError(1, command)
+
+            with patch("builtins.print") as output, self.assertRaises(subprocess.CalledProcessError):
+                quickstart.run_quickstart(repo_root=root, platform_name="posix", runner=runner,
+                                         vault_check_ref="vault://es/private-query")
+            self.assertEqual(commands[-1][-1], "vault://es/private-query")
+            self.assertEqual(len(commands), 2)
+            self.assertFalse(any("completed" in str(call) for call in output.call_args_list))
+
+    def test_make_options_are_explicit_and_forwarded(self) -> None:
+        for options, expected in (([], False), (["SKIP_VAULT=1"], True), (["SKIP_VAULT=0"], False)):
+            with self.subTest(options=options):
+                result = subprocess.run(["make", "-n", "quickstart", "VAULT_CHECK_REF=vault://es/query", *options],
+                                        cwd=REPO_ROOT, capture_output=True, text=True, check=True)
+                self.assertEqual("--skip-vault" in result.stdout, expected)
+                self.assertIn('--vault-check-ref "vault://es/query"', result.stdout)
 
 
 if __name__ == "__main__":

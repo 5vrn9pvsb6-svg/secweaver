@@ -171,8 +171,10 @@ async function saveDetail() {
       $("detailStatus").textContent = t("credential.typeRequired");
       return;
     }
-    if (fields.namespace !== fields.credential_type) {
-      $("detailStatus").textContent = t("credential.namespaceMismatch", { type: fields.credential_type });
+    // Preserve established groups such as sls/aliyun_ram and db/mysql. The
+    // YAML type controls credential fields; the reference controls storage.
+    if (!credentialRefIsValid(fields.credential_id)) {
+      $("detailStatus").textContent = t("credential.invalidRef");
       return;
     }
     const content = setYamlType($("detailRawJson").value, fields.credential_type);

@@ -41,6 +41,30 @@
   font-size: 12px;
 }
 
+/* Vault diagnostics contain long copyable paths. Keep credential modal tracks
+   shrinkable so commands wrap instead of pushing inputs/actions off-screen. */
+body[data-module="credential"] #detailView.form {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body[data-module="credential"] #detailView .editor-toolbar {
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+body[data-module="credential"] #detailView .status-row {
+  flex: 1 1 280px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+body[data-module="credential"] #detailStatus {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .hidden {
   display: none !important;
 }
@@ -247,6 +271,10 @@
 
   #detailView.form {
     inset: 18px;
+  }
+
+  body[data-module="credential"] #detailView .editor-toolbar {
+    position: static;
   }
 
   .list-row {

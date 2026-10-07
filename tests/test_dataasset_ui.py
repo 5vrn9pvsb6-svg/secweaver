@@ -316,7 +316,7 @@ class TestDataAssetUIOnboarding(unittest.TestCase):
             credential_services,
             "CREDENTIALS_DIR",
             Path(temp_dir),
-        ), patch.object(credential_services, "encrypt_credential") as encrypt:
+        ), patch.object(credential_services, "ensure_vault_ready") as ready, patch.object(credential_services, "encrypt_credential") as encrypt:
             secret_path = Path(temp_dir) / "secrets" / "ui-e2e" / "test.enc.yaml"
             encrypt.side_effect = lambda _ref, _example: secret_path.write_text("sops: encrypted\n", encoding="utf-8")
 
@@ -329,6 +329,7 @@ class TestDataAssetUIOnboarding(unittest.TestCase):
             self.assertTrue((Path(temp_dir) / "examples" / "ui-e2e").is_dir())
             self.assertTrue((Path(temp_dir) / "secrets" / "ui-e2e").is_dir())
             encrypt.assert_called_once()
+            ready.assert_called_once_with("vault://ui-e2e/test")
             encrypted_source = encrypt.call_args.args[1]
             self.assertFalse(encrypted_source.exists())
             example_path = Path(temp_dir) / "examples" / "ui-e2e" / "test.yaml"
@@ -341,7 +342,7 @@ class TestDataAssetUIOnboarding(unittest.TestCase):
             credential_services,
             "CREDENTIALS_DIR",
             Path(temp_dir),
-        ), patch.object(credential_services, "encrypt_credential", side_effect=RuntimeError("sops failed")):
+        ), patch.object(credential_services, "ensure_vault_ready"), patch.object(credential_services, "encrypt_credential", side_effect=RuntimeError("sops failed")):
             example_path = Path(temp_dir) / "examples" / "ui-e2e" / "test.yaml"
             example_path.parent.mkdir(parents=True)
             example_path.write_text("type: mysql\npassword: old\n", encoding="utf-8")

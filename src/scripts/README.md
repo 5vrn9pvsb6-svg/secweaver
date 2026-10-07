@@ -4,7 +4,7 @@ Repository-level maintenance programs live here instead of the project root.
 
 | Script | Purpose |
 |---|---|
-| `quickstart.py` | Create a POSIX venv and run the Linux/macOS/WSL2 quickstart; native Windows exits with WSL2 installation guidance |
+| `quickstart.py` | Create a POSIX venv, safely initialize the selected Vault, and run Linux/macOS/WSL2 quickstart; native Windows exits with WSL2 guidance |
 | `release_scan.py` | Scan for private content, secrets, placeholders, and Community version drift |
 | `check_docs_links.py` | Validate local Markdown paths and same-file/cross-file anchors without network access |
 | `ai_host_setup.py` | Generate non-destructive local host adapters that route to `src/skills` |
@@ -22,6 +22,14 @@ make ai-setup HOST=all
 make ai-setup HOST=codex
 make ai-showcase
 ```
+
+Quickstart requires SOPS and age for its default Vault step. The shared initializer
+is `src/dataasset/credentials/init_vault.py`; `sops-vault.sh init` uses the same code.
+Set `DATAASSET_ROOT` before invoking it. Existing trust material is never rotated,
+and no sample credentials are encrypted. `make quickstart SKIP_VAULT=1` (direct:
+`--skip-vault`) is an explicit offline-demo opt-out. Restricted existing policies
+can select a matching synthetic path with `VAULT_CHECK_REF=vault://es/query`
+(direct: `--vault-check-ref`). See [Vault lifecycle](../../dataasset/credentials/README.md).
 
 The release scan requires the latest `CHANGELOG.md` release, `pyproject.toml`,
 CLI `--version` output, and source SBOM root component to use the same Community

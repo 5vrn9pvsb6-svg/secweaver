@@ -15,6 +15,11 @@ Log、Security 4688、Sysmon 或 Windows 服务采集。
 
 项目 Python 命令统一使用 `.venv/bin/python`，**不要求激活虚拟环境**。创建 `.venv` 后仍运行系统解释器，可能找不到装在虚拟环境里的依赖。`make quickstart` 会在安装依赖前检查指定解释器及已有 `.venv`；两者都必须是 Python 3.10 或更高版本。直接在原生 Windows 调用会停止并提示安装 WSL2。
 
+默认 `make quickstart` 还会初始化/检查 `DATAASSET_ROOT` 所选 Vault，需要 SOPS 和 age
+（新建本机密钥时使用 `age-keygen`）。请预先安装，程序不自动安装系统软件包。
+仅做零凭证开发或离线 demo 时，可明确执行 `make quickstart SKIP_VAULT=1`。
+已有密钥、策略和密文均保留；检查失败会停止。详见 [Vault 生命周期](../dataasset/credentials/README.zh-CN.md)。
+
 | 目标 | 额外要求 |
 |---|---|
 | Python、文档、DataAsset 或现有轻量 UI 的本地检查 | 无需 Go、Node.js、SaaS 账号或生产凭证；新增前端构建链时自行说明其依赖 |

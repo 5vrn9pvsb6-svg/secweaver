@@ -492,6 +492,15 @@ function credentialRefParts(ref) {
   };
 }
 
+// Namespace selects a Vault directory, not a credential type. Validate only
+// the reference shape here; the server still enforces resolved-path containment.
+function credentialRefIsValid(ref) {
+  const value = String(ref || "").trim().replaceAll("\\", "/");
+  if (!value.startsWith("vault://")) return false;
+  const parts = value.slice("vault://".length).split("/");
+  return parts.length >= 2 && parts.every((part) => part && part !== "." && part !== "..");
+}
+
 function yamlTypeFromContent(content) {
   const line = (content || "").split("\n").find((item) => item.trim().startsWith("type:"));
   if (!line) return "";
@@ -658,11 +667,11 @@ function setYamlCredentialField(content, key, value) {
   return lines.join("\n");
 }
 
-function refreshCredentialValueFields() {
+// Bind both the initial form and replacement fields after a type/YAML change.
+// Without initial binding, visible edits never reach the YAML submitted to SOPS.
+function bindCredentialValueFields() {
   const root = $("credentialValueFields");
   if (!root) return;
-  const type = normalizeCredentialType(($("credentialTypeInput")?.value || "").trim());
-  root.innerHTML = renderCredentialValueFields(type, $("detailRawJson")?.value || "");
   root.querySelectorAll("[data-credential-value]").forEach((control) => {
     control.disabled = detailMode !== "edit";
     const sync = () => {
@@ -671,6 +680,14 @@ function refreshCredentialValueFields() {
     control.addEventListener("input", sync);
     control.addEventListener("change", sync);
   });
+}
+
+function refreshCredentialValueFields() {
+  const root = $("credentialValueFields");
+  if (!root) return;
+  const type = normalizeCredentialType(($("credentialTypeInput")?.value || "").trim());
+  root.innerHTML = renderCredentialValueFields(type, $("detailRawJson")?.value || "");
+  bindCredentialValueFields();
 }
 
 function renderCredentialFields(data) {
@@ -707,10 +724,15 @@ function bindCredentialFieldSync() {
   const typeInput = $("credentialTypeInput");
   const syncIdNamespace = (type) => {
     if (!isCreating || !idInput || !type) return;
+    // Type changes may update an untouched suggestion, never a user-supplied
+    // namespace/reference that a Connector may already depend on.
+    const currentRef = idInput.value.trim();
+    if (currentRef && currentRef !== idInput.dataset.suggestedRef) return;
     const parts = credentialRefParts(idInput.value);
     const name = parts.name || idInput.dataset.generatedName || `credential-${Date.now()}`;
     idInput.dataset.generatedName = name;
     idInput.value = `vault://${type}/${name}`;
+    idInput.dataset.suggestedRef = idInput.value;
   };
   const applyTypeTemplate = () => {
     const selectedType = normalizeCredentialType(typeInput?.value);
@@ -730,6 +752,7 @@ function bindCredentialFieldSync() {
   };
   typeInput?.addEventListener("change", applyTypeTemplate);
   $("detailRawJson")?.addEventListener("change", refreshCredentialValueFields);
+  bindCredentialValueFields();
 }
 
 function correlationJoinIds() {

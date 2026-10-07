@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import subprocess
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -29,6 +31,7 @@ SENSITIVE_CREDENTIAL_FIELDS = {
     "app_key",
     "keytab",
 }
+VAULT_CHECK_TIMEOUT_SECONDS = 30
 
 
 def credential_status_path() -> Path:
@@ -203,6 +206,49 @@ def encrypt_credential(ref: str, example_path: Path) -> None:
         raise RuntimeError(detail)
 
 
+def ensure_vault_ready(ref: str) -> None:
+    """Reject unusable Vaults before persisting any submitted plaintext.
+
+    The shared CLI probes SOPS with synthetic input rather than reading real
+    credentials or rebuilding keys. Do not cache success: a local policy or key
+    can change between saves. Final encryption still reports subsequent failures.
+    """
+    script = ROOT / "src" / "dataasset" / "credentials" / "sops-vault.sh"
+    env = subprocess_env()
+    env["DATAASSET_ROOT"] = str(CREDENTIALS_DIR.parent)
+    try:
+        # Community credential clients run on POSIX/WSL. Own a separate session
+        # so a timeout kills Bash AND SOPS; killing only Bash leaves descendants
+        # holding pipe descriptors and can block communicate beyond the deadline.
+        with subprocess.Popen(
+            [str(script), "check", ref],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        ) as process:
+            try:
+                stdout, stderr = process.communicate(timeout=VAULT_CHECK_TIMEOUT_SECONDS)
+            except subprocess.TimeoutExpired as exc:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                process.communicate()
+                raise TimeoutError(
+                    f"Vault 检查超时（{VAULT_CHECK_TIMEOUT_SECONDS} 秒）；请检查本机 SOPS 或密钥服务连通性，未保存凭证。"
+                ) from exc
+            returncode = process.returncode
+    except TimeoutError:
+        raise
+    except OSError as exc:
+        raise RuntimeError("无法启动 Vault 检查；请确认本机 Bash 和 sops-vault.sh 可执行，未保存凭证。") from exc
+    if returncode != 0:
+        raise ValueError((stderr or stdout or "Vault 检查失败，未保存凭证。").strip())
+
+
 def redact_credential_content(content: str) -> str:
     lines = content.rstrip().splitlines()
     redacted: list[str] = []
@@ -233,6 +279,9 @@ def save_credential(payload: dict) -> tuple[Path, str]:
     content = str(payload.get("content") or "")
     if not yaml_type_from_text(content) or yaml_type_from_text(content) == "unknown":
         raise ValueError("credentials YAML 必须包含 type 字段")
+    # Initialization failures must not create directories, temporary plaintext,
+    # encrypted output or redacted examples. All save callers share this gate.
+    ensure_vault_ready(ref)
     CREDENTIALS_DIR.mkdir(parents=True, exist_ok=True)
     example_path.parent.mkdir(parents=True, exist_ok=True)
     secret_path.parent.mkdir(parents=True, exist_ok=True)

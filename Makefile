@@ -3,13 +3,16 @@ VENV_DIR ?= .venv
 VENV_PY := $(VENV_DIR)/bin/python
 VENV_PIP := $(VENV_DIR)/bin/pip
 REPORT_DIR ?= examples/reports
+SKIP_VAULT ?= 0
+VAULT_CHECK_REF ?= vault://sls/sls-proxy-query
 
 .PHONY: help setup quickstart check-python check-venv-python ai-setup ai-setup-all ai-showcase ci ci-final-release-scan validate validate-all-roots sync-dataasset-contracts validate-policy strict release-scan open-source-export docs-check sbom sbom-check agent-check attack-lab-check catalog demo demo-alert demo-traceability demo-risk demo-completeness list ui test reports clean-reports
 
 help:
 	@echo "SecWeaver local commands"
 	@echo ""
-	@echo "  make quickstart        Set up Python and all AI hosts, validate, run all demos"
+	@echo "  make quickstart        Set up Python, local Vault and AI hosts, validate, run demos"
+	@echo "                         SKIP_VAULT=1 skips Vault for offline demos only"
 	@echo "  make ai-setup HOST=... Generate one adapter; use HOST=all for every supported host"
 	@echo "  make ai-showcase       Run all offline cases + readable reports; optionally set CASE=<case_id>"
 	@echo "  make ci                CI gate: release, docs, Agent, validation, tests, demos"
@@ -56,9 +59,10 @@ setup: check-venv-python
 	$(VENV_PY) -m pip install -r requirements-data-access.txt
 
 # The Python orchestrator gives Linux, macOS, and WSL2 the same validation,
-# demos, and adapter setup sequence; native Windows is redirected to WSL2.
+# demos, idempotent Vault initialization, and adapter setup sequence; native
+# Windows is redirected to WSL2. Never silently skip an unready credential Vault.
 quickstart:
-	$(PYTHON) src/scripts/quickstart.py --venv-dir "$(VENV_DIR)" --report-dir "$(REPORT_DIR)"
+	$(PYTHON) src/scripts/quickstart.py --venv-dir "$(VENV_DIR)" --report-dir "$(REPORT_DIR)" --vault-check-ref "$(VAULT_CHECK_REF)" $(if $(filter 1,$(SKIP_VAULT)),--skip-vault)
 
 ai-setup:
 	@test -n "$(HOST)" || { echo "HOST=all|codex|cursor|claude|openclaw|workbuddy is required"; exit 2; }

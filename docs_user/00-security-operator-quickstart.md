@@ -61,6 +61,12 @@ make --version
 Python must be 3.10 or newer, and Make must print its version. If a command is unavailable,
 install the tool or ask your administrator for help before continuing:
 
+Default quickstart now prepares the local encrypted Vault too. Install SOPS and
+age first (`brew install sops age` on macOS with Homebrew; use your approved package
+source on Linux/WSL2). If you only want credential-free demos and do not have these
+tools, run `make quickstart SKIP_VAULT=1`. Nothing is initialized in that mode;
+credential editing later requires Vault setup.
+
 ```bash
 make quickstart
 ```
@@ -74,6 +80,12 @@ workflow continuously validated by public Ubuntu CI; there is no separate WSL2 r
 This creates `.venv`, validates DataAsset, runs four offline demos, and generates thin
 adapters for five AI agents. Adapters reference `src/skills/` without copying Skill content.
 Adapter generation does not mean the AI investigation has run.
+Before downloading Python packages, it initializes the Vault in `DATAASSET_ROOT`
+(default `dataasset`). The first run creates a private age key with mode `600` and
+a SOPS policy, without encrypting sample credentials. Repeat runs preserve keys,
+policies and saved credentials, and check a synthetic SOPS round-trip only.
+Select `DATAASSET_ROOT` before running; never regenerate a key to recover existing
+ciphertext. See [Vault recovery and backup](../dataasset/credentials/README.md).
 Before dependency installation, the launcher checks the selected interpreter and the
 existing virtual environment. If either is below Python 3.10, initialization exits with
 a remediation message. Native Windows invocation exits with WSL2 installation guidance.
@@ -152,6 +164,8 @@ See the [case catalog](../examples/ai-showcase/README.md) for all current cases 
 | The repository is under `/mnt/c/...` and commands are slow | Clone or move the checkout to `~/src/secweaver-community` inside WSL |
 | The report displays hosts as IPs | Use the sample mapping: web-01=`10.0.1.5`, db-01=`10.0.2.10`, app-02=`10.0.2.20` |
 | Dependency installation fails | Check Python version and package-download connectivity, then rerun `make quickstart` |
+| Vault setup reports a missing crypto tool | Install SOPS and age; `SKIP_VAULT=1` is for credential-free demos only |
+| Vault setup reports unusable existing policy/key | Restore the original policy and matching key; do not delete ciphertext or regenerate keys |
 | Adapter refuses to overwrite | Back up or merge existing AI agent configuration; preserve user-owned rules |
 | AI cannot find the input | Open the repository root and allow local reads and command execution |
 | Script reports missing dependencies | Use Make commands or `.venv/bin/python`; system Python may lack the installed dependencies |

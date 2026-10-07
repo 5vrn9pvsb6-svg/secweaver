@@ -1,6 +1,9 @@
 # 凭证（本地 SOPS Vault）
 
 连接器 JSON 里**只写** `credentials_ref`，真实密钥存放在 **SOPS 加密文件**中。
+引用格式是 `vault://namespace/name`：`namespace` 用于分组目录，不是 YAML 的 `type`。
+例如 `vault://sls/sls-proxy-query` 的类型为 `aliyun_ram`，`vault://db/ai-readonly`
+可以使用 `mysql`。UI 和 CLI 均保留原引用，无需重命名或修改 Connector。
 
 ```text
 vault://sls/security-readonly
@@ -32,46 +35,92 @@ examples/sls/security-readonly.yaml      ← 仓库内占位模板，可提交
 
 使用 Linux/macOS POSIX 终端或 WSL2、Python 3.10+ 和 Make。Windows 用户须先完成
 [WSL2 快速上手](../../docs_user/00-security-operator-quickstart.zh-CN.md)；原生 Windows
-不是受支持的 Community 凭证客户端环境。CLI 初始化需要 Bash 4+，以及 `sops`、`age`、
-`age-keygen`。macOS 已有 Homebrew 时可执行：
+不是受支持的 Community 凭证客户端环境。CLI 初始化需要 Bash 3.2+、`sops` 和
+`age-keygen`（由 age 提供）。macOS 已有 Homebrew 时可执行：
 
 ```bash
-brew install bash sops age
+brew install sops age
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
-bash --version
 ```
 
-确认 Bash 为 4 或更新版本；Linux 按本机软件包管理流程安装这些工具。
+支持 macOS 自带 Bash；Linux 按本机软件包管理流程安装这些工具。
 不使用 Homebrew 时由管理员提供可执行文件并加入 PATH，不要直接套用 brew 命令。
 然后准备默认资产目录：
 
 ```bash
+export DATAASSET_ROOT=dataasset
 make quickstart
 source .venv/bin/activate
-export DATAASSET_ROOT=dataasset
 ```
 
-需要隔离时，在写入前选择以下可选步骤；已有目录不覆盖：
+需要隔离时，应在 quickstart **之前**选择下列资产目录，替代默认步骤。应复制全新的
+公开资产样例，不复制已有本机私钥或真实凭证的目录；已有目录不覆盖：
 
 ```bash
 if [ ! -e dataasset_my ]; then
   cp -R dataasset dataasset_my
 fi
 export DATAASSET_ROOT=dataasset_my
+make quickstart
 ```
 
-UI、CLI 和智能体使用同一个所选资产根目录。新终端重新设置 `DATAASSET_ROOT` 并激活虚拟环境；桌面智能体需明确指定该目录。也可运行 `make ui` 在凭证页完成初始化和编辑，UI 同样需要 SOPS/age。
+UI、CLI 和智能体使用同一个所选资产根目录。新终端重新设置 `DATAASSET_ROOT` 并激活虚拟环境；桌面智能体需明确指定该目录。初始化后可运行 `make ui` 在凭证页编辑，UI 同样需要 SOPS/age；保存不会自动初始化 Vault。
 
-### 2. 初始化本机 Vault
+### 2. 确认本机 Vault
 
-仅对尚未初始化的本地 Vault 执行，不重建已有密钥或覆盖已有 SOPS 策略：
+Community 0.3.24+ 的默认 quickstart 自动初始化所选 Vault，成功后无需另行 `init`。
+使用 `make setup`、旧版 quickstart 或 `SKIP_VAULT=1` 时，可执行同一幂等入口：
 
 ```bash
 bash src/dataasset/credentials/sops-vault.sh init
 ```
 
-`init` 生成本机 age 私钥 `.age/key.txt` 与 `.sops.yaml`。
+空 Vault 缺少策略或使用原样的公开占位模板时，`init` 生成本机 age 私钥 `.age/key.txt`
+（权限 `600`）与 `.sops.yaml`。已有密钥复用，不重新生成；已有非占位策略逐字节保留，
+仅通过原生 SOPS 验证，外部密钥仍受支持。
 不必执行全量 `bootstrap`；它会加密整套占位模板，并不代表这些数据源已接入。
+
+**生命周期与失败处理：** `quickstart.py` 和 Bash `init` 入口共用
+`src/dataasset/credentials/init_vault.py`。持久的 `.age/init.lock` 锁串行化初始化操作，
+候选文件在私有临时目录中生成，合成探针加密/解密成功后先刷盘并原子发布密钥，再发布策略。
+失败会清理候选文件；两步发布间中断时保留已发布的密钥，下次可安全复用。初始化运行时
+不要删除锁文件。已有 `secrets/*.enc.yaml` 却缺少有效策略、自定义策略含占位符、密钥/
+策略无效、工具缺失或原生加密操作超过 30 秒时，停止而不修改已有密钥和策略。
+程序不自动安装系统软件包，也不读取真实凭证。
+
+默认合成探针路径为 `vault://sls/sls-proxy-query`；已有策略仅允许其他路径时，可指定：
+
+```bash
+make quickstart VAULT_CHECK_REF=vault://es/private-query
+# 不重新运行完整 quickstart 时：
+bash src/dataasset/credentials/sops-vault.sh init --check-ref vault://es/private-query
+```
+
+`make quickstart SKIP_VAULT=1` / `quickstart.py --skip-vault` 仅跳过 Vault 步骤并明确警告，
+用于零凭证离线 demo，不能因此保存凭证或执行真实查询。`make setup` 仍只准备 Python。
+
+若 UI 保存时报 `unknown recipient type: "REPLACE_WITH_YOUR_AGE_PUBLIC_KEY"`，
+说明当前资产根下的 `.sops.yaml` 仍是未初始化的公开模板；刷新浏览器不能修复。
+先在同一个 `DATAASSET_ROOT` 初始化 Vault，再重新保存；UI 每次保存都会读取本地策略，无需重启。
+已有密文时不要新建密钥或覆盖策略，应恢复原策略和对应私钥。
+`.age/key.txt` 必须安全备份，丢失后将无法解密已保存的凭证；私钥不得提交 Git 或公开分享。
+
+Community 0.3.23 起，UI 保存和 ES 接入向导在写入真实凭证临时文件前执行只读检查，
+使用非敏感探针验证当前 ref 对应的 SOPS 策略能否加密、解密，不读取已有凭证。
+缺少/不可读策略、占位公钥、缺少 SOPS、策略错误、密钥无法解密或检查超过 30 秒时停止保存，
+保留表单输入和已有文件。不会自动初始化、覆盖策略或生成新密钥。
+外部 `SOPS_AGE_KEY_FILE`、SOPS 原生密钥发现和高级策略格式仍交给 SOPS 验证；
+不强制要求本地 `.age/key.txt`，但 UI 必须能够解密探针。
+超时后 UI 会终止该检查独占进程组中的 Bash/SOPS 子进程，不影响其他保存请求。
+
+也可在同一环境中手动检查指定 ref：
+
+```bash
+bash src/dataasset/credentials/sops-vault.sh check vault://sls/sls-proxy-query
+```
+
+UI 检查有 30 秒总超时；直接运行 CLI `check` 不设置总超时，外部密钥服务场景按需使用进程超时工具。
+检查通过不等于实际数据源已连通，也不能替代保存时后续加密错误的处理。
 
 ### 3. 编辑实际使用的凭证
 

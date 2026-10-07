@@ -4,7 +4,7 @@
 
 | 脚本 | 用途 |
 |---|---|
-| `quickstart.py` | 创建 POSIX 虚拟环境并运行 Linux/macOS/WSL2 快速上手；原生 Windows 会退出并提示安装 WSL2 |
+| `quickstart.py` | 创建 POSIX 虚拟环境、安全初始化所选 Vault 并运行 Linux/macOS/WSL2 快速上手；原生 Windows 会退出并提示安装 WSL2 |
 | `release_scan.py` | 扫描私有内容、密钥、占位符和 Community 版本漂移 |
 | `check_docs_links.py` | 离线检查 Markdown 本地路径及同页/跨文件章节锚点 |
 | `ai_host_setup.py` | 生成不覆盖用户配置、仅路由到 `src/skills` 的本地智能体适配器 |
@@ -22,6 +22,13 @@ make ai-setup HOST=all
 make ai-setup HOST=codex
 make ai-showcase
 ```
+
+默认 quickstart 的 Vault 步骤需要 SOPS 和 age。共享初始化实现位于
+`src/dataasset/credentials/init_vault.py`，`sops-vault.sh init` 也调用它。运行前设置
+`DATAASSET_ROOT`；不轮换已有密钥，也不加密示例凭证。仅离线 demo 可用
+`make quickstart SKIP_VAULT=1` 显式跳过（直接调用参数：`--skip-vault`）。已有受限策略
+可用 `VAULT_CHECK_REF=vault://es/query` 指定匹配的合成探针路径（直接调用参数：
+`--vault-check-ref`）。详见 [Vault 生命周期](../../dataasset/credentials/README.zh-CN.md)。
 
 发布扫描要求 `CHANGELOG.md` 的最新发布、`pyproject.toml`、CLI
 `--version` 输出和源码 SBOM 根组件使用同一个 Community 版本。Agent

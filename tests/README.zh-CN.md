@@ -5,6 +5,10 @@
 这是开源版本的统一测试入口。从仓库根目录执行，先运行 `make setup`；直接调用脚本时使用 `.venv/bin/python`，无需激活虚拟环境。完整 CI 所需的其他工具见[开发环境与命令约定](../docs_dev/01-new-contributor-quickstart.zh-CN.md#环境与命令约定)。
 
 只运行现有 UI 回归测试时，使用 `.venv/bin/python -m unittest tests.test_dataasset_ui`，不需要 pytest。
+凭证表单 JavaScript 回归还需要 `PATH` 中有 Node.js 18+。运行
+`.venv/bin/python -m unittest tests.test_dataasset_ui_credential_form` 或
+`node tests/ui/credential-form.cjs`；缺少 Node.js 时 Python 入口明确报告跳过。
+测试使用模拟 DOM/API，不读取或修改真实 Vault。
 
 ```bash
 make test
@@ -27,6 +31,10 @@ make test
 
 ## 主要回归套件
 
+- `tests/test_quickstart.py`：默认下载依赖前初始化 Vault、显式离线跳过、Make 参数传递，以及失败时不误报完成。
+- `tests/test_vault_init.py`：依赖与占位策略保护；原生 SOPS/age-keygen 可用时使用临时密钥验证首次/重复初始化、权限 600、已有密文与密钥保留、受限/外部策略、中断发布恢复、锁竞争和 Bash 3.2 入口。
+- `tests/test_dataasset_ui_vault.py`：保存前拒绝写入、可操作错误和超时处理；PATH 或已记录的 Homebrew 目录有 SOPS、age-keygen 时，还执行隔离的原生加密测试，覆盖有效/缺失/不匹配/外部密钥、非法策略和 key groups。缺少加密工具时仅明确跳过对应集成用例。
+- `tests/test_dataasset_ui_credential_form.py`：执行真实 UI 保存与类型选择逻辑，覆盖分组与类型独立、首次打开表单后 AK/SK 到 YAML 的同步、非法引用校验，以及已有或用户输入凭证 ID 的保留。
 - `tests/test_public_onboarding_docs.py`：首次使用指南、案例路由、只读发现、SaaS/SLS/ES 查询预览、Attack Lab 中当前 Agent 日志路径、符合实际 Schema 的中英文 JSON 代码块、私有资产目录说明、客户端平台和输出限制，以及启用 TLS 校验的 Agent ES 模板。
 - `tests/test_agent_elasticsearch.py`：公开 ES 初始化、幂等、覆盖/重定向/TLS 保护、入库检查、日志路由和导出边界。
 - `tests/test_secweaver_cli.py`：`validate`、`list`、`discover-format`、`demo`、`skill`。

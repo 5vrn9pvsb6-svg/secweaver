@@ -15,6 +15,13 @@ not provide Windows Event Log, Security 4688, Sysmon, or Windows service collect
 
 Use `.venv/bin/python` for project Python commands; **activation is unnecessary**. Running a system interpreter after creating `.venv` can miss dependencies installed in the virtual environment. `make quickstart` validates both the selected interpreter and the existing `.venv` before installing dependencies; either must be Python 3.10 or newer. Native Windows invocation stops with WSL2 installation guidance.
 
+Default `make quickstart` also initializes/verifies the Vault selected by
+`DATAASSET_ROOT`, using SOPS and age (`age-keygen` for a new local key). Install
+these tools first; no system package installation is performed automatically.
+For credential-free development/demos, explicitly use `make quickstart SKIP_VAULT=1`.
+Existing keys, policies and ciphertext are preserved; failed checks stop setup.
+See [Vault lifecycle](../dataasset/credentials/README.md).
+
 | Goal | Additional prerequisites |
 |---|---|
 | Local Python, documentation, DataAsset or existing lightweight UI checks | No Go, Node.js, SaaS account or production credentials; document dependencies separately if adding a frontend build system |

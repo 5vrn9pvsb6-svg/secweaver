@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.3.24] - 2026-10-07
+
+- Initialize the selected local Vault by default in `make quickstart`, before
+  Python dependency downloads. Add an explicit `SKIP_VAULT=1` offline-demo opt-out
+  and `VAULT_CHECK_REF` for restricted existing policies.
+- Share an idempotent initializer with `sops-vault.sh init`: lock competing setup,
+  validate disposable native SOPS probes, persist the key before the policy, and
+  preserve existing policies, keys and ciphertext. Refuse ambiguous recovery,
+  custom placeholder policies and silent tool fallback; do not bootstrap samples.
+- Support the macOS Bash 3.2 initialization facade; synchronize bilingual setup,
+  backup and failure guidance and add isolated orchestration/crypto regressions.
+- Bump Community/CLI to 0.3.24 and regenerate its SBOM; Agent remains 0.3.78.
+
+## [0.3.23] - 2026-10-07
+
+- Check Vault readiness before UI or ES-onboarding saves can create credential
+  plaintext or output files. Missing policies and placeholder recipients now
+  show actionable initialization guidance instead of raw SOPS parser errors.
+- Add `sops-vault.sh check <ref>`: verify the exact target rule and key with a
+  synthetic native SOPS round-trip, without initializing, rotating, or reading
+  saved credentials. Preserve external keys and advanced SOPS policy formats;
+  distinguish policy, dependency, key and bounded-timeout failures.
+- Preserve form inputs on failed saves and wrap long credential errors/commands;
+  add isolated crypto/UI regressions and synchronize bilingual operating guides.
+- Bump Community/CLI to 0.3.23 and regenerate its SBOM; Agent remains 0.3.78.
+
+## [0.3.22] - 2026-10-07
+
+- Fix DataAsset UI credential saves that incorrectly required the Vault namespace
+  to equal the YAML credential type. Existing `vault://sls/sls-proxy-query` with
+  `type: aliyun_ram`, database groups and custom groups now retain their references.
+- Validate reference shape before submitting and preserve user-entered IDs when
+  changing a new credential's type; backend path checks and SOPS encryption remain
+  unchanged. Update bilingual hints, onboarding guidance and regression coverage.
+- Bind initial credential input fields to the submitted YAML, so AK/SK edits are
+  saved without first changing credential type or editing the raw YAML.
+- Synchronize Community package/CLI identity and source SBOM; Agent remains 0.3.78.
+
 ## Agent 0.3.78
 
 - Add an independent 24-hour Windows risk-log learning baseline for eligible,

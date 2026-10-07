@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Set up and verify the credential-free SecWeaver quickstart on POSIX or WSL2."""
+"""Set up SecWeaver and its local Vault on POSIX or WSL2 without real credentials."""
 
 from __future__ import annotations
 
@@ -85,13 +85,17 @@ def run_quickstart(
     platform_name: str | None = None,
     kernel_release: str | None = None,
     runtime_python: Path | None = None,
+    skip_vault: bool = False,
+    vault_check_ref: str = "vault://sls/sls-proxy-query",
     runner: CommandRunner = run_command,
 ) -> Path:
     """Create the venv and run setup steps on Linux, macOS, or WSL2.
 
     Native Windows stops before touching the checkout and points users to WSL2. An
     existing directory without a POSIX interpreter is rejected so a Windows venv
-    cannot be reused accidentally from WSL2.
+    cannot be reused accidentally from WSL2. Vault setup precedes network package
+    installation; an unusable existing Vault stops setup without rotating its key.
+    Skipping is explicit and is intended only for credential-free offline demos.
     """
     if sys.version_info[:2] < MINIMUM_PYTHON:
         actual = ".".join(str(part) for part in sys.version_info[:2])
@@ -128,6 +132,10 @@ def run_quickstart(
         raise QuickstartError(f"virtual environment creation did not produce {venv_python}")
 
     runner([str(venv_python), "-c", VENV_VERSION_CHECK], root)
+    if skip_vault:
+        print("[WARN] Vault initialization skipped (--skip-vault); credential saves require separate initialization.")
+    else:
+        runner([str(venv_python), "src/dataasset/credentials/init_vault.py", "--check-ref", vault_check_ref], root)
     for command in quickstart_commands(
         venv_python,
         root / "requirements-data-access.txt",
@@ -148,9 +156,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--venv-dir", type=Path, default=Path(".venv"))
     parser.add_argument("--report-dir", type=Path, default=Path("examples/reports"))
+    parser.add_argument("--skip-vault", action="store_true", help="Skip Vault setup for credential-free offline demos only")
+    parser.add_argument("--vault-check-ref", default="vault://sls/sls-proxy-query", help="Synthetic check path for a restricted existing Vault policy")
     args = parser.parse_args(argv)
     try:
-        run_quickstart(venv_dir=args.venv_dir, report_dir=args.report_dir)
+        run_quickstart(venv_dir=args.venv_dir, report_dir=args.report_dir, skip_vault=args.skip_vault, vault_check_ref=args.vault_check_ref)
     except (OSError, QuickstartError, subprocess.CalledProcessError) as exc:
         if isinstance(exc, subprocess.CalledProcessError):
             message = f"command failed with exit code {exc.returncode}: {display_command(exc.cmd)}"

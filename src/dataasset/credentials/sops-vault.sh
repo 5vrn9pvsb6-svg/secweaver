@@ -16,7 +16,9 @@ AGE_DIR="$ROOT/.age"
 AGE_KEY="$AGE_DIR/key.txt"
 SOPS_CONFIG="$ROOT/.sops.yaml"
 
-die() { echo "error: $*" >&2; exit 1; }
+# printf preserves shell-escaped command hints; macOS echo may interpret their
+# backslashes and corrupt multibyte paths before the UI decodes UTF-8 errors.
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 info() { echo "→ $*"; }
 
 resolve_tool() {
@@ -55,16 +57,6 @@ resolve_tool() {
   return 1
 }
 
-need_cmd() {
-  local env_name="${1^^}_BIN"
-  case "$1" in
-    sops) env_name="SOPS_BIN" ;;
-    age) env_name="AGE_BIN" ;;
-    age-keygen) env_name="AGE_KEYGEN_BIN" ;;
-  esac
-  resolve_tool "$1" >/dev/null || die "未找到 $1。已检查 PATH、Homebrew 和用户级目录；可设置 ${env_name}。安装: brew install sops age"
-}
-
 ref_to_rel() {
   local ref="$1"
   [[ "$ref" =~ ^vault://([^/]+)/(.+)$ ]] || die "无效 ref: $ref（格式 vault://name/path）"
@@ -92,37 +84,52 @@ export_sops_env() {
   fi
 }
 
-cmd_init() {
-  need_cmd sops
-  need_cmd age
-  need_cmd age-keygen
-
-  local age_keygen_bin
-  age_keygen_bin="$(resolve_tool age-keygen)"
-
-  mkdir -p "$AGE_DIR" "$SECRETS_DIR"
-  if [[ ! -f "$AGE_KEY" ]]; then
-    info "生成 age 私钥 → $AGE_KEY"
-    "$age_keygen_bin" -o "$AGE_KEY" >/dev/null
-    chmod 600 "$AGE_KEY"
+# Saving never initializes or rotates a Vault. A harmless native SOPS round-trip
+# checks the exact target rule and key availability without parsing YAML ourselves,
+# opening real credentials, or writing a probe into the Vault. External age keys,
+# GPG and KMS remain usable through the same SOPS environment as encryption.
+cmd_check() {
+  local ref="${1:-}"
+  [[ -n "$ref" ]] || die "用法: check <vault://namespace/name>"
+  local rel_override sops_bin init_hint python_bin reason="" probe encrypted
+  rel_override="secrets/$(ref_to_rel "$ref")"
+  if [[ ! -f "$SOPS_CONFIG" || ! -r "$SOPS_CONFIG" ]]; then
+    reason="Vault 未初始化或配置不可读：缺少可读取的 credentials/.sops.yaml。"
+  elif grep -Fq 'REPLACE_WITH_YOUR_AGE_PUBLIC_KEY' "$SOPS_CONFIG"; then
+    reason="Vault 未初始化：credentials/.sops.yaml 仍使用占位公钥。"
   fi
+  if [[ -n "$reason" ]]; then
+    # Bash 3's %q can corrupt UTF-8 paths on macOS. Use Python's standard shell
+    # quoting when available; fallback instructions require the same asset root.
+    init_hint="在仓库根目录、相同 DATAASSET_ROOT 下运行 bash src/dataasset/credentials/sops-vault.sh init"
+    python_bin="$(resolve_tool python3 || true)"
+    if [[ -n "$python_bin" ]]; then
+      init_hint="$("$python_bin" -c 'import shlex, sys; print("DATAASSET_ROOT=" + shlex.quote(sys.argv[1]) + " bash " + shlex.quote(sys.argv[2]) + " init")' "$DATAASSET_ROOT" "$REPO_ROOT/src/dataasset/credentials/sops-vault.sh")"
+    fi
+    die "${reason}仅对空 Vault 执行：${init_hint}；已有密文时请恢复原策略和私钥，不要重新初始化。"
+  fi
+  sops_bin="$(resolve_tool sops)" || die "Vault 检查失败：未找到可执行的 SOPS。安装 sops，或为 UI 设置 SOPS_BIN=/absolute/path/to/sops；检查后再保存。"
+  export_sops_env
+  probe='{"access_key_secret":"secweaver-vault-preflight","password":"secweaver-vault-preflight","token":"secweaver-vault-preflight"}'
+  # Keep diagnostic output generic: malformed policies may contain sensitive text.
+  # SOPS remains the authority for YAML, rule selection and cryptographic validity.
+  if ! encrypted="$(printf '%s' "$probe" | "$sops_bin" --config "$SOPS_CONFIG" --encrypt \
+      --filename-override "$rel_override" --input-type json --output-type json /dev/stdin 2>/dev/null)"; then
+    die "Vault 策略不可用：SOPS 无法对当前凭证路径加密。请检查 credentials/.sops.yaml 的 creation_rules、公钥/接收者和密钥服务权限；不会自动修改策略。"
+  fi
+  if ! printf '%s' "$encrypted" | "$sops_bin" --decrypt --input-type json --output-type json /dev/stdin >/dev/null 2>&1; then
+    die "Vault 密钥不可用：探针已加密但无法解密。请恢复与策略匹配的 credentials/.age/key.txt，或检查 SOPS_AGE_KEY_FILE、外部密钥和密钥服务权限；不要重新生成密钥或覆盖已有策略。"
+  fi
+  info "Vault 检查通过：策略和密钥可用，未修改任何凭证"
+}
 
-  local pubkey
-  pubkey="$(grep '^# public key:' "$AGE_KEY" | cut -d: -f2- | xargs)"
-  [[ -n "$pubkey" ]] || die "无法从 $AGE_KEY 读取公钥"
-
-  cat > "$SOPS_CONFIG" <<EOF
-creation_rules:
-  - path_regex: secrets/.*\\.enc\\.yaml\$
-    encrypted_regex: '^(access_key_secret|secret_access_key|password|private_key|token|access_token|api_key|api_secret|security_token|session_token|client_secret|secret_key|key_value|app_key|keytab)\$'
-    age: ${pubkey}
-EOF
-  info "已写入 $SOPS_CONFIG"
-  info "私钥仅保存在本机 $AGE_KEY，勿提交 Git"
-  echo
-  echo "下一步:"
-  echo "  src/dataasset/credentials/sops-vault.sh bootstrap   # 从 examples 生成全部加密文件"
-  echo "  src/dataasset/credentials/sops-vault.sh edit vault://sls/security-readonly"
+cmd_init() {
+  # Share quickstart's locked, idempotent initializer rather than overwriting a
+  # policy on every run. Python owns atomic publication and bounded crypto checks;
+  # the shell facade also works with macOS's bundled Bash 3.2.
+  local python_bin
+  python_bin="$(resolve_tool python3)" || die "Vault 初始化需要 Python 3.10+；请先运行 make setup"
+  "$python_bin" "$REPO_ROOT/src/dataasset/credentials/init_vault.py" "$@"
 }
 
 cmd_bootstrap() {
@@ -222,7 +229,8 @@ usage() {
 本地 SOPS Vault — 对应 connectors 中的 credentials_ref
 
 命令:
-  init                          生成 age 密钥与 .sops.yaml
+  init [--check-ref vault://...] 安全初始化空 Vault；已有策略/密钥只检查、不覆盖
+  check  vault://sls/security-readonly   只读检查策略和密钥，不初始化或修改凭证
   bootstrap                     从 examples/ 加密生成全部 secrets/*.enc.yaml
   edit   vault://sls/security-readonly   编辑（不存在则从 example 创建）
   get    vault://sls/security-readonly   查看（默认脱敏）
@@ -241,7 +249,8 @@ main() {
   local cmd="${1:-}"
   shift || true
   case "$cmd" in
-    init) cmd_init ;;
+    init) cmd_init "$@" ;;
+    check) cmd_check "$@" ;;
     bootstrap) cmd_bootstrap ;;
     encrypt) cmd_encrypt "$@" ;;
     edit) cmd_edit "$@" ;;

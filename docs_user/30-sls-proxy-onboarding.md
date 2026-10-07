@@ -88,22 +88,26 @@ See the [quickstart](00-security-operator-quickstart.md) for installation and en
 limits. Run from the repository root:
 
 ```bash
+export DATAASSET_ROOT=dataasset
 make quickstart
 source .venv/bin/activate
-export DATAASSET_ROOT=dataasset
 ```
 
 WSL2 can run the Python query client and SLS Proxy workflow, but it does not provide
 Windows Event Log, Security 4688, Sysmon, or Windows service collection. Install the
 Windows Agent on the native Windows host when those Windows sources are required.
 
-Edit `dataasset/` directly by default. To isolate local configuration from the repository examples, optionally run the following before saving configuration or credentials:
+Edit `dataasset/` directly by default. For isolation, use these alternative steps
+**before quickstart**, copying a fresh public registry without local private keys
+or real credentials:
 
 ```bash
 if [ ! -e dataasset_my ]; then
   cp -R dataasset dataasset_my
 fi
 export DATAASSET_ROOT=dataasset_my
+make quickstart
+source .venv/bin/activate
 ```
 
 Preserve an existing `dataasset_my/`. When using isolation, replace configuration paths beginning with `dataasset/` below with `dataasset_my/`; do not replace the program directory `src/dataasset/`.
@@ -121,18 +125,34 @@ Both options use the same `DATAASSET_ROOT`, local SOPS Vault and credential refe
 `vault://sls/sls-proxy-query`. The Connector does not change with the saving method.
 This UI runs locally at `http://127.0.0.1:8765/`; it is not the cloud enterprise
 workspace where you obtain the Proxy AK/SK.
+The ID's `sls` is a Vault group; `aliyun_ram` is the YAML credential type. They need
+not match. Do not rename an existing ID to `vault://aliyun_ram/sls-proxy-query`,
+which would leave the Connector's original reference unresolved. Community 0.3.22
+fixes the UI's incorrect equality check and initial input-to-YAML synchronization;
+refresh the credential page after upgrading, then enter and save the AK/SK again.
 
 **Shared prerequisites:** Prepare the environment and set `DATAASSET_ROOT` as in §2.
-Both options require **Bash 4+**, `sops`, `age`, and `age-keygen`; UI saves also invoke
-the local script. macOS's default Bash 3.2 does not meet the requirement; add an
-installed newer Bash to PATH. See the [credential guide](../dataasset/credentials/README.md).
+Both options require **Bash 3.2+**, `sops`, and `age-keygen` from age; UI saves also
+invoke the local script. macOS's bundled Bash is supported. See the
+[credential guide](../dataasset/credentials/README.md).
 
-Run this command only when the selected local Vault is uninitialized. Preserve existing
-keys and configuration; do not initialize it again:
+Community 0.3.24+ default quickstart initializes/verifies the selected Vault,
+preserving existing keys and policies. No extra init is needed after success.
+If using an older quickstart, `make setup`, or `SKIP_VAULT=1`, run the safe idempotent
+alternative below. Missing original trust material with existing ciphertext must
+be restored, not regenerated:
 
 ```bash
 bash src/dataasset/credentials/sops-vault.sh init
 ```
+
+Starting with Community 0.3.23, UI saves first check policy/key encryption and
+decryption without modifying the Vault. An uninitialized Vault shows an init
+command; unavailable keys in an existing Vault prompt recovery of the matching
+key, never automatic initialization or replacement. A failed check or 30-second
+timeout writes no credential files and preserves form input; resolve the problem
+and save again. Manual verification:
+`bash src/dataasset/credentials/sops-vault.sh check vault://sls/sls-proxy-query`.
 
 ### 3.1 Option 1: Local DataAsset UI
 

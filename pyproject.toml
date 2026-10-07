@@ -1,6 +1,6 @@
 [project]
 name = "secweaver"
-version = "0.3.21"
+version = "0.3.24"
 description = "Open-source AI-native security operations framework with DataAsset registry, deterministic Skills, and offline investigation demos."
 readme = "README.md"
 requires-python = ">=3.10"

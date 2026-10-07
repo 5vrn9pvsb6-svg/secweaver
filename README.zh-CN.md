@@ -114,6 +114,13 @@ Codex、Cursor、Claude Code、OpenClaw、WorkBuddy 的本地适配器。适配�
 这里的“四个 demo”是初始化时运行的脚本样例；下方 27 个离线评估案例是供智能体运行的调查任务。
 完整开发与发布门禁仍以 Ubuntu 为基线。客户端环境要求不等同于 Agent 的采集平台支持。
 
+Community 0.3.24 起，默认 quickstart 在下载 Python 依赖前初始化所选 `DATAASSET_ROOT`
+下的 Vault（默认 `dataasset`）。须先安装 SOPS 和 age：已有 Homebrew 的 macOS 执行
+`brew install sops age`，Linux/WSL2 按本机软件包管理流程安装。首次仅创建权限为 `600`
+的本机 age 密钥和 SOPS 策略，不生成占位凭证；已有密钥和策略只检查、不覆盖。
+异常状态会停止并提示恢复。请在运行前选择资产目录；仅体验零凭证离线 demo 时可用
+`make quickstart SKIP_VAULT=1` 显式跳过。详见 [Vault 初始化与备份](dataasset/credentials/README.zh-CN.md)。
+
 ### 二：离线案例
 完成后，在智能体中打开当前仓库，输入：
 
@@ -200,7 +207,7 @@ Connector 能力目录包含 22 个内置类型、8 个配置型外部类型和 
 
 | 命令 | 用途 |
 |---|---|
-| `make quickstart` | 初始化环境、离线 demo 和 智能体适配器 |
+| `make quickstart` | 初始化本机 Vault、环境、离线 demo 和智能体适配器 |
 | `make ai-showcase` | 运行全部离线评估案例 |
 | `make ui` | 浏览公开样例配置；真实接入前按指南指定 `DATAASSET_ROOT` |
 | `make validate` | 校验 DataAsset 配置 |

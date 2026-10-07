@@ -323,12 +323,13 @@ Template selection rules: [query-templates/README.md](query-templates/README.md)
 | Platform runtime decrypts from local Vault and injects | Writing secrets into AI chats or Skill files |
 
 First choose a root using [source configuration](../docs_user/03-configure-data-sources.md): use `export DATAASSET_ROOT=dataasset` by default, or `export DATAASSET_ROOT=dataasset_my` for isolation. Keep UI, CLI, and AI agent consistent.
-Prefer the local UI for credential initialization/editing. The command-line alternative
-requires Bash 4+, SOPS, and age:
+Run `make quickstart` after selecting the root to safely initialize/check its Vault;
+use the local UI for credential editing. Python 3.10+, Bash 3.2+, SOPS, and age are
+required. If quickstart was skipped, the command-line alternative is:
 
 ```bash
 source .venv/bin/activate
-# Only initialize a new local Vault; preserve existing keys and policy.
+# Idempotent: existing keys and policy are checked, not replaced.
 bash src/dataasset/credentials/sops-vault.sh init
 bash src/dataasset/credentials/sops-vault.sh edit vault://sls/security-readonly
 ```

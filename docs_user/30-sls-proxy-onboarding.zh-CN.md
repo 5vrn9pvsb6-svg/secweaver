@@ -80,22 +80,25 @@ dry-run 本身不能验证证书或凭证是否可用。
 [快速上手](00-security-operator-quickstart.zh-CN.md)。从仓库根目录执行：
 
 ```bash
+export DATAASSET_ROOT=dataasset
 make quickstart
 source .venv/bin/activate
-export DATAASSET_ROOT=dataasset
 ```
 
 WSL2 可以运行 Python 查询客户端和 SLS Proxy 流程，但不会提供 Windows Event Log、
 Security 4688、Sysmon 或 Windows 服务采集。需要这些 Windows 数据时，应在原生 Windows
 主机上安装 Windows Agent。
 
-默认直接编辑 `dataasset/`。如需把本地配置与仓库样例隔离，可在写入配置和凭证前选择以下可选步骤：
+默认直接编辑 `dataasset/`。需要隔离时，以下步骤替代默认流程，应在 quickstart **之前**
+执行，复制全新的公开资产样例，不复制包含本机私钥或真实凭证的目录：
 
 ```bash
 if [ ! -e dataasset_my ]; then
   cp -R dataasset dataasset_my
 fi
 export DATAASSET_ROOT=dataasset_my
+make quickstart
+source .venv/bin/activate
 ```
 
 已有 `dataasset_my/` 保留原样。选择隔离目录后，后文配置路径中的 `dataasset/` 均替换为 `dataasset_my/`；`src/dataasset/` 是程序目录，不替换。
@@ -112,18 +115,29 @@ CLI、UI 和智能体必须使用同一资产根目录；新终端重新设置�
 两种方式使用相同的 `DATAASSET_ROOT`、本地 SOPS Vault 和凭证引用
 `vault://sls/sls-proxy-query`；Connector 不需要因保存方式不同而修改。
 这里的 UI 是本机 `http://127.0.0.1:8765/`，不是用于获取 Proxy AK/SK 的云端企业工作台。
+凭证 ID 中的 `sls` 是 Vault 分组，`aliyun_ram` 是 YAML 凭证类型，二者无需相同。
+不要把已有 ID 改为 `vault://aliyun_ram/sls-proxy-query`，否则 Connector 的原引用无法找到它。
+Community 0.3.22 修复了 UI 错误要求二者相同的校验，以及首次打开表单后输入未同步到 YAML 的问题；
+升级后刷新凭证页面，重新填写 AK/SK 再保存。
 
 **共同前置条件：** 按第 2 节准备环境并设置 `DATAASSET_ROOT`。
-两种方式均需要 **Bash 4+**、`sops`、`age`、`age-keygen`；UI 保存时也调用本地脚本。
-macOS 默认 Bash 3.2 不满足要求，应将已安装的新版 Bash 加入 PATH；依赖详见
+两种方式均需要 **Bash 3.2+**、`sops` 和 age 提供的 `age-keygen`；UI 保存时也调用本地脚本。
+支持 macOS 自带 Bash；依赖详见
 [凭证指南](../dataasset/credentials/README.zh-CN.md)。
 
-仅在所选本地 Vault 尚未初始化时执行以下命令；已有 Vault 保留其密钥和配置，
-不要重复初始化：
+Community 0.3.24+ 默认 quickstart 会初始化/检查所选 Vault，保留已有密钥和策略，成功后
+无需单独初始化。使用旧版 quickstart、`make setup` 或 `SKIP_VAULT=1` 时，可用以下安全
+幂等入口。已有密文却丢失原策略或私钥时，必须恢复，不重新生成：
 
 ```bash
 bash src/dataasset/credentials/sops-vault.sh init
 ```
+
+Community 0.3.23 起，UI 保存会先只读检查 Vault 策略及密钥能否加密、解密。
+尚未初始化时明确显示初始化命令；已有 Vault 密钥不可用时提示恢复匹配密钥，
+不会自动初始化或覆盖。检查失败或超过 30 秒时不写入凭证文件，并保留表单输入；
+处理提示的问题后可直接再次保存。手动核验命令：
+`bash src/dataasset/credentials/sops-vault.sh check vault://sls/sls-proxy-query`。
 
 ### 3.1 方式一：使用本地 DataAsset UI
 

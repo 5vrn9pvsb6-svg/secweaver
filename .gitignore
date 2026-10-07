@@ -105,6 +105,10 @@ id_ed25519
 !*.env.sample
 !*.env.template
 
+dataasset/credentials/.sops.yaml
+dataasset/credentials/.age/
+dataasset/credentials/secrets/
+
 # OS/editor metadata and temporary exports.
 .DS_Store
 ._*

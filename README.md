@@ -104,6 +104,10 @@ Keep the checkout under the WSL filesystem, such as `~/src/secweaver-community`,
 rather than `/mnt/c/...` when possible. From the repository root in WSL2, Linux, or
 macOS, run:
 
+Default quickstart also initializes the local Vault. Install SOPS and age first
+(macOS with Homebrew: `brew install sops age`; Linux/WSL2: your approved package source).
+For credential-free demos only, use `make quickstart SKIP_VAULT=1` instead.
+
 ```bash
 python3 --version
 make --version
@@ -127,6 +131,12 @@ Python 3.10. Direct invocation on native Windows exits with WSL2 installation gu
 The four demos are initialization-time script samples; the offline assessment cases below
 are investigation tasks for the agent. Full contributor and release gates remain based on Ubuntu.
 Client requirements differ from Agent collection support.
+
+Starting with Community 0.3.24, quickstart initializes the Vault under the selected
+`DATAASSET_ROOT` (default `dataasset`) before package downloads. It creates a mode-600
+local age key and SOPS policy, not placeholder credentials; existing policies/keys
+are verified and preserved. Invalid state stops setup with recovery guidance.
+Select the asset root before running; see [Vault setup and backup](dataasset/credentials/README.md).
 
 ### 2. Offline cases
 
@@ -233,7 +243,7 @@ SSH access is limited to registered hosts and constrained templates; never put a
 
 | Command | Purpose |
 |---|---|
-| `make quickstart` | Set up dependencies, offline demos, and agent adapters |
+| `make quickstart` | Initialize the local Vault, dependencies, offline demos, and agent adapters |
 | `make ai-showcase` | Run all offline assessment cases |
 | `make ui` | Browse public sample configuration; select `DATAASSET_ROOT` per the guide before real onboarding |
 | `make validate` | Validate DataAsset configuration |
