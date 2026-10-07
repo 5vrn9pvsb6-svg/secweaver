@@ -104,29 +104,61 @@ CLI、UI 和智能体必须使用同一资产根目录；新终端重新设置�
 
 ## 3. 保存查询凭证
 
-推荐启动 UI，在“凭证”页面创建 `vault://sls/sls-proxy-query`，
-选择 `aliyun_ram`，填写平台签发的 Proxy AK/SK。UI 和脚本均需要本地 SOPS/age。
+保存查询凭证有两种方式，**选择其中一种即可，不需要重复录入**：
+
+- **方式一：使用本地 DataAsset UI（推荐）**，在浏览器表单中填写并保存。
+- **方式二：使用 `sops-vault.sh` 命令**，在本地编辑器中填写并加密保存。
+
+两种方式使用相同的 `DATAASSET_ROOT`、本地 SOPS Vault 和凭证引用
+`vault://sls/sls-proxy-query`；Connector 不需要因保存方式不同而修改。
+这里的 UI 是本机 `http://127.0.0.1:8765/`，不是用于获取 Proxy AK/SK 的云端企业工作台。
+
+**共同前置条件：** 按第 2 节准备环境并设置 `DATAASSET_ROOT`。
+两种方式均需要 **Bash 4+**、`sops`、`age`、`age-keygen`；UI 保存时也调用本地脚本。
+macOS 默认 Bash 3.2 不满足要求，应将已安装的新版 Bash 加入 PATH；依赖详见
+[凭证指南](../dataasset/credentials/README.zh-CN.md)。
+
+仅在所选本地 Vault 尚未初始化时执行以下命令；已有 Vault 保留其密钥和配置，
+不要重复初始化：
+
+```bash
+bash src/dataasset/credentials/sops-vault.sh init
+```
+
+### 3.1 方式一：使用本地 DataAsset UI
+
+在已设置环境的仓库根目录启动 UI：
 
 ```bash
 make ui
 ```
 
-浏览器打开 `http://127.0.0.1:8765/`。先完成凭证环境初始化，再创建凭证。
-UI 在独立终端运行，或按 Ctrl+C 停止后执行 CLI 步骤；新终端需要重新执行
-所选 `DATAASSET_ROOT` 和 `source .venv/bin/activate`。
-也可以在具备 **Bash 4+**、`sops`、`age`、`age-keygen` 的终端执行下列流程。
-macOS 默认 Bash 3.2 不满足脚本要求，应选择已安装的新版 Bash；依赖详见
-[凭证指南](../dataasset/credentials/README.zh-CN.md)。
+浏览器打开 `http://127.0.0.1:8765/credentials.html`，进入“凭证”页面，
+选择已有的 `vault://sls/sls-proxy-query` 模板并编辑，或新建凭证。
+先选择凭证类型，再核对凭证 ID，并填写：
 
-仅在该本地 Vault 尚未初始化时执行第一条；已有 Vault 保留其密钥和配置：
+| 字段 | 填写内容 |
+|---|---|
+| 凭证类型 | `aliyun_ram` |
+| 凭证 ID | `vault://sls/sls-proxy-query` |
+| `access_key_id` | 平台签发的 Proxy AK |
+| `access_key_secret` | 平台签发的 Proxy SK |
+
+点击“保存”，确认保存成功；UI 会调用 SOPS 生成正式加密凭证，
+仅填写表单但未保存不算完成。随后直接进入第 4 节，无需再执行方式二的 `edit`。
+保持 UI 在独立终端运行；新终端需要重新执行所选 `DATAASSET_ROOT` 和
+`source .venv/bin/activate`。
+
+### 3.2 方式二：使用 sops-vault.sh 命令
+
+不使用 UI 时，在已设置环境的仓库根目录执行：
 
 ```bash
-bash src/dataasset/credentials/sops-vault.sh init
 bash src/dataasset/credentials/sops-vault.sh edit vault://sls/sls-proxy-query
-bash src/dataasset/credentials/sops-vault.sh get vault://sls/sls-proxy-query
 ```
 
-编辑器中的类型和字段如下，保存后自动加密。最后一条只显示脱敏结果：
+在打开的本地编辑器中填写以下字段，将占位值替换为平台签发的 Proxy AK/SK，
+保存并退出后由 SOPS 加密：
 
 ```yaml
 type: aliyun_ram
@@ -134,6 +166,15 @@ access_key_id: "SWAK_REPLACE_ME"
 access_key_secret: "REPLACE_ME"
 ```
 
+确认命令成功，再查看默认脱敏结果：
+
+```bash
+bash src/dataasset/credentials/sops-vault.sh get vault://sls/sls-proxy-query
+```
+
+随后进入第 4 节，无需再到 UI 重复保存。
+两种方式都将凭证保存为所选资产根下的
+`credentials/secrets/sls/sls-proxy-query.enc.yaml`。
 不要把真实密钥输入 AI 对话、命令行参数或 Connector JSON；不要提交私钥或密文。
 不需要执行全量 `bootstrap`，`edit` 会从公开占位模板初始化这一份凭证。
 

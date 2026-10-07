@@ -190,7 +190,7 @@ For quick onboarding and access to your data, use **SecWeaver SaaS SLS**:
 1. [Register an account](https://sc.id-net.cn:30443/).
 2. If host collection is needed, obtain the one-command installer from [enterprise workspace → secweaver-agent](https://sc.id-net.cn:30443/#/downloads). Use the complete command issued for your enterprise.
 3. Open [enterprise workspace → Agent configuration](https://sc.id-net.cn:30443/#/agent) to obtain your query AK and SK, and store them in the local encrypted Vault.
-4. Configure a `sls_proxy` connector in DataAsset for the Project/Logstore you are authorized to query. See [SLS Proxy onboarding](docs_user/30-sls-proxy-onboarding.md).
+4. Configure a `sls_proxy` connector in DataAsset for the Project/Logstore you are authorized to query. See “3. Save the Query Credential” in [SLS Proxy onboarding](docs_user/30-sls-proxy-onboarding.md).
 
 On the **secweaver-agent** page, select the enterprise and target platform under one-command installation. Bootstrap determines the installed version and CPU architecture. Keep the enterprise enrollment token private. Query AK/SK read logs; enrollment tokens register collectors and are not interchangeable. If logs already exist, start at step 3.
 

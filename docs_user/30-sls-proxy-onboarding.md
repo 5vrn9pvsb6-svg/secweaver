@@ -112,29 +112,62 @@ For either directory, Connector JSON stores credential references only. Do not c
 
 ## 3. Save the Query Credential
 
-Start the UI and use **Credentials** to create `vault://sls/sls-proxy-query` with type
-`aliyun_ram` and the platform-issued Proxy AK/SK. Both UI and CLI require local SOPS/age.
+There are two ways to save the query credential. **Choose one; do not enter it twice**:
+
+- **Option 1: Local DataAsset UI (recommended)**, using a browser form.
+- **Option 2: `sops-vault.sh` commands**, using a local editor and encrypted save.
+
+Both options use the same `DATAASSET_ROOT`, local SOPS Vault and credential reference
+`vault://sls/sls-proxy-query`. The Connector does not change with the saving method.
+This UI runs locally at `http://127.0.0.1:8765/`; it is not the cloud enterprise
+workspace where you obtain the Proxy AK/SK.
+
+**Shared prerequisites:** Prepare the environment and set `DATAASSET_ROOT` as in §2.
+Both options require **Bash 4+**, `sops`, `age`, and `age-keygen`; UI saves also invoke
+the local script. macOS's default Bash 3.2 does not meet the requirement; add an
+installed newer Bash to PATH. See the [credential guide](../dataasset/credentials/README.md).
+
+Run this command only when the selected local Vault is uninitialized. Preserve existing
+keys and configuration; do not initialize it again:
+
+```bash
+bash src/dataasset/credentials/sops-vault.sh init
+```
+
+### 3.1 Option 1: Local DataAsset UI
+
+Start the UI from the repository root with the environment already set:
 
 ```bash
 make ui
 ```
 
-Open `http://127.0.0.1:8765/`, initialize the credential environment, and create the credential.
-Keep the UI running in a separate terminal, or stop it with Ctrl+C before the CLI steps.
-In a new terminal, repeat the selected `DATAASSET_ROOT` and `source .venv/bin/activate`.
-Alternatively, use **Bash 4+**, `sops`, `age`, and `age-keygen` for the commands below.
-macOS's default Bash 3.2 does not satisfy the script's requirement; select an installed newer
-Bash. See the [credential guide](../dataasset/credentials/README.md) for dependencies.
+Open `http://127.0.0.1:8765/credentials.html`, select and edit the existing
+`vault://sls/sls-proxy-query` template, or create a credential. Select the credential
+type first, then check the credential ID and fill in:
 
-Run the first command only for an uninitialized local Vault; preserve existing keys/configuration:
+| Field | Value |
+|---|---|
+| Credential type | `aliyun_ram` |
+| Credential ID | `vault://sls/sls-proxy-query` |
+| `access_key_id` | Platform-issued Proxy AK |
+| `access_key_secret` | Platform-issued Proxy SK |
+
+Click **Save** and confirm success. The UI invokes SOPS to create the encrypted
+credential; filling in the form without saving is not enough. Continue directly to §4;
+you do not need Option 2's `edit` command. Keep the UI in a separate terminal. In a new
+terminal, repeat the selected `DATAASSET_ROOT` and `source .venv/bin/activate`.
+
+### 3.2 Option 2: sops-vault.sh Commands
+
+Without the UI, run this from the repository root with the environment already set:
 
 ```bash
-bash src/dataasset/credentials/sops-vault.sh init
 bash src/dataasset/credentials/sops-vault.sh edit vault://sls/sls-proxy-query
-bash src/dataasset/credentials/sops-vault.sh get vault://sls/sls-proxy-query
 ```
 
-The editor uses the fields below and encrypts on save. The last command prints masked values:
+In the local editor, enter the fields below and replace the placeholders with the
+platform-issued Proxy AK/SK. Save and exit to encrypt with SOPS:
 
 ```yaml
 type: aliyun_ram
@@ -142,6 +175,14 @@ access_key_id: "SWAK_REPLACE_ME"
 access_key_secret: "REPLACE_ME"
 ```
 
+Confirm successful completion, then inspect the default masked output:
+
+```bash
+bash src/dataasset/credentials/sops-vault.sh get vault://sls/sls-proxy-query
+```
+
+Continue to §4 without saving again in the UI. Both options save the credential to
+`credentials/secrets/sls/sls-proxy-query.enc.yaml` under the selected asset root.
 Never put real keys into AI prompts, CLI arguments, or Connector JSON. Do not commit private
 keys or ciphertext. No full `bootstrap` is required; `edit` creates this credential from
 its public placeholder template.

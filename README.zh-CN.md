@@ -165,7 +165,7 @@ make reports           # 生成四类 demo 的 JSON 与脚本版 Markdown 报告
 1. 在[企业工作台](https://sc.id-net.cn:30443/)注册并登录。
 2. 需要采集主机日志时，进入[企业工作台 → secweaver-agent](https://sc.id-net.cn:30443/#/downloads)，在“一键安装”中选择企业和目标平台，复制安装命令。安装版本和 CPU 架构由 Bootstrap 安装器决定；命令包含企业安装令牌，不要公开分享。
 3. 进入[企业工作台 → 智能体配置](https://sc.id-net.cn:30443/#/agent)，取得查询 AK/SK，并保存到本地加密凭证库。
-4. 在 DataAsset 中配置 `sls_proxy` Connector，登记获授权的 Project/Logstore。详见 [SLS Proxy 用户接入](docs_user/30-sls-proxy-onboarding.zh-CN.md)。
+4. 在 DataAsset 中配置 `sls_proxy` Connector，登记获授权的 Project/Logstore。详见 [SLS Proxy 用户接入](docs_user/30-sls-proxy-onboarding.zh-CN.md) 的“3. 保存查询凭证”。
 
 查询凭证用于读取日志，企业安装令牌用于注册采集端，两者不能互换。已有日志可直接从第 3 步开始。
 
