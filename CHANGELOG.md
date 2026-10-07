@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.25] - 2026-10-07
+
+- Stop tracking the local Vault policy; ship only `.sops.yaml.example` and remove
+  the nested ignore exception that let initialization expose a local age recipient.
+  Preserve the current policy, private key and credentials in the local checkout.
+- Reject tracked/force-added runtime policies, age keys/locks/probes and encrypted
+  credentials by path, including custom asset roots; detect age private-key text
+  outside Vault paths. Require archive exclusions and inspect actual tar members
+  without stripping hidden directory names.
+- Add isolated native Git/archive and fresh-Vault initialization regressions;
+  synchronize bilingual migration, backup and release-verification guidance.
+- Bump Community/CLI to 0.3.25 and regenerate its SBOM; Agent remains 0.3.78.
+
 ## [0.3.24] - 2026-10-07
 
 - Initialize the selected local Vault by default in `make quickstart`, before

@@ -92,6 +92,48 @@ class TestReleaseScan(unittest.TestCase):
         self.assertEqual(len(issues), 1)
         self.assertEqual(issues[0].severity, "error")
 
+    def test_local_vault_paths_are_blocked_independently_of_contents(self) -> None:
+        """A forced add must fail even for a placeholder policy or empty key file."""
+        paths = [
+            "dataasset/credentials/.sops.yaml",
+            "selected-dataasset/credentials/.sops.yaml",
+            "dataasset/credentials/.age/key.txt",
+            "selected-dataasset/credentials/.age/init.lock",
+            ".age/key.txt",
+            "dataasset/credentials/.age/init-test/probe.yaml",
+            "selected-dataasset/credentials/secrets/sls/query.enc.yaml",
+        ]
+        issues = self.release_scan.check_private_paths(paths)
+        self.assertEqual({issue.path for issue in issues}, set(paths))
+        self.assertTrue(all(issue.severity == "error" for issue in issues))
+        public = [
+            "dataasset/credentials/.sops.yaml.example",
+            "selected-dataasset/credentials/examples/sls.yaml",
+        ]
+        self.assertEqual(self.release_scan.check_private_paths(public), [])
+
+    def test_vault_archive_exclusions_are_required(self) -> None:
+        """Keep archive defense mandatory even when no runtime files are tracked."""
+        attributes = (REPO_ROOT / ".gitattributes").read_text(encoding="utf-8")
+        self.assertEqual(self.release_scan.check_export_policy(), [])
+        for pattern in self.release_scan.LOCAL_VAULT_EXPORT_PATTERNS:
+            with self.subTest(pattern=pattern), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / ".gitattributes").write_text(
+                    attributes.replace(f"{pattern} export-ignore\n", ""), encoding="utf-8"
+                )
+                with patch.object(self.release_scan, "REPO_ROOT", root):
+                    issues = self.release_scan.check_export_policy()
+                self.assertEqual(len(issues), 1)
+                self.assertIn(pattern, issues[0].message)
+
+    def test_age_private_keys_are_detected_outside_vault_paths(self) -> None:
+        """Detect accidentally pasted key-shaped text without using real keys."""
+        value = "AGE-" + "SECRET-KEY-" + "A" * 58
+        with patch.object(self.release_scan, "read_text", return_value=value):
+            issues = self.release_scan.check_secret_patterns(["notes.txt"])
+        self.assertEqual(len(issues), 1)
+
     def test_required_legal_and_sbom_files_are_enforced(self) -> None:
         issues = self.release_scan.check_required_public_files(["LICENSE"])
         self.assertEqual(

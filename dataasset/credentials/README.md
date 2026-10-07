@@ -90,6 +90,11 @@ Existing keys are reused, never regenerated. Existing non-placeholder policies a
 preserved byte-for-byte and checked with native SOPS; external keys remain supported.
 Full `bootstrap` is unnecessary: it encrypts all placeholder templates, not usable sources.
 
+Community 0.3.25+ ships only `.sops.yaml.example`, not the runtime `.sops.yaml`.
+Quickstart creates the runtime policy locally; a fresh clone is expected to have
+no policy until initialization. Git and source archives exclude this policy,
+`.age/` (including locks/probes), and `secrets/`, also under custom asset roots.
+
 **Lifecycle and failure behavior:** `quickstart.py` and the Bash `init` facade call
 `src/dataasset/credentials/init_vault.py`. It serializes initializers with the
 persistent `.age/init.lock`, stages candidates privately, verifies synthetic
@@ -316,10 +321,30 @@ password: "xxxx"
 | Safe to commit | Never commit |
 |---|---|
 | `examples/` (placeholders only) | Any file under `secrets/` (including SOPS ciphertext) |
-| `.sops.yaml` (public key only) | `.age/key.txt` (private key) |
+| `.sops.yaml.example` (placeholders only) | Local `.sops.yaml` and all `.age/` files |
 | `credentials_ref` (in connector JSON) | Plaintext AccessKey / password |
 
-Follow the quickstart above: initialize only the local copy and edit the credentials you use. Do not generate ciphertext in the public directory.
+Follow the quickstart above: initialize the selected local Vault and edit the
+credentials you use. Runtime policy, keys and ciphertext may exist in your local
+`dataasset/` checkout, but must never enter public Git or source archives. The
+policy's age recipient is public, not a private key, but identifies a local
+environment; the release gate blocks the runtime path regardless of its contents.
+
+Ignore rules do not untrack existing files. If a runtime policy was already
+tracked, remove it from the index **without deleting the local file**:
+
+```bash
+git rm --cached -- dataasset/credentials/.sops.yaml
+git check-ignore dataasset/credentials/.sops.yaml
+make release-scan
+```
+
+Use the corresponding path for a custom asset root. Before pulling a version
+that removes a previously tracked policy, securely back up the original policy
+and matching key, then restore the original policy if Git removes it. Never copy
+the placeholder over an initialized policy or generate a replacement key for
+existing ciphertext. Missing policy with ciphertext deliberately blocks setup;
+restore the original material and rerun `sops-vault.sh check` for your ref.
 
 To share ciphertext across a team: distribute the age private key or encrypted `secrets/` package through a secure channel. **Do not** commit to a public Git repo.
 

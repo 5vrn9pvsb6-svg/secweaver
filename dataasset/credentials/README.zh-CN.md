@@ -80,6 +80,11 @@ bash src/dataasset/credentials/sops-vault.sh init
 仅通过原生 SOPS 验证，外部密钥仍受支持。
 不必执行全量 `bootstrap`；它会加密整套占位模板，并不代表这些数据源已接入。
 
+Community 0.3.25+ 仅分发 `.sops.yaml.example`，不分发运行时 `.sops.yaml`。
+全新克隆在初始化前没有运行时策略属于正常情况，quickstart 会在本地生成。
+Git 和源码归档均排除该策略、`.age/`（包括锁和探针）及 `secrets/`，
+自定义资产根目录也遵守相同边界。
+
 **生命周期与失败处理：** `quickstart.py` 和 Bash `init` 入口共用
 `src/dataasset/credentials/init_vault.py`。持久的 `.age/init.lock` 锁串行化初始化操作，
 候选文件在私有临时目录中生成，合成探针加密/解密成功后先刷盘并原子发布密钥，再发布策略。
@@ -294,10 +299,26 @@ password: "xxxx"
 | 可提交 | 禁止提交 |
 |---|---|
 | `examples/`（仅占位符） | `secrets/` 下任何文件（含 SOPS 密文） |
-| `.sops.yaml`（仅公钥） | `.age/key.txt`（私钥） |
+| `.sops.yaml.example`（仅占位符） | 本机 `.sops.yaml` 和 `.age/` 下所有文件 |
 | `credentials_ref`（connector JSON） | AccessKey / 密码明文 |
 
-按上方快速开始，仅在本地副本初始化 Vault，再编辑实际使用的凭证；不要在公开目录生成密文。
+按上方快速开始，在所选本机 Vault 中初始化并编辑实际凭证。运行时策略、密钥和
+密文可以保存在本机 `dataasset/` 工作副本，但不得进入公开 Git 或源码归档。
+策略里的 age recipient 是公钥，不是私钥，但属于本机环境标识；发布门禁按路径
+阻止运行时文件进入发行内容，不依赖文件是否含真实密钥。
+
+忽略规则不会取消已有文件的跟踪。已经跟踪的运行时策略应**仅从索引移除，保留本机文件**：
+
+```bash
+git rm --cached -- dataasset/credentials/.sops.yaml
+git check-ignore dataasset/credentials/.sops.yaml
+make release-scan
+```
+
+自定义资产根使用相应路径。在拉取取消策略跟踪的新版本之前，先安全备份原策略与
+匹配私钥；若 Git 更新删除了原来跟踪的策略，恢复原策略。不要用占位模板覆盖已初始化
+策略，也不要为已有密文生成替代密钥。已有密文却缺少策略时程序会主动阻止初始化，
+应恢复原材料并针对实际 ref 再运行 `sops-vault.sh check`。
 
 团队共享密文时：通过安全渠道分发 age 私钥或加密后的 `secrets/` 包，**不要**提交到公开 Git。
 

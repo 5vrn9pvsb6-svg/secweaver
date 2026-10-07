@@ -31,12 +31,17 @@ make test
 
 ## Regression suites
 
+- `tests/test_release_scan.py` and `tests/test_vault_release_boundary.py` reject
+  runtime Vault paths and copied age private-key text; isolated native Git fixtures
+  cover nested ignore precedence, force-add rejection and actual archive exclusion
+  while retaining public templates. They never access the live Vault or Git index.
 - `tests/test_quickstart.py` checks default Vault-before-download ordering, explicit
   offline opt-out, Make option forwarding, and failure-before-completion behavior.
 - `tests/test_vault_init.py` checks dependency/placeholder guards and, with native
   SOPS/age-keygen available, disposable first/repeat initialization, mode 600,
   existing ciphertext and key preservation, restricted/external policies,
-  interrupted-publication recovery, lock contention, and the Bash 3.2 facade.
+  interrupted-publication recovery, lock contention, the Bash 3.2 facade,
+  and fresh checkouts containing only the public policy example.
 - `tests/test_dataasset_ui_vault.py` checks save-before-write rejection, actionable
   errors, and timeout behavior. With SOPS and age-keygen on PATH or in documented
   Homebrew directories, it also runs isolated native crypto tests for valid,

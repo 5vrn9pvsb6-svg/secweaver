@@ -28,6 +28,15 @@ directory so timestamps and local paths do not dirty tracked examples. Published
 reports use repository-relative paths; the release scanner rejects user home paths in them.
 Runtime investigation reports may still contain absolute paths: review them before sharing.
 
+Vault initialization must not dirty public source: only the placeholder
+`dataasset/credentials/.sops.yaml.example` is tracked. Runtime `.sops.yaml`, `.age/`
+and `secrets/` remain local, including custom asset roots. The scanner rejects
+forced adds by path and the exporter excludes and checks actual archive members.
+Before upgrading a checkout that previously tracked a local policy, back up its
+original policy and matching key; see [Vault migration](../dataasset/credentials/README.md#git-and-security-rules).
+Never bypass the gate by allowing real recipient fingerprints or restoring a
+placeholder over the live policy. Verify `make release-scan` after local quickstart.
+
 Release acceptance includes docs, SBOM, strict validation, tests, offline cases and Studio
 startup inside the public archive; dependency installation on a fresh machine; Agent service
 upgrade tests on target Linux/Windows systems; and read-only acceptance against target data

@@ -29,6 +29,14 @@
 /testdatasets/** export-ignore
 /dataasset/credentials/secrets/** export-ignore
 
+# Vault initialization is local runtime state, not public source. Keep only the
+# placeholder .sops.yaml.example; cover alternate DataAsset roots as well.
+**/credentials/.sops.yaml export-ignore
+**/.age/ export-ignore
+**/.age/** export-ignore
+**/credentials/secrets/ export-ignore
+**/credentials/secrets/** export-ignore
+
 **/.DS_Store export-ignore
 **/__pycache__/ export-ignore
 **/__pycache__/** export-ignore

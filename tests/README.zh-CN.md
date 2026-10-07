@@ -31,8 +31,9 @@ make test
 
 ## 主要回归套件
 
+- `tests/test_release_scan.py` 和 `tests/test_vault_release_boundary.py`：拒绝运行时 Vault 路径和误复制的 age 私钥文本；隔离的原生 Git 夹具覆盖嵌套忽略优先级、强制加入的拒绝、实际归档排除和公开模板保留，不访问真实 Vault 或工作区 Git 索引。
 - `tests/test_quickstart.py`：默认下载依赖前初始化 Vault、显式离线跳过、Make 参数传递，以及失败时不误报完成。
-- `tests/test_vault_init.py`：依赖与占位策略保护；原生 SOPS/age-keygen 可用时使用临时密钥验证首次/重复初始化、权限 600、已有密文与密钥保留、受限/外部策略、中断发布恢复、锁竞争和 Bash 3.2 入口。
+- `tests/test_vault_init.py`：依赖与占位策略保护；原生 SOPS/age-keygen 可用时使用临时密钥验证首次/重复初始化、权限 600、已有密文与密钥保留、受限/外部策略、中断发布恢复、锁竞争、Bash 3.2 入口和仅含策略示例的全新工作副本。
 - `tests/test_dataasset_ui_vault.py`：保存前拒绝写入、可操作错误和超时处理；PATH 或已记录的 Homebrew 目录有 SOPS、age-keygen 时，还执行隔离的原生加密测试，覆盖有效/缺失/不匹配/外部密钥、非法策略和 key groups。缺少加密工具时仅明确跳过对应集成用例。
 - `tests/test_dataasset_ui_credential_form.py`：执行真实 UI 保存与类型选择逻辑，覆盖分组与类型独立、首次打开表单后 AK/SK 到 YAML 的同步、非法引用校验，以及已有或用户输入凭证 ID 的保留。
 - `tests/test_public_onboarding_docs.py`：首次使用指南、案例路由、只读发现、SaaS/SLS/ES 查询预览、Attack Lab 中当前 Agent 日志路径、符合实际 Schema 的中英文 JSON 代码块、私有资产目录说明、客户端平台和输出限制，以及启用 TLS 校验的 Agent ES 模板。

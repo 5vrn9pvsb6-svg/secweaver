@@ -11,18 +11,24 @@ import tarfile
 import tempfile
 from pathlib import Path
 
-from release_scan import OPEN_SOURCE_EXCLUDED_PREFIXES, check_export_policy
+from release_scan import OPEN_SOURCE_EXCLUDED_PREFIXES, check_export_policy, is_local_vault_path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def archive_members(path: Path) -> list[str]:
+    """Normalize the optional ./ prefix without stripping hidden path components."""
     with tarfile.open(path, "r:gz") as archive:
-        return [member.name.lstrip("./") for member in archive.getmembers()]
+        return [member.name.removeprefix("./") for member in archive.getmembers()]
 
 
 def private_members(names: list[str]) -> list[str]:
-    return sorted(name for name in names if any(name.startswith(prefix) for prefix in OPEN_SOURCE_EXCLUDED_PREFIXES))
+    """Inspect actual tar members: attributes alone cannot prove Vault exclusion."""
+    return sorted(
+        name for name in names
+        if is_local_vault_path(name)
+        or any(name.startswith(prefix) for prefix in OPEN_SOURCE_EXCLUDED_PREFIXES)
+    )
 
 
 def worktree_changes() -> list[str]:

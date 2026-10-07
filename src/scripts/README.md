@@ -35,6 +35,14 @@ The release scan requires the latest `CHANGELOG.md` release, `pyproject.toml`,
 CLI `--version` output, and source SBOM root component to use the same Community
 version. The Agent keeps an independent version in `src/tools/secweaver-agent/VERSION`.
 
+Local `credentials/.sops.yaml`, `.age/`, and `credentials/secrets/` are runtime
+material, not public templates. The scanner rejects tracked/force-added paths
+even with placeholder contents, detects age private-key text outside Vault paths,
+and requires archive exclusions. The exporter also inspects actual tar members.
+Only `.sops.yaml.example` is shipped; Git ignores retain the local initialized
+policy. Existing tracked policies need an index-only migration: see
+[Vault Git rules](../../dataasset/credentials/README.md#git-and-security-rules).
+
 The Project `wis-log` and Logstore `gateway_plugin_log` are intentionally public
 onboarding identifiers and are allowed in documentation, tests, and public asset
 configuration. Resource names do not confer access; the Proxy still requires

@@ -10,7 +10,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -36,6 +36,16 @@ TRACKED_PRIVATE_PREFIXES = (
 )
 
 PRIVATE_PREFIXES = TRACKED_PRIVATE_PREFIXES
+
+# Git ignores cannot protect already tracked or force-added files. Require the
+# matching archive boundary too, including Vaults under a custom asset root.
+LOCAL_VAULT_EXPORT_PATTERNS = (
+    "**/credentials/.sops.yaml",
+    "**/.age/",
+    "**/.age/**",
+    "**/credentials/secrets/",
+    "**/credentials/secrets/**",
+)
 
 # Internal captures and unversioned historical verification notes are not public
 # release evidence. Keep their exclusion aligned with the archive attributes.
@@ -120,6 +130,8 @@ SECRET_PATTERNS = (
     re.compile(r"LTAI[0-9A-Za-z]{16,}"),
     re.compile(r"AKIA[0-9A-Z]{16}"),
     re.compile(r"-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----"),
+    # Split the prefix to avoid matching this policy or synthetic test fixtures.
+    re.compile("AGE-" + "SECRET-" + r"KEY-[0-9A-Z]{16,}"),
 )
 
 TEXT_SUFFIXES = {
@@ -218,6 +230,20 @@ def is_private_path(path: str) -> bool:
     )
 
 
+def is_local_vault_path(path: str) -> bool:
+    """Identify runtime Vault material by POSIX Git/archive path, not content.
+
+    A policy's recipient is public but environment-specific; even an empty or
+    placeholder runtime file is not a release template. Preserve the .age name
+    so keys, locks and interrupted initialization probes all remain local.
+    """
+    parts = PurePosixPath(path).parts
+    return ".age" in parts or any(
+        parent == "credentials" and child in {".sops.yaml", "secrets"}
+        for parent, child in zip(parts, parts[1:])
+    )
+
+
 def collect_candidate_paths(*, include_untracked: bool = True) -> list[str]:
     if has_git_worktree():
         paths = set(git_ls_files())
@@ -232,7 +258,9 @@ def collect_candidate_paths(*, include_untracked: bool = True) -> list[str]:
         path
         for path in paths
         if path
-        and not is_private_path(path)
+        # Do not filter forced/tracked Vault files out as private roots: the
+        # path check must reject them even if their contents look harmless.
+        and (is_local_vault_path(path) or not is_private_path(path))
         and not is_ignored_path(path)
         and (REPO_ROOT / path).exists()
     )
@@ -251,6 +279,9 @@ def check_export_policy() -> list[Issue]:
             and "/attack_test/environmentDeployment/*.pdf export-ignore" in attributes
         ):
             issues.append(Issue("error", ".gitattributes", f"missing export-ignore for internal file: /{path}"))
+    for pattern in LOCAL_VAULT_EXPORT_PATTERNS:
+        if f"{pattern} export-ignore" not in attributes.splitlines():
+            issues.append(Issue("error", ".gitattributes", f"missing export-ignore for local Vault material: {pattern}"))
     return issues
 
 
@@ -282,8 +313,12 @@ def read_text(path: Path) -> str | None:
 
 
 def check_private_paths(paths: list[str]) -> list[Issue]:
+    """Reject runtime material independently of secret signatures and ignore rules."""
     issues: list[Issue] = []
     for path in paths:
+        if is_local_vault_path(path):
+            issues.append(Issue("error", path, "local Vault runtime material is present in release candidate; keep only placeholder templates in Git"))
+            continue
         if path in PRIVATE_FILES or path.endswith("/.DS_Store") or path.endswith(".zip"):
             issues.append(Issue("error", path, "private or generated file is present in release candidate"))
         for prefix in PRIVATE_PREFIXES:

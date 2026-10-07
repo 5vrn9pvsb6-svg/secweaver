@@ -25,6 +25,14 @@ make open-source-export OUTPUT=/tmp/secweaver-community.tar.gz
 污染已跟踪示例。公开示例报告使用仓库相对路径；发布扫描拒绝示例报告中的用户主目录路径。
 运行时调查报告可能仍有本地绝对路径，分享前需检查。
 
+Vault 初始化不得污染公开源码：仅跟踪占位模板
+`dataasset/credentials/.sops.yaml.example`。运行时 `.sops.yaml`、`.age/` 和 `secrets/`
+只保存在本机，自定义资产根亦如此。扫描器按路径拒绝强制提交，导出器排除并检查实际归档成员。
+更新曾跟踪本机策略的工作副本之前，先备份原策略与匹配私钥，详见
+[Vault 迁移](../dataasset/credentials/README.zh-CN.md#git-与安全规则)。
+不得通过放行真实 recipient 指纹或用占位模板覆盖本机策略来绕过门禁。
+本机 quickstart 成功后也应验证 `make release-scan`。
+
 发布验收应包含：公开归档内的文档、SBOM、严格校验、测试、离线案例和 Studio 启动；
 全新环境依赖安装；目标 Linux/Windows 的 Agent 服务升级测试；使用目标数据源的只读验收。
 交叉编译不等于真实系统运行验收，Attack Lab 脚本语法检查不等于 Docker 实验执行成功。

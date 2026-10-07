@@ -999,7 +999,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="secweaver",
         description="SecWeaver local CLI for dataasset validation and basic skill demos.",
     )
-    parser.add_argument("--version", action="version", version="SecWeaver CLI 0.3.24")
+    parser.add_argument("--version", action="version", version="SecWeaver CLI 0.3.25")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 

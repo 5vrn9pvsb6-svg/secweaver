@@ -95,6 +95,18 @@ class VaultInitCrypto(unittest.TestCase):
         self.assertEqual(before, (self.key.read_bytes(), self.policy.read_bytes(), ciphertext.read_bytes()))
         self.assertEqual(list(self.key.parent.glob("init-*")), [])
 
+    def test_fresh_checkout_needs_only_the_public_policy_example(self) -> None:
+        """The runtime policy is absent from new clones and must be generated locally."""
+        self.vault.mkdir()
+        example = self.vault / ".sops.yaml.example"
+        shipped = (ROOT / "dataasset/credentials/.sops.yaml.example").read_bytes()
+        example.write_bytes(shipped)
+        self.assertFalse(self.policy.exists())
+        self.assertIn("initialized", vault_init.initialize_vault(self.root))
+        self.assertTrue(self.policy.is_file())
+        self.assertEqual(self.key.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(example.read_bytes(), shipped)
+
     def test_missing_policy_with_existing_key_recovers_without_rotating(self) -> None:
         vault_init.initialize_vault(self.root)
         before = self.key.read_bytes()

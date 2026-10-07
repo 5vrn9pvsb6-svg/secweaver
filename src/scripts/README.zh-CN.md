@@ -34,6 +34,12 @@ make ai-showcase
 `--version` 输出和源码 SBOM 根组件使用同一个 Community 版本。Agent
 继续使用 `src/tools/secweaver-agent/VERSION` 中的独立版本。
 
+本机 `credentials/.sops.yaml`、`.age/` 和 `credentials/secrets/` 属于运行时材料，
+不是公开模板。扫描器拒绝已跟踪/强制加入的对应路径，即使只有占位内容；也会检查
+其他文本路径中的 age 私钥特征，并要求配置归档排除规则。导出器另行检查实际 tar 成员。
+仅分发 `.sops.yaml.example`；Git 忽略规则保留本机初始化策略。
+已跟踪策略需仅取消索引跟踪，操作见 [Vault Git 规则](../../dataasset/credentials/README.zh-CN.md#git-与安全规则)。
+
 Project `wis-log` 和 Logstore `gateway_plugin_log` 是有意公开的接入标识，
 允许出现在文档、测试和公开资产配置中。知道资源名称不代表拥有查询权限，Proxy
 仍要求获授权的查询凭证。包含这些名称的文件仍需通过密钥、私有路径及其他私有内容
