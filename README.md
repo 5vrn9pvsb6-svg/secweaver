@@ -320,6 +320,11 @@ internal investigation material. Connectors store only `credentials_ref`; keep s
 in private configuration or a local credential store. Report security issues privately
 as described in [SECURITY.md](SECURITY.md).
 
+## Commercial Edition
+
+For inquiries about Tiger Brain, the SecWeaver commercial edition, enterprise deployment, and
+technical support, contact [business@tiger-sec.cn](mailto:business@tiger-sec.cn).
+
 ## Contributing and releases
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the [new contributor quickstart](docs_dev/01-new-contributor-quickstart.md).

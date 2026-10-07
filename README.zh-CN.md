@@ -271,6 +271,11 @@ Connector 能力目录包含 22 个内置类型、8 个配置型外部类型和 
 客户日志及内部调查资料。Connector 中只保存 `credentials_ref`，密钥保存在私有配置
 或本地凭证存储中。安全问题请按 [SECURITY.zh-CN.md](SECURITY.zh-CN.md) 私下报告。
 
+## 商业版本
+
+如需咨询 SecWeaver 商业版本-Tiger Brain、企业部署及技术支持，请联系
+[business@tiger-sec.cn](mailto:business@tiger-sec.cn)。
+
 ## 贡献与发布
 
 贡献流程见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md) 和[新贡献者快速开始](docs_dev/01-new-contributor-quickstart.zh-CN.md)。
