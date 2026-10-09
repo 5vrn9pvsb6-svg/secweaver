@@ -256,8 +256,8 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	if printRaw {
 		event.RawRecords = acc.records
 	}
-	// Only complete EXECVE argv can qualify for learning. PROCTITLE fallback
-	// remains useful evidence but cannot prove exact argument boundaries.
+	// Preserve command quality for diagnostics: PROCTITLE fallback cannot prove
+	// argv completeness, but Linux exec learning still matches its literal tuple.
 	if completeAuditArgv(acc) {
 		event.Fields["learning_argv_complete"] = "yes"
 	}

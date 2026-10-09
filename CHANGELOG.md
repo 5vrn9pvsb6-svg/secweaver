@@ -51,6 +51,18 @@
   saved without first changing credential type or editing the raw YAML.
 - Synchronize Community package/CLI identity and source SBOM; Agent remains 0.3.78.
 
+## Agent 0.3.85
+
+- Admit Linux exec candidates using the four collected strings regardless of
+  missing EXECVE, truncated argv or adapter decision diagnostics. Preserve source
+  dedup, field validation, one-hour/five-hit durable admission and fault fallback.
+- Keep evidence quality visible as optional `command_evidence_reason`, while
+  `decision_reason` describes the learning/output decision. Existing baselines,
+  candidate progress and fingerprints remain compatible; other streams retain
+  their completeness gates and upgrades do not restart a completed learning day.
+- Add failed-audit-exec replay and cross-stream regression coverage; synchronize
+  bilingual learning rules, operational limits and release documentation.
+
 ## Agent 0.3.84
 
 - Fix Linux/Windows installer boolean flags silently stopping Go argument

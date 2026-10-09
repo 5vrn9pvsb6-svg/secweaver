@@ -1,5 +1,6 @@
 // Package behaviorlearning implements bounded, per-device behavior baselines.
-// It never controls kernel collection; uncertainty always restores original output.
+// It never controls kernel collection; source or storage faults restore original
+// output. Linux exec command-quality diagnostics alone do not prevent matching.
 package behaviorlearning
 
 import (
@@ -17,7 +18,7 @@ type Config struct {
 	// Simple policies are adapter-selected, never user-supplied JSON switches.
 	// simpleExec enables the shared exact engine; simpleKind selects the stable
 	// tuple. Keeping this selector private prevents an untrusted config from
-	// bypassing the adapter that proves the tuple is complete.
+	// bypassing the adapter that selects and validates the stream's tuple.
 	simpleExec         bool
 	simpleFile         bool
 	fileWindows        bool

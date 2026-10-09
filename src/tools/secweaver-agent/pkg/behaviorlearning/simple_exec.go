@@ -77,7 +77,8 @@ func (e *Engine) validateSimpleState(now time.Time) error {
 }
 
 // processSimple is called under Engine.mu by the existing bounded adapter.
-// Only exact fields and event completeness qualify; PID/UID/ancestry, binaries,
+// Linux exec matches the collected four-field tuple, regardless of argv quality.
+// Other streams keep their native completeness gates. PID/UID/ancestry, binaries,
 // rate models and live /proc state have no role in this policy.
 func (e *Engine) processSimple(o Observation, now time.Time) error {
 	if len(o.Raw) > 65536 || len(o.EventID) > 256 {
@@ -94,7 +95,20 @@ func (e *Engine) processSimple(o Observation, now time.Time) error {
 	}
 	reason := o.Reason
 	fields, valid := e.cfg.simpleTuple(o.Context)
-	qualified := o.Complete && reason == "" && o.EventID != "" && valid
+	complete := o.Complete
+	commandEvidenceReason := ""
+	if e.cfg.simpleStrategy() == simpleExecStrategy {
+		// Evidence diagnostics are not Linux exec admission or matching gates.
+		// Preserve them separately on originals, without changing the tuple/hash:
+		// equal truncated strings intentionally count as the same behavior. Source
+		// identity, valid fields, scope and engine health still bound this policy.
+		commandEvidenceReason = reason
+		if !complete && commandEvidenceReason == "" {
+			commandEvidenceReason = "incomplete_or_truncated_command"
+		}
+		complete, reason = true, ""
+	}
+	qualified := complete && reason == "" && o.EventID != "" && valid
 	if reason == "" && !qualified {
 		reason = "incomplete_" + e.cfg.simpleEventType() + "_fields"
 	}
@@ -153,9 +167,13 @@ func (e *Engine) processSimple(o Observation, now time.Time) error {
 	} else if e.cfg.simpleStrategy() != simpleExecStrategy {
 		fingerprintVersion = 4
 	}
-	raw := decorate(o.Raw, map[string]any{"event_id": o.EventID, "behavior_fingerprint": key,
+	metadata := map[string]any{"event_id": o.EventID, "behavior_fingerprint": key,
 		"baseline_id": e.state.BaselineID, "learning_state": e.state.Mode,
-		"learning_decision": "emit", "decision_reason": reason, "fingerprint_version": fingerprintVersion})
+		"learning_decision": "emit", "decision_reason": reason, "fingerprint_version": fingerprintVersion}
+	if commandEvidenceReason != "" {
+		metadata["command_evidence_reason"] = commandEvidenceReason
+	}
+	raw := decorate(o.Raw, metadata)
 	if err := e.original(raw); err != nil {
 		e.faultLocked("original_output_failed")
 		return err

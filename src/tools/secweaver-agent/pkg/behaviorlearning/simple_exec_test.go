@@ -115,7 +115,7 @@ func TestSimpleExecRollingWindowAndSourceDedup(t *testing.T) {
 	}
 }
 
-func TestSimpleExecExactlyFourFieldsAndCompleteCommands(t *testing.T) {
+func TestSimpleExecExactlyFourFields(t *testing.T) {
 	f := simpleFixture(t)
 	feedSimple(t, f, 0, 5)
 	changes := []func(*Observation){
@@ -124,8 +124,6 @@ func TestSimpleExecExactlyFourFieldsAndCompleteCommands(t *testing.T) {
 		func(o *Observation) { o.Context.Exec.Exe = "/usr/bin/bash" },
 		func(o *Observation) { o.Context.Exec.CommandLine += " " },
 		func(o *Observation) { o.Context.Exec.CommandLine = "" },
-		func(o *Observation) { o.Complete = false },
-		func(o *Observation) { o.Reason = "truncated" },
 		func(o *Observation) { o.EventID = "" },
 	}
 	for i, change := range changes {
@@ -166,6 +164,139 @@ func TestSimpleExecExactlyFourFieldsAndCompleteCommands(t *testing.T) {
 		if err != nil || strings.Contains(string(body), "synthetic-secret") {
 			t.Fatalf("persisted command content in %s: %v", name, err)
 		}
+	}
+}
+
+// Linux matches the collected strings even when the adapter cannot prove full
+// argv. Evidence quality neither partitions the tuple nor bypasses source dedup.
+func TestSimpleExecLearnsDespiteCommandEvidenceDiagnostics(t *testing.T) {
+	for _, tc := range []struct {
+		name, reason string
+		complete     bool
+	}{
+		{"missing EXECVE", "incomplete_or_truncated_command", false},
+		{"truncated without reason", "", false},
+		{"diagnostic with complete argv", "adapter_diagnostic", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := simpleFixture(t)
+			for i := 0; i < 6; i++ {
+				o := simpleObservation(i)
+				o.Complete, o.Reason = tc.complete, tc.reason
+				// Alternate quality for the same tuple, including the fifth hit.
+				if i == 2 || i == 4 {
+					o.Complete, o.Reason = true, ""
+				}
+				for replay := 0; replay < 2; replay++ {
+					if err := f.e.Process(o); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if i < 4 && (len(f.raw) != i+1 || len(f.e.state.Entries) != 0) {
+					t.Fatal("diagnostic skipped a candidate or replay promoted it early")
+				}
+			}
+			if len(f.raw) != 4 || len(f.e.state.Entries) != 1 || len(f.e.state.Candidates) != 0 {
+				t.Fatal("diagnostics prevented five-hit admission or subsequent filtering")
+			}
+			var first map[string]any
+			if err := json.Unmarshal(f.raw[0], &first); err != nil {
+				t.Fatal(err)
+			}
+			wantReason := tc.reason
+			if wantReason == "" {
+				wantReason = "incomplete_or_truncated_command"
+			}
+			if first["decision_reason"] != "learning" || first["command_evidence_reason"] != wantReason || first["behavior_fingerprint"] == "" {
+				t.Fatalf("learning decision and evidence diagnostic not separated: %s", f.raw[0])
+			}
+			if err := f.e.flush(f.now); err != nil {
+				t.Fatal(err)
+			}
+			var suppressed uint64
+			for _, summary := range f.summaries {
+				suppressed += summary.Suppressed
+			}
+			if suppressed != 2 {
+				t.Fatalf("suppressed=%d; fifth and sixth distinct events should count", suppressed)
+			}
+		})
+	}
+}
+
+// Other streams still require their native evidence; the Linux exec policy
+// must not accidentally admit partial scripts or uncorrelated file/network data.
+func TestSimpleExecDiagnosticChangePreservesOtherStreamGates(t *testing.T) {
+	for _, kind := range []string{"exec", "active_connect", "powershell_script_block", "linux_file", "windows_file"} {
+		t.Run(kind, func(t *testing.T) {
+			cfg, ctx := simplePolicyCase(t, kind)
+			if strings.HasSuffix(kind, "_file") {
+				windows := kind == "windows_file"
+				cfg = FilePolicy(Config{Enabled: true, StateDir: t.TempDir(), EventTypes: []string{"file_op"}}, windows)
+				ctx = fileObservation(0, windows).Context
+			}
+			f := fixtureWithConfig(t, cfg)
+			for i := 0; i < 6; i++ {
+				o := Observation{Context: ctx, Complete: false, Reason: "incomplete_evidence", EventID: fmt.Sprint(i), Raw: json.RawMessage(`{"event_type":"test"}`)}
+				if err := f.e.Process(o); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if len(f.raw) != 6 || len(f.e.state.Candidates) != 0 || len(f.e.state.Entries) != 0 {
+				t.Fatal("another stream inherited Linux exec's diagnostic-only completeness")
+			}
+		})
+	}
+}
+
+// Relaxing command evidence is not permission to ignore missing match fields,
+// disabled streams, shadow, health/fault state or durable-admission failures.
+func TestSimpleExecIncompleteEvidenceRetainsOperationalGuards(t *testing.T) {
+	for _, reason := range []string{"invalid_fields", "missing_source", "scope", "shadow", "source_unhealthy", "degraded", "journal", "frozen"} {
+		t.Run(reason, func(t *testing.T) {
+			f := simpleFixture(t)
+			switch reason {
+			case "scope":
+				f.e.cfg.EventTypes = []string{"file_op"}
+			case "shadow":
+				f.e.cfg.Shadow = true
+			case "source_unhealthy":
+				f.e.Health(false, false)
+			case "degraded":
+				f.e.Fault("audit_lost")
+			case "journal":
+				f.e.store.limit = 3
+			case "frozen":
+				f.e.freeze(f.now)
+			}
+			for i := 0; i < 6; i++ {
+				o := simpleObservation(i)
+				o.Complete, o.Reason = false, "incomplete_or_truncated_command"
+				if reason == "invalid_fields" {
+					o.Context.Exec.CommandLine = ""
+				}
+				if reason == "missing_source" {
+					o.EventID = ""
+				}
+				if err := f.e.Process(o); err != nil {
+					t.Fatal(err)
+				}
+			}
+			wantEntries := 0
+			if reason == "shadow" {
+				wantEntries = 1
+			}
+			if len(f.raw) != 6 || len(f.e.state.Entries) != wantEntries {
+				t.Fatalf("guard %s: originals=%d entries=%d", reason, len(f.raw), len(f.e.state.Entries))
+			}
+			var last map[string]any
+			if err := json.Unmarshal(f.raw[5], &last); err != nil {
+				t.Fatal(err)
+			}
+			if last["decision_reason"] == "incomplete_or_truncated_command" || last["command_evidence_reason"] != "incomplete_or_truncated_command" {
+				t.Fatalf("command diagnostic hid operational reason: %s", f.raw[5])
+			}
+		})
 	}
 }
 
@@ -260,7 +391,11 @@ func TestSimpleExecCleanRestartPreservesCandidatesAndDedup(t *testing.T) {
 	if err := restored.Process(simpleObservation(3)); err != nil || len(f.raw) != 4 {
 		t.Fatal("restart counted a reread")
 	}
-	if err := restored.Process(simpleObservation(4)); err != nil || len(f.raw) != 4 || len(restored.state.Entries) != 1 {
+	// Previously complete candidates and new incomplete observations share the
+	// existing tuple/hash across restart; no generation reset is required.
+	o := simpleObservation(4)
+	o.Complete, o.Reason = false, "incomplete_or_truncated_command"
+	if err := restored.Process(o); err != nil || len(f.raw) != 4 || len(restored.state.Entries) != 1 {
 		t.Fatalf("restart lost candidate progress: %v", err)
 	}
 }

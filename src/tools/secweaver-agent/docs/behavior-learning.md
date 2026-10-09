@@ -2,7 +2,7 @@
 
 **Language:** English (this page) | [简体中文](behavior-learning.zh-CN.md)
 
-## Current Rule (0.3.83)
+## Current Rule (0.3.85)
 
 Every integrated whitelist stream uses one rule: **during learning, five distinct
 source events with exactly the same fields on the same device and event type
@@ -14,7 +14,7 @@ installation, accumulates 24 healthy hours by default, then freezes new admissio
 
 | Event | Exact Fields | Prerequisites |
 | --- | --- | --- |
-| Linux exec | listener_process, pid_name, exe, command_line | Complete audit EXECVE or complete eBPF arguments |
+| Linux exec | listener_process, pid_name, exe, command_line | Four nonempty valid fields; match collected strings without requiring complete argv |
 | Windows exec | listener_process, pid_name, exe, command_line | Native complete command from Sysmon 1 or Security 4688 |
 | Linux/Windows file_op | file_paths, listener_process, pid_name, exe, command_line | Complete path and command evidence; see File Events |
 | Windows active_connect | listener_process, pid_name, exe, command_line, protocol, destination IP, destination port | Sysmon 3, Initiated=true, same-host/ProcessGuid Sysmon 1 |
@@ -25,6 +25,14 @@ complete. pid_name comes from exe. Matching uses the normalized fields above
 without folding command whitespace/case or using wildcards. file_paths order is
 significant. Linux command_line keeps the existing space-joined argv format;
 identical joined strings represent identical fields.
+Starting in 0.3.85, Linux exec does not use adapter completeness or reason
+diagnostics as candidate/matching gates. Missing EXECVE, PROCTITLE fallback,
+truncated arguments and failed executions count when the four fields are valid
+and the source event ID is verifiable. success, exit and reason diagnostics are
+not match keys. Different actual commands captured as the same truncated string
+therefore share admission and filtering. This explicitly matches collected
+fields; it does not reconstruct the original command. Use shadow or disable
+learning to retain those originals.
 Windows destination uses normalized dst_ip/dst_port. Source IP/ephemeral port,
 numeric PID, ProcessGuid, parent, user, file digest and file action are not
 additional process/network/file keys. PowerShell SID is one of its own keys;
@@ -47,8 +55,10 @@ collection scope. Windows network/file events must already exist at the source.
 ## Shared Flow
 
 1. Existing collectors parse, classify and attribute the event.
-2. Missing/truncated fields, unavailable correlation, historical lookback or an
-   unverifiable source ID retain originals without training.
+2. Missing required match fields, invalid fields or an unverifiable source ID
+   retain originals without training. Linux exec command truncation/incompleteness
+   and adapter reasons do not block counting; other streams still require complete
+   evidence, valid correlation and nonhistorical records.
 3. Only distinct source records count; retrying one record cannot supply five hits.
 4. While healthy and learning, an unknown tuple records reception times within
    the last hour.
@@ -214,6 +224,13 @@ fingerprints, counts, times and progress, not commands/scripts. Matching precede
 output redaction so distinct secrets do not collapse into one behavior.
 Existing schema_version=1 remains readable.
 
+Version 0.3.85 preserves the Linux exec policy hash, baseline_id, admitted entries,
+candidates and learning progress; it does not restart learning automatically.
+Hosts still learning count newly received events, without replaying old logs to
+fill counters. Finished/degraded baselines do not gain entries from this relaxed
+gate; explicitly relearn using the recovery procedure below. Rolling back keeps
+the same state format, but old code emits incomplete-command originals again.
+
 The first Linux 0.3.81 or Windows exec/PowerShell 0.3.83 migration authenticates
 the same device, generation and old policy hash. A complete readable old state is
 archived as legacy-state.json, then a new baseline_id starts learning without
@@ -266,7 +283,13 @@ Gateway 0.6.0-rc.72+ accepts learning + filtering_active; Workspace rc.112+
 displays it. Deploy compatible servers before enabling new Agents.
 
 Process/file/connection summaries remain in behavior-learning.log beside the
-event log. Group by baseline_id/source_event_type. behavior_summary and
+event log. Linux exec originals use decision_reason for the learning/output
+decision, such as learning, shadow, baseline_miss or a fault; incomplete commands
+no longer reject candidates. Optional command_evidence_reason preserves adapter
+diagnostics such as incomplete_or_truncated_command, without affecting matching
+or counting. Existing collected fields such as command_truncated remain; an
+absent truncation flag is not proof that argv is complete.
+Group by baseline_id/source_event_type. behavior_summary and
 behavior_learning_status are not raw host_exec events or PID-tree edges.
 fingerprint_version is Linux exec=2, file=3, new Windows exec/network/PowerShell=4.
 No new ancestor replays are produced. Complete counters satisfy
@@ -289,7 +312,9 @@ go test ./pkg/behaviorlearning ./internal/windowsevidence ./pkg/windowseventlogr
 go test ./pkg/behaviorlearning -run '^$' -bench BenchmarkSimpleExecKnown -benchmem
 ```
 
-Regressions cover fourth/fifth boundaries, window expiry, exact field changes,
+Regressions cover failed exec without EXECVE, truncated-command admission and
+separate diagnostics, other streams' completeness gates, fourth/fifth boundaries,
+window expiry, exact field changes,
 deduplication, freeze, shadow, persistence failures, migration/clean restart,
 GUID reuse, cache budgets and whole-script/fragment counts.
 Cross-platform builds do not replace native Linux audit/eBPF, Windows Event

@@ -1,5 +1,9 @@
 # secweaver-agent
 
+源码 0.3.85 允许 Linux exec 按实际采集的四字段学习，即使缺少 EXECVE 或命令被截断，
+证据质量诊断也不再阻止候选计数和名单匹配；一小时五个不同源事件即入名单并即时过滤。
+保留已有状态，其他事件类型不变。详见[行为学习](docs/behavior-learning.zh-CN.md)。
+
 源码 0.3.84 修复 Linux/Windows 安装器未读取升级公钥/CA 参数的问题，公网升级默认
 使用系统 CA，诊断区分配置、签名和网络故障。提供显式执行的
 [SaaS 升级修复与旧版本迁移脚本](docs/update-recovery.zh-CN.md)。

@@ -250,7 +250,8 @@ func (w *learningOutput) fault(reason string) {
 
 // execLearningObservation uses the normalized pre-redaction strings verbatim.
 // Unique source IDs partition reboot/backend retries but never change the four
-// behavior fields. Missing/truncated argv cannot stand in for a full command.
+// behavior fields. Missing/truncated argv stays marked as incomplete evidence;
+// the Linux exact policy learns the collected strings regardless of that marker.
 func execLearningObservation(e auditEvent, backend, boot string) behaviorlearning.Observation {
 	raw, _ := json.Marshal(e)
 	complete := !e.CommandTruncated && e.Fields["learning_argv_complete"] == "yes"

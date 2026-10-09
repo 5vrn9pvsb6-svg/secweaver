@@ -8,7 +8,7 @@ import (
 // Context is an adapter-verified behavior. Installed adapters use the exact
 // Exec/File/Network/Risk tuples; legacy fields remain for checkpoint compatibility.
 type Context struct {
-	// Exec is the complete four-field contract. It excludes process
+	// Exec is the collected four-field contract. It excludes process
 	// instance and credential enrichment, including when those fields are known.
 	Exec       *ExecFields    `json:"exec_fields,omitempty"`
 	File       *FileFields    `json:"file_fields,omitempty"`
@@ -94,6 +94,8 @@ type WindowsContext struct {
 
 // Observation owns its payload and verified evidence; no pooled parser memory
 // may be retained. Unknown/always-emit records still pass through Process.
+// Complete and Reason describe adapter evidence quality. Linux exact exec treats
+// both as diagnostics; other policies retain their completeness/reason gates.
 type Observation struct {
 	Context        Context
 	Complete       bool

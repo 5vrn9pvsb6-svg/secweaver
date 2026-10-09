@@ -1,5 +1,10 @@
 # secweaver-agent
 
+Source 0.3.85 lets Linux exec learn the four collected strings even with missing
+EXECVE or truncated arguments. Evidence diagnostics no longer gate candidates or
+matches; five distinct events in one hour still admit/filter immediately. Existing
+state and other streams are unchanged. See [behavior learning](docs/behavior-learning.md).
+
 Source 0.3.84 fixes Linux/Windows installer flag parsing before update trust
 arguments, defaults public updates to OS certificate trust, and reports CA/key
 failures separately from network errors. See [SaaS update repair and legacy

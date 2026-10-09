@@ -51,7 +51,7 @@ func TestLearningUsesCompleteEXECVEBeforePROCTITLE(t *testing.T) {
 	}
 	event.CommandTruncated = true
 	if execLearningObservation(event, "audit", "test-boot").Complete {
-		t.Fatal("truncated command qualified")
+		t.Fatal("truncated command reported as complete evidence")
 	}
 	delete(acc.argv, 2)
 	if completeAuditArgv(acc) {

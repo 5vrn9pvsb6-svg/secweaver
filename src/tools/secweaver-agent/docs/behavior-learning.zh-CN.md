@@ -2,7 +2,7 @@
 
 **语言：** [English](behavior-learning.md) | 简体中文（本文）
 
-## 当前规则（0.3.83）
+## 当前规则（0.3.85）
 
 所有已接入白名单的事件使用同一规则：**学习阶段，同一设备、同一类型的匹配字段完全相同，
 滚动一小时内出现 5 次不同源事件就入白名单；第 5 次先持久化再过滤，不必等到学习结束。**
@@ -11,7 +11,7 @@
 
 | 事件 | 精确匹配字段 | 前提 |
 | --- | --- | --- |
-| Linux exec | listener_process、pid_name、exe、command_line | audit 完整 EXECVE 或完整 eBPF 参数 |
+| Linux exec | listener_process、pid_name、exe、command_line | 四字段非空且有效；按实际采集字符串匹配，不要求完整 argv |
 | Windows exec | listener_process、pid_name、exe、command_line | Sysmon 1 或 Security 4688 的真实完整命令 |
 | Linux/Windows file_op | file_paths、listener_process、pid_name、exe、command_line | 完整路径与命令证据，详见文件事件 |
 | Windows active_connect | listener_process、pid_name、exe、command_line、protocol、目标 IP、目标端口 | Sysmon 3、Initiated=true、同主机同 ProcessGuid 的 Sysmon 1 |
@@ -20,6 +20,11 @@
 Windows 的 listener_process 固定为空字符串，其余进程字段必须完整。pid_name 从 exe 提取。
 匹配规范化后的上述字段，不折叠大小写或命令空白，不做通配；file_paths 的顺序也参与匹配。
 Linux command_line 沿用 argv 以空格拼接的格式；拼接结果相同就视为同一字段。
+从 0.3.85 起，Linux exec 不使用适配器的命令完整性或原因诊断作为候选/匹配门槛：
+缺少 EXECVE、PROCTITLE 回填、截断参数及执行失败，只要上述四字段有效且源事件 ID 可确认，
+均按同一规则计数。success、exit 和原因诊断不参与匹配键。
+因此实际不同命令若被采集为同一个截断字符串，也会合并计数和过滤；这是按采集字段匹配的
+明确取舍，不代表补齐了原始命令。需要保留此类原文时使用 shadow 或关闭学习。
 Windows 网络目标取标准化事件的 dst_ip/dst_port；临时源端口、源 IP、数字 PID、
 ProcessGuid、父进程、用户、文件哈希和文件动作均不加入进程/网络/文件的匹配键。
 PowerShell 的用户 SID 是其自身匹配键之一，空 Path 不是任意路径通配。
@@ -37,7 +42,8 @@ Agent 自采集排除和已有源事件范围。Windows 网络/文件需要先�
 ## 统一流程
 
 1. 原采集模块先完成解析、分类和归属，再交给学习适配器。
-2. 缺字段、截断、无法关联、历史回看或不可确认的源 ID 不训练，保留原文。
+2. 缺少必要匹配字段、无效字段或不可确认的源 ID 不训练，保留原文。Linux exec 的命令
+   不完整/截断及适配器原因诊断不阻止计数；其余类型仍要求完整证据、有效关联及非历史回看。
 3. 不同源事件才计数，重读同一事件不会凑够 5 次。
 4. 源健康、仍在学习且尚未入名单：记录最近一小时内的接收时间。
 5. 第 5 次将指纹写入持久化 journal，成功后立即过滤；写入失败保留原文并降级。
@@ -178,6 +184,11 @@ Linux 权限为目录 0700/文件 0600；Windows 使用 SYSTEM/Administrators AC
 名单仅保存 HMAC 指纹、次数、时间及进度，不保存命令或脚本正文。
 匹配发生在输出脱敏前，避免不同口令被脱敏成同一个行为。旧状态 schema_version=1 保持可读。
 
+0.3.85 保持 Linux exec 的策略指纹、baseline_id、名单、候选和学习进度，不自动重新学习。
+升级后仍在 learning 的主机从新收到的事件开始计数，不回放旧日志补次数；已结束学习或
+degraded 的主机不会因本次放宽准入而新增名单，需要按下述流程显式重新学习。
+回滚旧版本保留相同状态格式，但旧代码仍会对命令证据不完整的事件输出原文。
+
 0.3.81 的 Linux、0.3.83 的 Windows exec/PowerShell 首次迁移时：
 同设备、同 generation、旧配置指纹匹配且状态完整可读，归档为 legacy-state.json，
 生成新 baseline_id 重新学习，旧条目不导入。Windows reason=simple_policy_migrated；
@@ -217,6 +228,10 @@ filtering_active 需要健康输入、非 shadow、非空有效名单；learning
 工作台 rc.112+ 支持显示；先发布兼容服务端，再启用新版 Agent。
 
 Linux/Windows 进程、文件、连接的摘要仍写日志目录的 behavior-learning.log。
+Linux exec 原文的 decision_reason 表示本次学习/输出原因，例如 learning、shadow、
+baseline_miss 或故障原因，不再因命令不完整而拒绝候选。新增可选 command_evidence_reason
+保留适配器诊断，例如 incomplete_or_truncated_command；该字段不参与匹配，也不影响计数。
+原有 command_truncated 等已采集字段仍保留；缺失该字段不能被当作完整参数的证明。
 按 baseline_id/source_event_type 分开统计；摘要为 behavior_summary 或 behavior_learning_status，
 不能作为原始 host_exec 事件或构造 PID 进程树。fingerprint_version：Linux exec=2，
 file=3，0.3.83 Windows exec/network/PowerShell=4；不再生成祖先补发。
@@ -236,7 +251,8 @@ go test ./pkg/behaviorlearning ./internal/windowsevidence ./pkg/windowseventlogr
 go test ./pkg/behaviorlearning -run '^$' -bench BenchmarkSimpleExecKnown -benchmem
 ```
 
-回归覆盖四/五次边界、窗口过期、精确字段变化、去重、冻结、shadow、持久化错误、
+回归覆盖缺少 EXECVE 的失败调用、截断命令候选和诊断分离、其他事件完整性门槛隔离，
+以及四/五次边界、窗口过期、精确字段变化、去重、冻结、shadow、持久化错误、
 迁移/正常重启、GUID 复用、文件/网络缓存上限和完整脚本/分片计数。
 跨平台构建不替代真实 Linux audit/eBPF、Windows Event Log/SCM、24 小时学习和 ES/SLS 入库验收。
 源码更新不等于已打包或部署。

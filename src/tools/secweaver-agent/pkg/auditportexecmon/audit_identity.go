@@ -69,7 +69,8 @@ func completeAuditArgv(acc *auditAccumulator) bool {
 }
 
 // resolveAuditCommand prefers complete EXECVE even when a shorter PROCTITLE is
-// present. Fallback cannot train exec; files validate their own PATH/title set.
+// present. Linux exec can learn fallback strings without treating them as full
+// argv; file events still validate their own PATH/title completeness.
 func resolveAuditCommand(acc *auditAccumulator, comm string) []string {
 	if completeAuditArgv(acc) {
 		return orderedArgs(acc.argv)
