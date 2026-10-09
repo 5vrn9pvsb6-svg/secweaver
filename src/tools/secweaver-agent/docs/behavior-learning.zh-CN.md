@@ -170,6 +170,9 @@ Windows 用同主机同 ProcessGuid 的真实 Sysmon 1 命令补齐，listener_p
 
 ## 状态、迁移与故障恢复
 
+新装空名单与升级迁移的区别、显式 Linux 重学脚本及备份/恢复流程见
+[学习恢复指南](learning-recovery.zh-CN.md)。
+
 | 名单 | 默认状态位置 |
 | --- | --- |
 | Linux exec | /opt/secweaver-agent/data/behavior-learning |

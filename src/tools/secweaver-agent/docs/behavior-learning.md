@@ -208,6 +208,9 @@ listener_process and command_line.
 
 ## State, Migration and Recovery
 
+See [learning recovery](learning-recovery.md) for new-install empty baselines,
+upgrade migration, and the explicit Linux relearning/backup procedure.
+
 | Baseline | Default State Location |
 | --- | --- |
 | Linux exec | /opt/secweaver-agent/data/behavior-learning |

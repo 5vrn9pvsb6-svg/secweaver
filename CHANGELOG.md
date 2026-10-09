@@ -51,6 +51,17 @@
   saved without first changing credential type or editing the raw YAML.
 - Synchronize Community package/CLI identity and source SBOM; Agent remains 0.3.78.
 
+## Agent 0.3.86
+
+- Add a standalone Linux/systemd learning recovery helper: inspect by default,
+  preserve healthy progress and existing baselines, require explicit relearning
+  for healthy empty baselines, and increment the native generation on recovery.
+- Back up collector config and both learning streams before restarting; validate
+  fresh native learning status, restore config/state on failure, and refuse pending
+  updates and unsafe state paths. Preserve identity, shipping and audit policy.
+- Document new-install empty baselines versus upgrade migration; test real backup,
+  rollback, repeat execution, delayed startup and healthy baseline preservation.
+
 ## Agent 0.3.85
 
 - Admit Linux exec candidates using the four collected strings regardless of

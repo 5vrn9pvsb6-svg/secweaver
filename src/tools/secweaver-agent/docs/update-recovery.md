@@ -47,8 +47,10 @@ private key, enrollment token or device password. Its default target is the
 previously published **0.3.83**, retaining the pinned artifacts verified during
 recovery testing. Publishing 0.3.84 does not silently retarget this profile. The
 bridge repairs trust directly and does not rerun the affected old installer.
-Every Linux/Windows archive includes all five recovery files and both language
+Every Linux/Windows archive includes the update recovery files and both language
 guides under `docs/`; packaging validates their presence before cross-compilation.
+0.3.86 also includes the standalone [Linux learning recovery helper](learning-recovery.md);
+its platform limits are documented separately.
 
 | Script | Source | Prerequisites |
 | --- | --- | --- |

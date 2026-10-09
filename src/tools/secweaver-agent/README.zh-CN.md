@@ -1,5 +1,8 @@
 # secweaver-agent
 
+源码 0.3.86 提供[Linux 学习恢复脚本](docs/learning-recovery.zh-CN.md)：默认仅检查，
+保留正常学习和已有名单；显式重学前备份，启动验证失败恢复。空名单不代表学习关闭。
+
 源码 0.3.85 允许 Linux exec 按实际采集的四字段学习，即使缺少 EXECVE 或命令被截断，
 证据质量诊断也不再阻止候选计数和名单匹配；一小时五个不同源事件即入名单并即时过滤。
 保留已有状态，其他事件类型不变。详见[行为学习](docs/behavior-learning.zh-CN.md)。

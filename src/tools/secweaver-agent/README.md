@@ -1,5 +1,9 @@
 # secweaver-agent
 
+Source 0.3.86 adds [Linux learning recovery](docs/learning-recovery.md): inspect by
+default, preserve healthy learning/baselines, back up before explicit relearning
+and restore on startup failure. An empty baseline does not mean learning is off.
+
 Source 0.3.85 lets Linux exec learn the four collected strings even with missing
 EXECVE or truncated arguments. Evidence diagnostics no longer gate candidates or
 matches; five distinct events in one hour still admit/filter immediately. Existing

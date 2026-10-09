@@ -142,7 +142,7 @@ validate_es_integration_inputs() {
   # Shipped README links must resolve without a source checkout. Validate these
   # lifecycle guides before the first architecture build starts.
   local guide language
-  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery; do
+  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery learning-recovery; do
     for language in md zh-CN.md; do
       [[ -f "${ROOT_DIR}/docs/${guide}.${language}" ]] || {
         echo "missing Agent package guide: ${guide}.${language}" >&2
@@ -152,7 +152,7 @@ validate_es_integration_inputs() {
   done
   # Validate before building; the destination does not exist until each target
   # is staged. Copying here would reference an unset package_root under set -u.
-  for file in repair-saas-update.sh migrate-saas-agent.sh recover-saas-update.py migrate-saas-agent.ps1 saas-0.3.83.json; do
+  for file in repair-saas-update.sh migrate-saas-agent.sh recover-saas-update.py migrate-saas-agent.ps1 saas-0.3.83.json restart-behavior-learning.py; do
     [[ -f "${ROOT_DIR}/packaging/recovery/${file}" ]] || {
       echo "missing Agent recovery file: ${file}" >&2
       exit 1
@@ -172,7 +172,7 @@ install_es_integration() {
   # Keep installation recovery, update trust and health semantics available
   # offline in both Linux and Windows archives, including linked trust guidance.
   local guide language
-  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery; do
+  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery learning-recovery; do
     for language in md zh-CN.md; do
       install -m 0644 "${ROOT_DIR}/docs/${guide}.${language}" "${package_root}/docs/${guide}.${language}"
     done
