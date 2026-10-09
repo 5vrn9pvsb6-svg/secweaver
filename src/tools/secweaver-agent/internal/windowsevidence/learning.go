@@ -31,14 +31,14 @@ type LearningOptions struct {
 
 // RegisterFlags exposes the same learning policy on either evidence owner.
 func (o *LearningOptions) RegisterFlags(fs *flag.FlagSet) {
-	fs.BoolVar(&o.Enabled, "behavior-learning", false, "learn eligible Windows exec behavior and filter exact baseline matches")
+	fs.BoolVar(&o.Enabled, "behavior-learning", false, "learn exact Windows behavior: five matching events in one hour")
 	fs.BoolVar(&o.Shadow, "learning-shadow", false, "learn while preserving every original event")
 	fs.DurationVar(&o.Duration, "learning-duration", 24*time.Hour, "accumulated healthy learning time")
 	fs.Uint64Var(&o.Generation, "learning-generation", 0, "increase to explicitly relearn a readable baseline")
 	fs.StringVar(&o.StateDir, "learning-state-dir", "", "absolute learning state directory")
 	fs.StringVar(&o.Output, "learning-output", "", "absolute behavior summary log path")
 	fs.StringVar(&o.EventTypes, "learning-event-types", "exec", "comma-separated exec,active_connect,file_op learning types")
-	fs.StringVar(&o.FileRoots, "learning-file-roots", "", "semicolon-separated absolute directories for ordinary .log creation learning")
+	fs.StringVar(&o.FileRoots, "learning-file-roots", "", "legacy compatibility option; exact file learning matches all complete file_op tuples")
 }
 
 // Learning owns a ticker and the engine; mu serializes source health, source
@@ -48,15 +48,17 @@ type Learning struct {
 	io.Writer
 	mu                sync.Mutex
 	engine            *behaviorlearning.Engine
+	fileEngine        *behaviorlearning.Engine
+	networkEngine     *behaviorlearning.Engine
 	summary           io.Writer
 	closeSummary      func()
 	stop, done        chan struct{}
 	started, lastPoll time.Time
 	lease             time.Duration
 	emitted           int
-	contexts          map[string]activityContext
-	contextBytes      int
 	lastPrune         time.Time
+	fileContexts      map[string]fileContext
+	fileContextBytes  int
 }
 
 // WrapLearning returns the original sink on all initialization failures. A
@@ -90,20 +92,33 @@ func newLearning(out io.Writer, o LearningOptions, stateFile, eventPath string, 
 		return nil, err
 	}
 	w := &Learning{Writer: out, summary: summary, closeSummary: closeSummary, stop: make(chan struct{}), done: make(chan struct{}), started: time.Now(), lease: poll + 30*time.Second}
-	w.contexts = make(map[string]activityContext)
+	w.fileContexts = make(map[string]fileContext)
 	if w.lease < 45*time.Second {
 		w.lease = 45 * time.Second
 	}
-	w.engine, err = behaviorlearning.New(cfg, device, func(raw json.RawMessage) error {
-		_, err := fmt.Fprintln(out, string(raw))
-		if err == nil {
-			w.emitted++
+	writeSummary := func(s behaviorlearning.Summary) error {
+		err := json.NewEncoder(summary).Encode(s)
+		if err != nil {
+			w.fault("summary_output_failed")
 		}
 		return err
-	}, func(s behaviorlearning.Summary) error { return json.NewEncoder(summary).Encode(s) })
+	}
+	w.engine, err = behaviorlearning.New(cfg, device, w.writeOriginal, writeSummary)
 	if err != nil {
 		closeSummary()
 		return nil, err
+	}
+	if filePolicy := behaviorlearning.FilePolicy(cfg, true); filePolicy.Enabled {
+		w.fileEngine, err = behaviorlearning.New(filePolicy, device, w.writeOriginal, writeSummary)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: Windows file learning disabled; originals retained: %v\n", err)
+		}
+	}
+	if policy := behaviorlearning.NetworkPolicy(cfg); policy.Enabled {
+		w.networkEngine, err = behaviorlearning.New(policy, device, w.writeOriginal, writeSummary)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "WARN: Windows connection learning disabled; originals retained: %v\n", err)
+		}
 	}
 	go w.tick()
 	return w, nil
@@ -128,7 +143,7 @@ func (o LearningOptions) policy(stateFile, eventPath string) (behaviorlearning.C
 	if strings.EqualFold(filepath.Clean(o.Output), filepath.Clean(eventPath)) {
 		return behaviorlearning.Config{}, fmt.Errorf("learning summary and original logs must differ")
 	}
-	return (behaviorlearning.Config{Enabled: o.Enabled, StateDir: o.StateDir, OutputLog: o.Output,
+	return behaviorlearning.WindowsExecPolicy(behaviorlearning.Config{Enabled: o.Enabled, StateDir: o.StateDir, OutputLog: o.Output,
 		LearningSeconds: int(o.Duration / time.Second), Generation: o.Generation, Shadow: o.Shadow,
 		EventTypes: splitPolicyList(o.EventTypes, ","), FileRoots: splitPolicyList(o.FileRoots, ";")}).Normalize()
 }
@@ -166,9 +181,13 @@ func (w *Learning) tick() {
 		case <-ticker.C:
 			w.mu.Lock()
 			w.pruneContexts(time.Now())
-			w.engine.Health(!w.lastPoll.IsZero() && time.Since(w.lastPoll) <= w.lease, false)
-			if err := w.engine.Tick(); err != nil {
-				fmt.Fprintf(os.Stderr, "Windows learning checkpoint: %v\n", err)
+			for _, engine := range w.engines() {
+				if engine != nil {
+					engine.Health(!w.lastPoll.IsZero() && time.Since(w.lastPoll) <= w.lease, false)
+					if err := engine.Tick(); err != nil {
+						fmt.Fprintf(os.Stderr, "Windows learning checkpoint: %v\n", err)
+					}
+				}
 			}
 			w.mu.Unlock()
 		case <-w.stop:
@@ -186,10 +205,9 @@ func SourcePoll(out io.Writer, healthy bool) {
 		if healthy {
 			w.lastPoll = time.Now()
 		} else {
-			w.engine.Fault("windows_source_query_failed")
+			w.fault("windows_source_query_failed")
 			w.lastPoll = time.Time{}
-			clear(w.contexts)
-			w.contextBytes = 0
+			w.clearFileContexts()
 		}
 	}
 }
@@ -197,35 +215,37 @@ func SourcePoll(out io.Writer, healthy bool) {
 // SourceFault invalidates before handling more records from the same polling round.
 func SourceFault(out io.Writer, reason string) {
 	if w, ok := out.(*Learning); ok {
-		w.engine.Fault(reason)
+		w.fault(reason)
+		w.mu.Lock()
+		w.clearFileContexts()
+		w.mu.Unlock()
 	}
 }
 
-// WriteSource routes only executions through learning. Other evidence is still
-// emitted and can replay a suppressed Sysmon parent using its real process GUID.
+// WriteSource routes each event type to an independent exact baseline. The
+// shared reader retains continuity checks and GUID-based command correlation.
 func WriteSource(out io.Writer, event windowseventlog.Event, includeRaw bool) (int, error) {
 	if w, ok := out.(*Learning); ok {
 		// Log clearing, collector restart/config changes and Sysmon errors break
 		// source continuity even though they do not classify as process evidence.
 		id := event.EventIDInt()
 		// A process GUID can survive injected code or image tampering. Observed
-		// integrity signals disqualify this generation instead of continuing to
-		// trust the original image hash for the process's later network/file I/O.
+		// integrity signals disqualify this generation instead of associating
+		// later network/file I/O with the originally observed process command.
 		if strings.EqualFold(event.System.Provider, "Microsoft-Windows-Sysmon") && (id == 8 || id == 25) {
-			w.engine.Fault("windows_process_integrity_changed")
+			SourceFault(w, "windows_process_integrity_changed")
 		}
 		if (strings.EqualFold(event.System.Provider, "Microsoft-Windows-Sysmon") && (id == 4 || id == 16 || id == 255)) ||
 			(strings.EqualFold(event.System.Channel, "Security") && id == 1102) ||
 			(strings.EqualFold(event.System.Provider, "Microsoft-Windows-Eventlog") && id == 104) {
-			w.engine.Fault("windows_source_continuity_changed")
+			w.fault("windows_source_continuity_changed")
 			w.mu.Lock()
-			clear(w.contexts)
-			w.contextBytes = 0
+			w.clearFileContexts()
 			w.mu.Unlock()
 		}
 		if strings.EqualFold(event.System.Provider, "Microsoft-Windows-Sysmon") && id == 5 {
 			w.mu.Lock()
-			w.forgetInstance(processInstance(event.System.Computer, event.Field("ProcessGuid")))
+			w.forgetFileInstance(processInstance(event.System.Computer, event.Field("ProcessGuid")))
 			w.mu.Unlock()
 		}
 		return w.writeSource(event, includeRaw)
@@ -241,13 +261,24 @@ func (w *Learning) writeSource(event windowseventlog.Event, includeRaw bool) (in
 	before := w.emitted
 	for _, e := range Classify(event, includeRaw) {
 		var o behaviorlearning.Observation
+		engine := w.engine
 		if e.EventType == "exec" {
 			o = learningObservation(e, w.started, time.Now())
-			w.rememberExecution(o, time.Now())
+			w.rememberFileExecution(e, time.Now())
+		} else if e.EventType == "file_op" {
+			o = w.fileObservation(e, time.Now())
+			engine = w.fileEngine
 		} else {
 			o = w.activityObservation(e, time.Now())
+			engine = w.networkEngine
 		}
-		if err := w.engine.Process(o); err != nil {
+		var err error
+		if engine == nil {
+			err = w.writeOriginal(o.Raw)
+		} else {
+			err = engine.Process(o)
+		}
+		if err != nil {
 			return w.emitted - before, err
 		}
 	}
@@ -270,14 +301,22 @@ func splitPolicyList(value, separator string) []string {
 func (w *Learning) Sync() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if err := w.engine.Checkpoint(); err != nil {
-		return err
+	for _, engine := range w.engines() {
+		if engine != nil {
+			if err := engine.Checkpoint(); err != nil {
+				return err
+			}
+		}
 	}
 	if err := agentoutput.Checkpoint(w.summary); err != nil {
-		w.engine.Fault("summary_checkpoint_failed")
+		w.fault("summary_checkpoint_failed")
 		return err
 	}
-	return agentoutput.Checkpoint(w.Writer)
+	err := agentoutput.Checkpoint(w.Writer)
+	if err != nil {
+		w.fault("original_checkpoint_failed")
+	}
+	return err
 }
 
 // Close joins the ticker before committing clean shutdown and releasing the lock.
@@ -285,11 +324,43 @@ func (w *Learning) Sync() error {
 func (w *Learning) Close() error {
 	close(w.stop)
 	<-w.done
-	err := w.engine.CloseWithCheckpoint(func() error {
+	checkpoint := func() error {
 		// Try both sinks even when the first fails; failure is persisted as a
 		// degraded baseline before the exclusive state handle is released.
 		return errors.Join(agentoutput.Checkpoint(w.summary), agentoutput.Checkpoint(w.Writer))
-	})
+	}
+	var err error
+	for _, engine := range w.engines() {
+		if engine != nil {
+			err = errors.Join(err, engine.CloseWithCheckpoint(checkpoint))
+		}
+	}
 	w.closeSummary()
+	return err
+}
+
+func (w *Learning) engines() [3]*behaviorlearning.Engine {
+	return [3]*behaviorlearning.Engine{w.engine, w.fileEngine, w.networkEngine}
+}
+
+// fault is safe inside sink callbacks: Engine.Fault is atomic, so it does not
+// reenter the engine lock. A shared sink failure invalidates all three baselines.
+func (w *Learning) fault(reason string) {
+	for _, engine := range w.engines() {
+		if engine != nil {
+			engine.Fault(reason)
+		}
+	}
+}
+
+// writeOriginal runs under Learning.mu, including direct file fallback, so the
+// source reader's emitted count and cursor checkpoint cover every actual write.
+func (w *Learning) writeOriginal(raw json.RawMessage) error {
+	_, err := fmt.Fprintln(w.Writer, string(raw))
+	if err == nil {
+		w.emitted++
+	} else {
+		w.fault("original_output_failed")
+	}
 	return err
 }

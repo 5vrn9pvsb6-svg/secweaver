@@ -136,7 +136,10 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 		return
 	}
 	comm := normalizeComm(acc.fields["comm"], acc.fields["exe"])
-	command := resolveCommand(acc.argv, acc.proctitle, acc.fields["exe"], comm)
+	command := resolveAuditCommand(acc, comm)
+	if eventType == "file_op" {
+		command = resolveFileCommand(acc, comm)
+	}
 	if isSelfAuditctlMaintenance(acc.fields, command) {
 		delete(accs, id)
 		putAccumulator(acc) // P1 Optimization: Return to pool
@@ -255,18 +258,11 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	}
 	// Only complete EXECVE argv can qualify for learning. PROCTITLE fallback
 	// remains useful evidence but cannot prove exact argument boundaries.
-	argc, argcErr := strconv.Atoi(acc.fields["argc"])
-	if acc.seenExecve && argcErr == nil && argc > 0 && argc == len(acc.argv) && argc == len(command) {
-		complete := true
-		for index := 0; index < argc; index++ {
-			if _, ok := acc.argv[index]; !ok {
-				complete = false
-				break
-			}
-		}
-		if complete {
-			event.Fields["learning_argv_complete"] = "yes"
-		}
+	if completeAuditArgv(acc) {
+		event.Fields["learning_argv_complete"] = "yes"
+	}
+	if event.EventType == "file_op" && completeFileEvidence(acc) {
+		event.Fields["learning_file_fields_complete"] = "yes"
 	}
 	// Tracking above remains unconditional; learning can only reduce output.
 	if err := emitNormalizedEvent(out, event); err != nil {

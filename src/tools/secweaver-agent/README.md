@@ -1,8 +1,37 @@
 # secweaver-agent
 
+Source 0.3.83 unifies the remaining Windows exec, connection and ordinary
+PowerShell learning: five exact events in a rolling hour, immediate filtering
+from the fifth, and frozen new admissions after the default healthy day.
+It removes legacy identity/CDXML/rate gates, shares bounded file/network command
+correlation, and migrates compatible old baselines without enabling disabled
+policies. See the [current rules and limits](docs/behavior-learning.md).
+
+Source 0.3.82 applies the one-hour/five-event rule to Linux/Windows file_op using
+five exact fields including ordered file_paths. Windows uses an empty listener
+and same-ProcessGuid command evidence. File state is independent; inspect
+`doctor` file-learning/status. See [file learning](docs/behavior-learning.md#file-events-0382).
+
+Source 0.3.81 simplifies Linux exec learning: five exact four-field events in a
+rolling hour, filtering from the fifth. One-day learning bounds new admissions;
+legacy policy is archived and relearned. Deploy Gateway rc.72 first; Workspace
+rc.112 displays filtering during learning. See [behavior learning](docs/behavior-learning.md).
+
+Source 0.3.80 checks and raises small Linux audit queues during installation,
+preserving larger existing values. Native configuration changes are backed up;
+running auditd is reloaded, and CentOS 7 uses its native service interface. See
+[Linux audit queue precheck](docs/bootstrap-channel.md#linux-audit-queue-precheck-0380)
+for defaults, opt-out and recovery.
+
+Source 0.3.79 preserves existing signing trust when installers reconfigure updates.
+Omitting a public key no longer clears provisioned keys or revocations. See
+[update trust configuration](docs/tenant-auto-update.md#update-trust-configuration-0379)
+for package defaults, recovery and verification.
+
 Source 0.3.78 adds independent Windows risk learning for repetitive SYSTEM
 PowerShell CDXML blocks. Fresh Windows installs learn for 24 healthy hours;
 upgrades preserve choices and protected security events always retain originals.
+Version 0.3.83 supersedes those admission restrictions with exact-script learning.
 See [Windows risk learning](docs/behavior-learning.md#windows-risk-logs-0378).
 
 Source 0.3.77 builds on the 0.3.73 fail-closed update baseline by aggregating routine Linux
@@ -70,11 +99,13 @@ Already degraded generations still require explicit relearning; see the recovery
 
 Source 0.3.39 extends Windows learning to eligible outbound network connections and ordinary
 `.log` creations. Each type has exact matching and separate summary counts; authentication,
-persistence, sensitive/destructive activity and unverified records remain full-output.
+persistence and unverified records remain full-output. Version 0.3.82 replaces the
+old file restrictions with five-field matching, including delete events.
 
 Source 0.3.38 adds Windows Sysmon exec learning to both evidence reader modes. Fresh
 Windows installs enable 24-hour learning; 4688 and incomplete/sensitive evidence stay
-full-output. See the [Windows prerequisites and verification](docs/behavior-learning.md#windows-0339).
+full-output in that historical version. Version 0.3.83 also learns complete 4688
+commands. See the [current Windows prerequisites](docs/behavior-learning.md#windows-0339).
 
 Source 0.3.37 adds Linux behavior learning and bounded log reduction, enabled for new
 installations with a 24-hour learning period. See [behavior learning](docs/behavior-learning.md)
@@ -814,7 +845,11 @@ creates an Ed25519 device key and `device_id`, and atomically writes the server-
 `enterprise_id` only after enrollment succeeds. `--enterprise-id` remains available only for v1
 legacy migration. During migration the installer stops standalone collectors and blocks duplicate
 writer processes. It requires systemd by default and checks or installs `auditctl`, `netstat`, and
-their packages. `REQUIRE_SYSTEMD=0` and `INSTALL_DEPS=0` are controlled migration overrides.
+their packages. `REQUIRE_SYSTEMD=0` and `INSTALL_DEPS=0` are controlled migration overrides;
+the latter also skips audit service and queue configuration management. The default floors
+are `q_depth=2000` and `backlog_limit=8192`; larger values are preserved. To install
+dependencies while preserving queue settings, use `sudo env AUDIT_TUNE=0 ./install.sh ...`.
+See the audit queue precheck guide above.
 
 The systemd unit includes `ExecStopPost=/opt/secweaver-agent/bin/secweaver-agent audit-cleanup -quiet`, so stopping the service performs best-effort cleanup for `tb_external_listener_*`, `tb_port_*`, and `tb_host_persistence` audit rules. To run the cleanup manually:
 

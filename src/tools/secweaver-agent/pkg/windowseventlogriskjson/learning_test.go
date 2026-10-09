@@ -94,54 +94,27 @@ func TestScriptAssemblyUsesExactWholeContentNotFragmentBoundaries(t *testing.T) 
 	}
 }
 
-// SLS samples use native script scope/camel case, unlike a simplified root-level
-// fixture. Keep declaration syntax compatibility separate from script identity.
-func TestNativeCDXMLDeclarationShapes(t *testing.T) {
-	for _, declaration := range []string{
-		`$script:ClassName`,
-		`[string] $script:ClassName`,
-		`$SCRIPT:CLASSNAME`,
-		`$script:__cmdletization_className`,
-		`[string]$script:__cmdletization_className`,
-		`[System.String] $script:__cmdletization_className`,
-		`$Script:__cmdletization_CLASSNAME`,
-	} {
-		script := strings.Replace(safeCDXML, "$__cmdletization_ClassName", declaration, 1)
-		if eligibleCDXML(script, "") != "root/standardcimv2/msft_nettcpconnection" {
-			t.Fatalf("native declaration rejected: %s", declaration)
-		}
-		if eligibleCDXML(script+"\n"+declaration+" = 'ROOT/StandardCimv2/MSFT_NetTCPConnection'", "") != "" {
-			t.Fatal("duplicate class declaration qualified")
-		}
-	}
-	for _, declaration := range []string{`$global:__cmdletization_className`, `$__cmdletization_className +=`, `$__cmdletization_className = Invoke-Expression`} {
-		script := strings.Replace(safeCDXML, "$__cmdletization_ClassName", declaration, 1)
-		if eligibleCDXML(script, "") != "" {
-			t.Fatal("nonliteral/unknown-scope declaration qualified")
-		}
-	}
-}
-
-// These are the explicit network/scheduler classes observed in native module
-// imports; adding a future class requires code review, not a prefix wildcard.
-func TestObservedNativeNetworkAndSchedulerClasses(t *testing.T) {
-	for _, class := range []string{
-		"ROOT/StandardCimv2/MSFT_NetCompartment", "ROOT/StandardCimv2/MSFT_NetIPv4Protocol",
-		"ROOT/StandardCimv2/MSFT_NetIPv6Protocol", "ROOT/StandardCimv2/MSFT_NetOffloadGlobalSetting",
-		"ROOT/StandardCimv2/MSFT_NetPrefixPolicy", "ROOT/StandardCimv2/MSFT_NetTCPSetting",
-		"ROOT/StandardCimv2/MSFT_NetTransportFilter", "ROOT/StandardCimv2/MSFT_NetUDPSetting",
-		"Root/Microsoft/Windows/TaskScheduler/MSFT_ScheduledTask",
-		"Root/Microsoft/Windows/TaskScheduler/PS_ScheduledTask",
-		"Root/Microsoft/Windows/TaskScheduler/PS_ClusteredScheduledTask",
-	} {
-		script := strings.Replace(safeCDXML, "ROOT/StandardCimv2/MSFT_NetTCPConnection", class, 1)
-		script = strings.Replace(script, "$__cmdletization_ClassName", "$script:ClassName", 1)
-		if got := eligibleCDXML(script, ""); got != strings.ToLower(class) {
-			t.Fatalf("native class rejected: %s", class)
-		}
-	}
-	if eligibleCDXML(strings.Replace(safeCDXML, "MSFT_NetTCPConnection", "MSFT_UnreviewedClass", 1), "") != "" {
-		t.Fatal("unknown class admitted through a prefix wildcard")
+// Ordinary scripts, custom paths and non-SYSTEM users now use exact content
+// matching. Changing one of them creates a different tuple instead of bypassing
+// learning through the removed CDXML/service heuristics.
+func TestSimpleRiskAcceptsOrdinaryScriptsAndAllKnownUsers(t *testing.T) {
+	for _, scenario := range []string{"user", "ordinary", "module-path"} {
+		t.Run(scenario, func(t *testing.T) {
+			var out bytes.Buffer
+			w, engine := scriptFixture(&out, true)
+			event := scriptEvent(1, 1, 1, safeCDXML)
+			switch scenario {
+			case "user":
+				event.System.UserID = "S-1-5-21-1-2-3-1001"
+			case "ordinary":
+				event.EventData[0].Value = "Write-Output 'business task'"
+			case "module-path":
+				event.EventData = append(event.EventData, windowseventlog.DataField{Name: "Path", Value: `C:\Temp\module.psm1`})
+			}
+			if n := observeScript(t, w, event); n != 0 || len(engine.observations) != 1 || !engine.observations[0].Complete {
+				t.Fatalf("complete script rejected: writes=%d observations=%+v", n, engine.observations)
+			}
+		})
 	}
 }
 
@@ -203,14 +176,12 @@ func TestIncompleteConflictAndBudgetAlwaysEmit(t *testing.T) {
 }
 
 func TestRiskIdentityAndProtectedScriptNeverTrain(t *testing.T) {
-	for _, scenario := range []string{"user", "missing-sid", "provider", "historical", "future", "record", "ordinary", "module-path", "suspicious-boundary"} {
+	for _, scenario := range []string{"missing-sid", "provider", "historical", "future", "record", "suspicious-boundary"} {
 		t.Run(scenario, func(t *testing.T) {
 			var out bytes.Buffer
 			w, e := scriptFixture(&out, true)
 			event := scriptEvent(1, 1, 1, safeCDXML)
 			switch scenario {
-			case "user":
-				event.System.UserID = "S-1-5-21-1-2-3-1001"
 			case "missing-sid":
 				event.System.UserID = ""
 			case "provider":
@@ -221,10 +192,6 @@ func TestRiskIdentityAndProtectedScriptNeverTrain(t *testing.T) {
 				event.System.TimeCreated = time.Now().Add(time.Hour).Format(time.RFC3339Nano)
 			case "record":
 				event.System.EventRecordID = "0"
-			case "ordinary":
-				event.EventData[0].Value = "Write-Output 'business task'"
-			case "module-path":
-				event.EventData = append(event.EventData, windowseventlog.DataField{Name: "Path", Value: `C:\Temp\module.psm1`})
 			case "suspicious-boundary":
 				text := safeCDXML + "DownloadString('https://example.invalid')"
 				boundary := len(safeCDXML) + len("Download")
@@ -244,6 +211,52 @@ func TestRiskIdentityAndProtectedScriptNeverTrain(t *testing.T) {
 				t.Fatal("whole-script suspicious token did not protect both fragments")
 			}
 		})
+	}
+}
+
+// Complete two-fragment scripts exercise the actual durable counter. Five
+// scripts, not five fragments, are needed; a protected alert still emits after
+// the ordinary script baseline has started filtering.
+func TestSimpleRiskFifthWholeScriptFiltersThroughRealEngine(t *testing.T) {
+	t.Setenv("SECWEAVER_DEVICE_ID", "test-device")
+	var out bytes.Buffer
+	options := RiskLearningOptions{Enabled: true, StateDir: filepath.Join(t.TempDir(), "risk")}
+	wrapped, closeLearning := wrapRiskLearning(&out, options, "", time.Second)
+	t.Cleanup(func() {
+		if err := closeLearning(); err != nil {
+			t.Error(err)
+		}
+	})
+	w, ok := wrapped.(*riskLearning)
+	if !ok {
+		t.Fatal("real risk engine was not initialized")
+	}
+	w.engine.Health(true, false)
+	script := "Write-Output 'ordinary business task'"
+	for i := 0; i < 6; i++ {
+		if n := observeScript(t, w, scriptEvent(i*2+1, 1, 2, script[:12])); n != 0 {
+			t.Fatal("partial script emitted before assembly")
+		}
+		n := observeScript(t, w, scriptEvent(i*2+2, 2, 2, script[12:]))
+		want := 2
+		if i >= 4 {
+			want = 0
+		}
+		if n != want {
+			t.Fatalf("script %d wrote %d fragments want %d", i, n, want)
+		}
+	}
+	for i := 0; i < 6; i++ {
+		if n := observeScript(t, w, scriptEvent(100+i, 1, 1, "DownloadString('https://example.invalid')")); n != 1 {
+			t.Fatal("protected script suppressed")
+		}
+	}
+	if err := w.Sync(); err != nil {
+		t.Fatal(err)
+	}
+	state, err := behaviorlearning.Inspect(options.StateDir, 64)
+	if err != nil || len(state.Entries) != 1 {
+		t.Fatalf("unexpected risk baseline: %+v %v", state, err)
 	}
 }
 

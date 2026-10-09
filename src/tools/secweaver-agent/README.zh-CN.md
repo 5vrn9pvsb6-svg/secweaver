@@ -1,7 +1,31 @@
 # secweaver-agent
 
+源码 0.3.83 将剩余 Windows exec、网络和普通 PowerShell 学习统一为滚动一小时五次，
+第五次立即过滤，默认一个健康日结束后冻结新增名单。删除旧身份/CDXML/频率门槛，
+文件与网络共用有界命令缓存；兼容旧基线归档后重新学习，已关闭的配置不会自动启用。
+详见[当前规则与边界](docs/behavior-learning.zh-CN.md)。
+
+源码 0.3.82 将一小时五次规则扩展至 Linux/Windows file_op，以包含有序 file_paths 的
+五字段精确匹配。Windows listener_process 固定为空，命令行按同 ProcessGuid 补齐。
+文件名单独立保存，doctor 增加 file-learning/status。
+详见[文件学习](docs/behavior-learning.zh-CN.md#文件事件0382)。
+
+源码 0.3.81 简化 Linux exec 学习：四字段相同、滚动一小时 5 次入名单，第 5 次立即过滤。
+学习一天只限制新增名单时间，旧策略归档后自动重新学习。发布前须先升级 Gateway rc.72，
+工作台 rc.112 支持学习中显示过滤生效。详见[行为学习](docs/behavior-learning.zh-CN.md)。
+
+源码 0.3.80 在 Linux 安装阶段检查并提高偏小的 audit 队列，保留更大的既有值。
+配置修改前备份，运行中的 auditd 只 reload；CentOS 7 使用原生 service 接口。
+默认值、退出开关与故障恢复见
+[Linux 审计队列预检查](docs/bootstrap-channel.zh-CN.md#linux-审计队列预检查0380)。
+
+源码 0.3.79 在安装器重新配置升级参数时保留已有签名信任。
+省略公钥不再清空已有公钥或吊销记录。安装包默认值、修复及验证方法见
+[升级信任配置](docs/tenant-auto-update.zh-CN.md#升级信任配置0379)。
+
 源码 0.3.78 为重复 SYSTEM PowerShell CDXML 脚本增加独立的 Windows 风险日志学习。
 新装默认累计 24 个健康小时，升级保留原选择，关键安全事件始终输出。
+0.3.83 已用完整脚本精确学习替代当时的 SYSTEM/CDXML 准入限制。
 详见 [Windows 风险日志学习](docs/behavior-learning.zh-CN.md#windows-风险日志0378)。
 
 源码 0.3.77 在 0.3.73 的升级 fail closed 基线之上，默认聚合 Linux host-process 的常规
@@ -54,10 +78,11 @@ Windows Logtail 输送器。见 [Windows 安装与云端验收](docs/windows-ins
 导致行为学习误降级。已降级的旧代次仍需显式重新学习，操作见行为学习指南。
 
 源码 0.3.39 扩展 Windows 学习至合格外连和普通 `.log` 创建，各类型精确匹配、分别汇总；
-认证、持久化、敏感/破坏性动作和无法验证的记录继续全量输出。
+认证、持久化和无法验证的记录继续全量输出。0.3.82 将旧文件限制替换为五字段匹配，包含删除事件。
 
 源码 0.3.38 为两个 Windows 证据 reader 接入 Sysmon exec 自动学习，新安装默认学习 24 小时。
-4688 以及不完整、敏感事件仍全量输出。前提、限制与验收见[行为学习指南](docs/behavior-learning.zh-CN.md)。
+该历史版本的 4688 及不完整、敏感事件全量输出；0.3.83 也支持完整 4688 命令学习。
+当前前提、限制与验收见[行为学习指南](docs/behavior-learning.zh-CN.md)。
 
 源码 0.3.37 增加 Linux 行为学习与有界日志减量，新安装默认自动学习 24 小时。
 资格限制、异常恢复、摘要上传和待完成的真实平台验收见[行为学习指南](docs/behavior-learning.zh-CN.md)。
@@ -730,7 +755,10 @@ Ed25519 设备密钥和 `device_id`，注册成功后才把服务端返回的 `e
 `--enterprise-id` 只为 v1 旧安装迁移保留。迁移旧版本时，安装器会停止并禁用独立的
 `syslog-risk-json.service`、`audit-port-execmon.service`；若仍有旧独立二进制进程，则拒绝安装。
 `install.sh` 默认要求 systemd，并会检测或安装 `auditctl`、`netstat` 及其依赖。内网自行管理依赖时，
-可使用 `INSTALL_DEPS=0`；非 systemd 环境可用 `REQUIRE_SYSTEMD=0`，两者都只建议在受控迁移中使用。
+可使用 `INSTALL_DEPS=0`，同时跳过 audit 服务及队列配置管理；非 systemd 环境可用
+`REQUIRE_SYSTEMD=0`，两者都只建议在受控迁移中使用。默认队列下限为
+`q_depth=2000`、`backlog_limit=8192`，更大值保留。保留依赖安装但禁用队列修改可用
+`sudo env AUDIT_TUNE=0 ./install.sh ...`。详情见上述审计队列预检查说明。
 
 systemd unit 配置了 `ExecStopPost=/opt/secweaver-agent/bin/secweaver-agent audit-cleanup -quiet`，服务停止后会兜底清理 `tb_external_listener_*`、`tb_port_*`、`tb_host_persistence` audit 规则。需要手工清理时可执行：
 

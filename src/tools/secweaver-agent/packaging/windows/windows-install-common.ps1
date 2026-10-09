@@ -62,24 +62,24 @@ function Write-WindowsLearningSummary([string]$ConfigPath, [string[]]$PreflightL
   if ($Config.modules.'windows-eventlog-risk-json' -eq $Module) {
     $RiskEnabled = Get-WindowsBooleanFlag $Module.args 'risk-behavior-learning'
     $RiskShadow = Get-WindowsBooleanFlag $Module.args 'risk-learning-shadow'
-    Write-InstallResult $(if ($RiskEnabled) {'OK'} else {'WARN'}) 'risk-learning-policy' "Enabled=$RiskEnabled; shadow=$RiskShadow; independent native PowerShell CDXML baseline; protected security events retain originals. Use -LearningMode enable or shadow to migrate."
+    Write-InstallResult $(if ($RiskEnabled) {'OK'} else {'WARN'}) 'risk-learning-policy' "Enabled=$RiskEnabled; shadow=$RiskShadow; complete native PowerShell blocks use exact matching, five events within one hour; high/critical alerts retain originals. Use -LearningMode enable or shadow to migrate."
   }
   if (-not (Get-WindowsBooleanFlag $Module.args 'behavior-learning')) {
     Write-InstallResult 'WARN' 'learning' 'Disabled in existing configuration; use -LearningMode shadow or enable for an explicit migration'
     return
   }
   $Shadow = Get-WindowsBooleanFlag $Module.args 'learning-shadow'
-  Write-InstallResult 'OK' 'learning-policy' "Enabled; shadow=$Shadow; existing duration, scope and baseline are preserved"
+  Write-InstallResult 'OK' 'learning-policy' "Enabled; shadow=$Shadow; exact matching, five events within one hour; matching starts during learning unless shadow=true. Existing activation, duration and scope are preserved; legacy baselines migrate on startup."
   # Reuse the completed preflight probe, not another expensive Event Log query.
-  # An accessible channel proves neither eligible events nor a learned baseline;
-  # absent/unknown evidence must never be reported as active suppression.
+  # Sysmon supplies GUID-correlated file/network commands. Exec can also use
+  # complete 4688 commands; channel readiness alone never certifies filtering.
   $Channel = 'windows-channel/Microsoft-Windows-Sysmon/Operational:'
   if (@($PreflightLines | Where-Object { ([string]$_).StartsWith('[OK] ' + $Channel) }).Count) {
-    Write-InstallResult 'INFO' 'learning-readiness' 'Sysmon channel available; exec filtering still requires registered identity, eligible GUID/SHA256 context and a completed baseline. Security 4688, protected risk events and incomplete context retain originals.'
+    Write-InstallResult 'INFO' 'learning-readiness' 'Sysmon channel available; exec accepts Sysmon 1 or Security 4688 with complete commands. File/network matching needs the same ProcessGuid creation event. Check doctor for identity, source health and filtering status; channel availability alone does not prove filtering.'
   } elseif (@($PreflightLines | Where-Object { $_ -match '^\[(WARN|ERROR)\] windows-channel/Microsoft-Windows-Sysmon/Operational:' }).Count) {
-    Write-InstallResult 'WARN' 'learning-readiness' 'Sysmon is missing or its channel is inaccessible: Sysmon-based exec reduction is unavailable. Native PowerShell risk learning is independent. Security 4688 and protected risk events remain full-output.'
+    Write-InstallResult 'WARN' 'learning-readiness' 'Sysmon is missing or its channel is inaccessible: file/network command correlation is unavailable. Complete Security 4688 events can learn when configured sources are healthy; a configured unavailable channel degrades evidence learning. Native PowerShell risk learning is independent; incomplete events and high/critical alerts retain originals.'
   } else {
-    Write-InstallResult 'WARN' 'learning-readiness' 'Sysmon capability was not verified; run doctor. Without eligible GUID/SHA256 context, events retain originals; enabled policy alone does not prove whitelist reduction.'
+    Write-InstallResult 'WARN' 'learning-readiness' 'Sysmon capability was not verified; run doctor. Incomplete exact-match fields retain originals; enabled policy alone does not prove whitelist reduction.'
   }
 }
 

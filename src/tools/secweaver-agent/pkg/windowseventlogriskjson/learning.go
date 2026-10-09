@@ -27,7 +27,7 @@ type RiskLearningOptions struct {
 
 // RegisterFlags exposes independent relearning without resetting exec history.
 func (o *RiskLearningOptions) RegisterFlags(fs *flag.FlagSet) {
-	fs.BoolVar(&o.Enabled, "risk-behavior-learning", false, "learn eligible SYSTEM PowerShell CDXML blocks and filter exact baseline matches")
+	fs.BoolVar(&o.Enabled, "risk-behavior-learning", false, "learn complete PowerShell script blocks: five exact matches in one hour")
 	fs.BoolVar(&o.Shadow, "risk-learning-shadow", false, "learn risk behavior while retaining all originals")
 	fs.DurationVar(&o.Duration, "risk-learning-duration", 24*time.Hour, "healthy risk learning duration")
 	fs.Uint64Var(&o.Generation, "risk-learning-generation", 0, "increase to explicitly relearn the risk baseline")
@@ -46,7 +46,7 @@ func (o RiskLearningOptions) policy(cursor string) (behaviorlearning.Config, err
 		}
 		o.StateDir = filepath.Join(dir, "behavior-learning-windows-risk")
 	}
-	return (behaviorlearning.Config{Enabled: o.Enabled, Shadow: o.Shadow, Generation: o.Generation,
+	return behaviorlearning.ScriptPolicy(behaviorlearning.Config{Enabled: o.Enabled, Shadow: o.Shadow, Generation: o.Generation,
 		StateDir: o.StateDir, LearningSeconds: int(o.Duration / time.Second),
 		EventTypes: []string{"powershell_script_block"}}).Normalize()
 }

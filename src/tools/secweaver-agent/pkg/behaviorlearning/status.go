@@ -34,11 +34,25 @@ type StatusSnapshot struct {
 // shadow/enabled preserves a qualified baseline; changing matching semantics
 // requires an explicit new generation, in both the engine and diagnostics.
 func policyHash(cfg Config) string {
+	if cfg.simpleExec {
+		// Unused legacy admission controls cannot invalidate a simple baseline.
+		cfg.MinOccurrences, cfg.MinHours, cfg.MinSpan, cfg.ExpiryDays = 0, 0, 0, 0
+	}
 	cfg.StateDir, cfg.OutputLog = "", ""
 	cfg.Enabled, cfg.Shadow, cfg.Generation = false, false, 0
 	body, _ := json.Marshal(cfg)
+	if cfg.simpleExec {
+		body = append(body, []byte(cfg.simpleStrategy())...)
+	}
 	hash := sha256.Sum256(body)
 	return hex.EncodeToString(hash[:])
+}
+
+// legacyPolicyHash is only used to authenticate an automatic one-time migration
+// of an otherwise unchanged Linux/Windows policy. It never permits foreign state.
+func legacyPolicyHash(cfg Config) string {
+	cfg.simpleExec = false
+	return policyHash(cfg)
 }
 
 // Inspect reads an atomic authenticated checkpoint without taking the writer
@@ -67,6 +81,12 @@ func Inspect(dir string, budgetMB int) (*State, error) {
 // run periodically, so scanning the complete rotating log would turn a status
 // probe into an avoidable disk and CPU cost on busy hosts.
 func ReadLatestSummary(path string) (*Summary, error) {
+	return ReadBaselineSummary(path, "")
+}
+
+// ReadBaselineSummary selects one independent baseline from a shared rotating
+// summary log. An empty baseline preserves the legacy unfiltered status reader.
+func ReadBaselineSummary(path, baseline string) (*Summary, error) {
 	// Reject nonregular paths before opening: a misconfigured FIFO must not
 	// block a heartbeat waiting for a writer.
 	info, err := os.Stat(path)
@@ -106,6 +126,9 @@ func ReadLatestSummary(path string) (*Summary, error) {
 		if candidate.EventType != "behavior_learning_status" && candidate.EventType != "behavior_summary" {
 			continue
 		}
+		if baseline != "" && candidate.BaselineID != baseline {
+			continue
+		}
 		if latest == nil || candidate.Time.After(latest.Time) {
 			copy := candidate
 			latest = &copy
@@ -118,6 +141,20 @@ func ReadLatestSummary(path string) (*Summary, error) {
 		return nil, fmt.Errorf("learning summary has no status record")
 	}
 	return latest, nil
+}
+
+// InspectStatus combines independent state with its own summary, without a
+// writer lock or full log scan. Disabled streams do not require state files.
+func InspectStatus(cfg Config) (StatusSnapshot, error) {
+	if !cfg.Enabled {
+		return Snapshot(cfg, nil, nil, time.Now()), nil
+	}
+	state, err := Inspect(cfg.StateDir, cfg.StateMB)
+	if err != nil {
+		return Snapshot(cfg, nil, nil, time.Now()), err
+	}
+	latest, _ := ReadBaselineSummary(cfg.OutputLog, state.BaselineID)
+	return Snapshot(cfg, state, latest, time.Now()), nil
 }
 
 // Snapshot combines authenticated state with the latest runtime summary. A
@@ -163,7 +200,8 @@ func Snapshot(cfg Config, state *State, latest *Summary, now time.Time) StatusSn
 	// A stale status is never treated as proof that filtering remains active.
 	age := now.Sub(latest.Time)
 	if !state.CleanShutdown && !latest.Time.IsZero() && age >= 0 && age <= 2*time.Duration(cfg.SummarySeconds)*time.Second {
-		result.FilteringActive = latest.FilteringActive && latest.SourceHealthy && !cfg.Shadow && !latest.Shadow && state.Mode == "enforcing" && latest.Mode == state.Mode
+		filterable := state.Mode == "enforcing" || (cfg.simpleExec && state.Mode == "learning")
+		result.FilteringActive = latest.FilteringActive && latest.SourceHealthy && !cfg.Shadow && !latest.Shadow && filterable && latest.Mode == state.Mode
 	}
 	return result
 }

@@ -1,6 +1,7 @@
 package auditportexecmon
 
 import (
+	"encoding/hex"
 	"strconv"
 	"strings"
 
@@ -76,7 +77,8 @@ func parseFieldsFast(line string) map[string]string {
 
 		// Read value
 		var value string
-		if line[i] == '"' {
+		quoted := line[i] == '"'
+		if quoted {
 			// Quoted value
 			i++ // Skip opening quote
 			valueStart := i
@@ -115,8 +117,29 @@ func parseFieldsFast(line string) map[string]string {
 			}
 			value = line[valueStart:i]
 		}
+		// Linux audit hex-encodes unquoted EXECVE strings containing whitespace
+		// or non-ASCII bytes. Quoted hex-looking arguments are literal strings;
+		// SYSCALL a0/a1 values are pointers and must never be decoded as argv.
+		if !quoted && fields["type"] == "EXECVE" && len(key) > 1 && key[0] == 'a' {
+			if _, err := strconv.Atoi(key[1:]); err == nil {
+				if decoded, err := hexStringToBytes(value); err == nil {
+					value = string(decoded)
+				}
+			}
+		}
 
 		// Store the field
+		// Normalize quoted PROCTITLE to the existing hex decoder, and decode
+		// encoded PATH names before exact file matching. Never decode SYSCALL
+		// pointers or quoted hex-looking filenames as byte strings.
+		if quoted && fields["type"] == "PROCTITLE" && key == "proctitle" {
+			value = hex.EncodeToString([]byte(value))
+		}
+		if !quoted && fields["type"] == "PATH" && key == "name" {
+			if decoded, err := hexStringToBytes(value); err == nil {
+				value = string(decoded)
+			}
+		}
 		// For EXECVE args like a0, a1, etc., preserve the key format
 		fields[key] = value
 	}
@@ -133,7 +156,19 @@ func parseFieldsRegex(line string) map[string]string {
 		if len(m) != 3 {
 			continue
 		}
-		fields[m[1]] = unquoteAuditValue(m[2])
+		value := unquoteAuditValue(m[2])
+		// Keep the reference parser's file/title contract aligned with the
+		// production parser so compatibility checks compare decoded evidence.
+		quoted := strings.HasPrefix(m[2], "\"")
+		if quoted && fields["type"] == "PROCTITLE" && m[1] == "proctitle" {
+			value = hex.EncodeToString([]byte(value))
+		}
+		if !quoted && fields["type"] == "PATH" && m[1] == "name" {
+			if decoded, err := hexStringToBytes(value); err == nil {
+				value = string(decoded)
+			}
+		}
+		fields[m[1]] = value
 	}
 	for _, m := range execArgPattern.FindAllStringSubmatch(line, -1) {
 		if len(m) != 3 {

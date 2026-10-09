@@ -8,7 +8,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -18,12 +17,12 @@ import (
 )
 
 // learningOutput is a semantic adapter, not a JSON-parsing generic writer.
-// Ownership is bounded: one worker owns verification and queued events are deep
+// Ownership is bounded: one worker owns matching and queued events are deep
 // copies. Overflow writes originals immediately and invalidates learning.
 type learningOutput struct {
 	io.Writer
 	engine       *behaviorlearning.Engine
-	verifier     *behaviorlearning.Verifier
+	fileEngine   *behaviorlearning.Engine
 	queue        chan auditEvent
 	stop         chan struct{}
 	done         chan struct{}
@@ -55,17 +54,13 @@ func learningPaths(c behaviorlearning.Config, eventPath string) behaviorlearning
 // newLearningOutput leaves the ordinary writer in charge on initialization
 // errors. No monitoring rule or collector lifetime depends on this feature.
 func newLearningOutput(cfg config, eventPath, backend string, out io.Writer, trackerHealth func() (bool, bool)) (*learningOutput, error) {
-	c, err := behaviorlearning.Decode(cfg.BehaviorLearning)
+	c, err := behaviorlearning.DecodeExec(cfg.BehaviorLearning)
 	if err != nil || !c.Enabled {
 		return nil, err
 	}
 	c = learningPaths(c, eventPath)
 	if filepath.Clean(c.OutputLog) == filepath.Clean(eventPath) {
 		return nil, fmt.Errorf("learning summary and original logs must differ")
-	}
-	verifier, err := behaviorlearning.NewVerifier()
-	if err != nil {
-		return nil, err
 	}
 	// Prefer the registered Agent device ID supplied by the supervisor. Standalone
 	// Linux uses a distinct local machine scope, never an IP address.
@@ -82,18 +77,39 @@ func newLearningOutput(cfg config, eventPath, backend string, out io.Writer, tra
 	if err != nil {
 		return nil, err
 	}
-	w := &learningOutput{Writer: out, verifier: verifier, queue: make(chan auditEvent, 128), stop: make(chan struct{}), done: make(chan struct{}), closeSummary: closeSummary, backend: backend, health: trackerHealth}
-	w.engine, err = behaviorlearning.New(c, device, func(raw json.RawMessage) error { _, err := fmt.Fprintln(out, string(raw)); return err }, func(s behaviorlearning.Summary) error {
+	w := &learningOutput{Writer: out, queue: make(chan auditEvent, 128), stop: make(chan struct{}), done: make(chan struct{}), closeSummary: closeSummary, backend: backend, health: trackerHealth}
+	original := func(raw json.RawMessage) error {
+		_, err := fmt.Fprintln(out, string(raw))
+		if err != nil {
+			w.fault("original_output_failed")
+		}
+		return err
+	}
+	writeSummary := func(s behaviorlearning.Summary) error {
 		b, err := json.Marshal(s)
 		if err != nil {
 			return err
 		}
 		_, err = fmt.Fprintln(summary, string(b))
+		if err != nil {
+			w.fault("summary_output_failed")
+		}
 		return err
-	})
+	}
+	w.engine, err = behaviorlearning.New(c, device, original, writeSummary)
 	if err != nil {
 		closeSummary()
 		return nil, err
+	}
+	// File state cannot reset exec progress or block collection if it is corrupt.
+	if filePolicy := behaviorlearning.FilePolicy(c, false); filePolicy.Enabled {
+		w.fileEngine, err = behaviorlearning.New(filePolicy, device, original, writeSummary)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "file behavior learning disabled; originals retained: %v\n", err)
+		}
+	}
+	if state, err := behaviorlearning.Inspect(c.StateDir, c.StateMB); err == nil && state.Reason == "simple_exec_policy_migrated" {
+		fmt.Fprintln(os.Stderr, "behavior learning: migrated to four-field matching; legacy baseline archived; learning restarted with immediate filtering on admission")
 	}
 	go w.run()
 	return w, nil
@@ -113,8 +129,11 @@ func emitNormalizedEvent(out io.Writer, event auditEvent) error {
 	return err
 }
 
+// WriteEvent copies pooled slices/maps before enqueueing either learned stream.
+// Disabled file learning bypasses the queue; overflow faults both baselines and
+// writes the original immediately so backpressure cannot silently drop evidence.
 func (w *learningOutput) WriteEvent(event auditEvent) error {
-	if event.EventType != "exec" {
+	if event.EventType != "exec" && (event.EventType != "file_op" || w.fileEngine == nil) {
 		return emitNormalizedEvent(w.Writer, event)
 	}
 	raw, err := json.Marshal(event)
@@ -122,11 +141,12 @@ func (w *learningOutput) WriteEvent(event auditEvent) error {
 		return err
 	}
 	if len(raw) > 65536 {
-		w.engine.Fault("oversized_event")
+		w.fault("oversized_event")
 		return emitNormalizedEvent(w.Writer, event)
 	}
 	// audit accumulators return to a pool immediately after this call.
 	event.Command = append([]string(nil), event.Command...)
+	event.FilePaths = append([]string(nil), event.FilePaths...)
 	event.RawRecords = append([]string(nil), event.RawRecords...)
 	fields := make(map[string]string, len(event.Fields))
 	for k, v := range event.Fields {
@@ -142,12 +162,12 @@ func (w *learningOutput) WriteEvent(event auditEvent) error {
 	case w.queue <- event:
 		return nil
 	default:
-		w.engine.Fault("learning_queue_overflow")
+		w.fault("learning_queue_overflow")
 		return emitNormalizedEvent(w.Writer, event)
 	}
 }
 
-// run performs all /proc/hash work away from the reader. Shutdown drains the
+// run owns exact matching and persistence away from the reader. Shutdown drains the
 // bounded queue before committing state and closing the summary sink.
 func (w *learningOutput) run() {
 	defer close(w.done)
@@ -161,8 +181,12 @@ func (w *learningOutput) run() {
 		case e := <-w.queue:
 			w.process(e)
 		case <-tick.C:
-			if err := w.engine.Tick(); err != nil {
-				fmt.Fprintf(os.Stderr, "behavior learning checkpoint: %v\n", err)
+			for _, engine := range w.engines() {
+				if engine != nil {
+					if err := engine.Tick(); err != nil {
+						fmt.Fprintf(os.Stderr, "behavior learning checkpoint: %v\n", err)
+					}
+				}
 			}
 		case <-healthTick.C:
 			w.sampleHealth()
@@ -172,8 +196,12 @@ func (w *learningOutput) run() {
 				case e := <-w.queue:
 					w.process(e)
 				default:
-					if err := w.engine.Close(); err != nil {
-						fmt.Fprintf(os.Stderr, "behavior learning close: %v\n", err)
+					for _, engine := range w.engines() {
+						if engine != nil {
+							if err := engine.Close(); err != nil {
+								fmt.Fprintf(os.Stderr, "behavior learning close: %v\n", err)
+							}
+						}
 					}
 					w.closeSummary()
 					return
@@ -185,32 +213,58 @@ func (w *learningOutput) run() {
 func (w *learningOutput) sampleHealth() {
 	if w.health != nil {
 		healthy, lost := w.health()
-		w.engine.Health(healthy, lost)
+		for _, engine := range w.engines() {
+			if engine != nil {
+				engine.Health(healthy, lost)
+			}
+		}
 	}
 }
 func (w *learningOutput) process(e auditEvent) {
-	pid, _ := strconv.Atoi(e.PID)
-	ppid, _ := strconv.Atoi(e.PPID)
-	in := behaviorlearning.Execution{PID: pid, PPID: ppid, RootPID: e.ListenerPID, Exe: e.Exe, Args: e.Command, UID: e.UID, GID: e.Fields["gid"], EUID: e.Fields["euid"], EGID: e.Fields["egid"], AUID: e.AUID, CWD: e.CWD, Address: e.ListenerAddress, Port: e.ListenerPort, Success: e.Success == "yes", Truncated: e.CommandTruncated || e.Fields["learning_argv_complete"] != "yes", HasTTY: e.HasTTY, Backend: "audit"}
-	if strings.HasPrefix(e.AuditID, "ebpf:") {
-		in.Backend = "ebpf"
+	engine := w.engine
+	var observation behaviorlearning.Observation
+	if e.EventType == "file_op" {
+		engine = w.fileEngine
+		observation = fileLearningObservation(e, w.backend, bootLearningID())
+	} else {
+		observation = execLearningObservation(e, w.backend, bootLearningID())
 	}
-	in.Inode = e.Fields["learning_inode"]
-	in.Device = e.Fields["learning_dev"]
-	in.SourceTime = e.Fields["learning_source_time"]
-	in.StartBootNS, _ = strconv.ParseUint(e.Fields["learning_start_boot_ns"], 10, 64)
-	ctx, instance, parent, reason := w.verifier.Verify(in)
-	// Unknown children still recover available suppressed parent evidence.
-	if parent == "" {
-		parent = w.verifier.ParentInstance(ppid)
-	}
-	raw, _ := json.Marshal(e)
-	// Audit IDs alone can repeat after reboot; the kernel boot identity is part of
-	// the local source identifier even for events with incomplete /proc evidence.
-	eventID := w.backend + ":" + bootLearningID() + ":" + e.AuditID + ":" + in.SourceTime
-	if err := w.engine.Process(behaviorlearning.Observation{Context: ctx, Complete: reason == "", Reason: reason, EventID: eventID, Instance: instance, ParentInstance: parent, Raw: raw, At: e.Time}); err != nil {
+	if err := engine.Process(observation); err != nil {
 		fmt.Fprintf(os.Stderr, "behavior learning event output: %v\n", err)
 	}
+}
+
+// engines are immutable after construction; the single worker owns transitions.
+// Fault is atomic and may also be called by the source/overflow path.
+func (w *learningOutput) engines() [2]*behaviorlearning.Engine {
+	return [2]*behaviorlearning.Engine{w.engine, w.fileEngine}
+}
+
+func (w *learningOutput) fault(reason string) {
+	for _, engine := range w.engines() {
+		if engine != nil {
+			engine.Fault(reason)
+		}
+	}
+}
+
+// execLearningObservation uses the normalized pre-redaction strings verbatim.
+// Unique source IDs partition reboot/backend retries but never change the four
+// behavior fields. Missing/truncated argv cannot stand in for a full command.
+func execLearningObservation(e auditEvent, backend, boot string) behaviorlearning.Observation {
+	raw, _ := json.Marshal(e)
+	complete := !e.CommandTruncated && e.Fields["learning_argv_complete"] == "yes"
+	reason := ""
+	if !complete {
+		reason = "incomplete_or_truncated_command"
+	}
+	eventID := ""
+	if boot != "" && e.AuditID != "" {
+		eventID = backend + ":" + boot + ":" + e.AuditID + ":" + e.Fields["learning_source_time"]
+	}
+	return behaviorlearning.Observation{Context: behaviorlearning.Context{Exec: &behaviorlearning.ExecFields{
+		ListenerProcess: e.ListenerProcess, PIDName: e.PIDName, Exe: e.Exe, CommandLine: e.CommandLine,
+	}}, Complete: complete, Reason: reason, EventID: eventID, Raw: raw, At: e.Time}
 }
 
 var learningBootOnce sync.Once
@@ -240,7 +294,7 @@ func printLearningStatus(configPath, outputPath string) int {
 	if err != nil {
 		return failf("learning config: %v", err)
 	}
-	c, err := behaviorlearning.Decode(cfg.BehaviorLearning)
+	c, err := behaviorlearning.DecodeExec(cfg.BehaviorLearning)
 	if err != nil {
 		return failf("learning config: %v", err)
 	}
@@ -261,6 +315,6 @@ func printLearningStatus(configPath, outputPath string) int {
 
 func learningFault(out io.Writer, reason string) {
 	if w, ok := out.(*learningOutput); ok {
-		w.engine.Fault(reason)
+		w.fault(reason)
 	}
 }

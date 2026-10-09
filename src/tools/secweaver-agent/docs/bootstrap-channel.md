@@ -1,5 +1,79 @@
 # Dynamic Bootstrap Version
 
+## Linux Audit Queue Precheck (0.3.80)
+
+The Linux archive's `install.sh` checks native audit queues after dependencies
+are ready and before device enrollment or Agent startup. SLS SaaS and private ES
+use this installer. This step targets native systemd Linux hosts with standard
+audit configuration paths, not Windows or the Docker workload profile. It needs
+root, Bash, coreutils (including GNU `timeout`), awk, auditctl and an auditd unit.
+
+| Setting | Installer behavior |
+| --- | --- |
+| audit 2.x, including common CentOS 7 versions | Check `q_depth` in `/etc/audisp/audispd.conf` when the native dispatcher is `/sbin/audispd` or `/usr/sbin/audispd` |
+| audit 3.x/4.x | Check `q_depth` in `/etc/audit/auditd.conf` |
+| Dispatcher queue | Raise missing values or values below `2000` to `2000`; preserve larger values |
+| Kernel backlog | Use a floor of `8192`, preserving larger running values or values anywhere in the native persistent ruleset |
+| Persistent rules | Inspect `-b` in `/etc/audit/audit.rules` and `/etc/audit/rules.d/*.rules`; provide missing native-loader settings before any `-e 2` lock |
+
+Only smaller queue numbers change. `max_restarts`, `disp_qos`, plugins, `-e`, `-f`
+and unrelated rules remain intact. Changed files get unique same-directory
+`.secweaver-backup.<suffix>` backups whose complete paths appear in the log,
+then atomic replacement retaining permissions, ownership and security metadata.
+Backup filenames do not end in `.rules`, so augenrules cannot load them as policy.
+Concurrent changes detected before publication stop installation. Repeating an
+install does not rewrite adequate values or request another dispatcher reload.
+
+A running daemon is reloaded only when dispatcher settings change, never
+restarted or killed. Hosts with native `/etc/init.d/auditd` use
+`service auditd start/reload`, including CentOS 7; other hosts use systemctl.
+Service operations have 30-second limits; status/auditctl probes have 10-second
+limits, followed by up to 5 seconds to terminate the command. No `auditctl -D/-R`
+or `augenrules --load` runs. Live backlog uses `auditctl -b` and read-back
+verification. The service must be active and the kernel must report a valid
+daemon PID and `enabled=1/2`. Start, reload, registration or live-queue failures
+stop subsequent installation with a specific error.
+
+For `enabled=2`, retain the immutable policy, persist the backlog floor and warn
+that a reboot is required; never unlock it. Dispatcher settings may still reload.
+Unknown audit major versions, custom/disabled audit 2.x dispatchers and duplicate
+or invalid `q_depth` settings are warned about and left unchanged. Unsafe backlog
+syntax, symlinks, files over 1 MiB or more than 256 rule files block automatic
+handling. Deployments using custom auditd configuration directories should opt
+out and have operators maintain the actual configuration.
+
+Disable queue changes while retaining dependency and service checks:
+
+```bash
+sudo env AUDIT_TUNE=0 ./install.sh \
+  --enterprise-enrollment-token 'swenr_TOKEN_ID.SECRET' \
+  --license-server-url https://agent-gateway.id-net.cn:30443
+```
+
+`INSTALL_DEPS=0` skips dependency installation, audit service operations and queue
+changes together. It is for controlled hosts where operators have already
+prepared and verified audit. Installation success under this override does not
+verify those settings. Bootstrap users can pass the same environment variables
+through `sudo env`; the Linux child installer inherits them.
+
+Configuration may already have been raised when a later step fails. Backups and
+installation logs are retained; the installer does not automatically undo
+completed steps. For rollback, stop the Agent, restore each exact backup path
+reported in the log, then use native `service auditd reload` or systemctl reload
+for dispatcher settings. Restoring backlog also requires consistent persistent
+`-b` directives and a mutable live-kernel value; immutable kernels require reboot.
+Do not restore multiple backups using a wildcard.
+
+After installation verify daemon PID, backlog_limit and lost deltas with
+`auditctl -s`, the matching `q_depth` file, the auditd journal and actual audit.log
+writes. Independently verify Agent JSONL and cloud receipt. Larger queues absorb
+bursts; they do not fix slow plugins or sustained host-wide fork/exec auditing.
+Do not interpret higher values as a cure for `dispatch err (pipe full)`.
+Isolated regressions cover both native loaders, audit 2/3/4, larger values,
+immutability, idempotence and service/kernel failures. Real CentOS 7 acceptance
+still needs the target kernel and plugin configuration, reload verification,
+business peaks and the cloud upload path.
+
 ## Installation Progress (0.3.44)
 
 Linux SaaS Bootstrap now prints eight numbered steps to stderr. Terminal success is
@@ -70,9 +144,11 @@ one LF. Except for the family-pointer 404 fallback above, empty, malformed,
 missing or unavailable pointers stop installation before host changes; no cached
 or embedded old version is selected. Initial installation trusts the
 HTTPS publication plus archive SHA-256, not a detached signature on this pointer.
-After installation, unsigned updates are accepted by default with HTTPS plus artifact SHA-256/size
-verification. Configure an update public key to require signed manifests; signed trust changes,
-emergency stops, and remote rollbacks remain available only in that mode.
+After installation, configurations without signing trust accept unsigned updates with HTTPS
+plus artifact SHA-256/size verification. A signed SaaS Bootstrap provisions the release public
+key and requires signed manifests; signed trust changes, emergency stops and remote rollbacks
+remain available only in that mode. Generic archives leave automatic updates disabled. See
+[update trust configuration](tenant-auto-update.md#update-trust-configuration-0379).
 This channel applies to new installs, not forced upgrades of existing devices.
 
 Linux prerequisites remain Bash, curl/wget, tar, SHA-256 tooling, coreutils and
@@ -134,8 +210,10 @@ To render only new Bootstrap scripts, retain all normal `BOOTSTRAP_*` configurat
 set `BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE=<existing-public-key>` before running
 `BOOTSTRAP_ONLY=1 OUT_DIR=<fresh-output-directory> ./scripts/package-release.sh`. No signing private
 key or Agent rebuild is required in this mode. Source provenance/version gates still apply; dirty
-builds are test-only. An omitted key preserves unsigned-update mode; never rotate an existing trust
-key silently.
+builds are test-only. Signed deployments must supply the existing public key when rendering
+their Bootstrap so fresh hosts receive trust. From Agent 0.3.79, an omitted installer key
+preserves existing host trust; only a fresh configuration without trust stays unsigned.
+Never rotate an existing trust key silently.
 Regular packaging does not promote a channel automatically: promotion happens only
 after the archives have reached the actual serving directory.
 

@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	parserVersion                     = "0.3.0"
+	parserVersion                     = "0.3.1"
 	defaultStateFile                  = layout.WindowsData + `\windows-process-execmon.cursor.json`
 	defaultWindowsProcessPollInterval = 5 * time.Minute
 )

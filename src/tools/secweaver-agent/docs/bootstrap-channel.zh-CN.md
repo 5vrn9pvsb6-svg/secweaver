@@ -1,5 +1,63 @@
 # Bootstrap 动态安装版本
 
+## Linux 审计队列预检查（0.3.80）
+
+Linux 发布包的 `install.sh` 在依赖就绪后、注册设备及启动 Agent 前检查本机 audit
+队列。SLS SaaS 与 ES 私有化使用同一安装器，适用于原生 systemd Linux 主机的标准
+audit 配置布局；Windows 和 Docker workload profile 不使用本步骤。需要 root、Bash、
+coreutils（包括 GNU `timeout`）、awk、auditctl 和可用的 auditd systemd unit。
+
+| 项目 | 安装器行为 |
+| --- | --- |
+| audit 2.x（包括 CentOS 7 常见版本） | 原生 dispatcher 为 `/sbin/audispd` 或 `/usr/sbin/audispd` 时，检查 `/etc/audisp/audispd.conf` 的 `q_depth` |
+| audit 3.x/4.x | 检查 `/etc/audit/auditd.conf` 的 `q_depth` |
+| 分发队列 | 缺少或小于 `2000` 时提高到 `2000`；更大的值保留 |
+| 内核 backlog | 下限为 `8192`；已有运行值或原生持久规则中更大的值作为新的下限，不降低原值 |
+| 持久规则 | 检查 `/etc/audit/audit.rules` 及 `/etc/audit/rules.d/*.rules` 的 `-b`；缺少时为原生加载方式补入配置，且放在 `-e 2` 前 |
+
+安装器仅修改偏小的队列数字，不改 `max_restarts`、`disp_qos`、插件绑定、`-e`、`-f`
+或其他审计规则。每个被修改的文件先生成同目录唯一的 `.secweaver-backup.<suffix>`
+备份，日志显示完整路径，再以保留权限、所有者及安全元数据的临时文件原子替换。
+备份不以 `.rules` 结尾，不会被 augenrules 当作规则源。原文件在写入前发生变化时
+停止安装，避免覆盖运维操作；重复安装不会再次改写符合下限的配置或触发 reload。
+
+已运行的 auditd 仅在分发队列改变时 reload，不 restart、不 kill。有原生
+`/etc/init.d/auditd` 时通过 `service auditd start/reload` 操作，兼容 CentOS 7；其他主机
+通过 systemctl 操作。服务操作限时 30 秒，状态/auditctl 查询限时 10 秒，超时后最多
+5 秒强制结束命令。不会执行 `auditctl -D/-R` 或 `augenrules --load`。运行 backlog 通过
+`auditctl -b` 修改并复查，服务必须 active 且内核报告有效 daemon PID、`enabled=1/2`。
+启动、reload、注册验证或运行队列修改失败均停止后续安装并显示具体步骤。
+
+`enabled=2` 时保留不可变策略：保存 backlog 下限，明确警告需下次重启才可生效，
+不尝试解锁；分发配置仍可 reload。未知 audit 主版本、自定义/未启用的 audit 2.x
+dispatcher、重复或非法的 `q_depth` 会警告并保留分发配置。非法 backlog、符号链接、
+单文件超过 1 MiB 或规则文件超过 256 个等无法可靠判定的策略拒绝自动处理。具有
+自定义 auditd 配置目录的部署应选择退出，并由运维维护实际使用的配置。
+
+只关闭队列修改（依赖和服务仍检查）：
+
+```bash
+sudo env AUDIT_TUNE=0 ./install.sh \
+  --enterprise-enrollment-token 'swenr_TOKEN_ID.SECRET' \
+  --license-server-url https://agent-gateway.id-net.cn:30443
+```
+
+`INSTALL_DEPS=0` 同时跳过依赖安装、audit 服务操作和队列修改，适合已由运维准备并
+验收 audit 的受控环境；此时不能把安装成功视为这些配置已完成。Bootstrap 使用时
+可在 `sudo env` 中传入同样的环境变量，Linux 子安装器会继承。
+
+失败后配置可能已经提高，备份与安装日志会保留，安装器不自动回退其他已完成步骤。
+需要回退时停止 Agent，按日志记录的确切备份路径恢复对应配置，再通过原生
+`service auditd reload` 或 systemctl reload 使分发配置生效；backlog 恢复还需同步
+持久 `-b` 和可变内核值。不可变内核的恢复同样需重启。不使用通配符批量覆盖备份。
+
+安装后检查 `auditctl -s` 的 PID、backlog_limit 与 lost 增量、相应配置中的 `q_depth`、
+auditd journal 和真实 audit.log 写入，再分别确认 Agent JSONL 及云端收件。队列容量
+只能缓冲突发，不能修复慢插件或持续超量的全局 fork/exec 审计；不要因队列提高
+就认为 `dispatch err (pipe full)` 已根治。隔离回归覆盖两种规则加载布局、audit 2/3/4、
+较大值保留、不可变策略、幂等安装和服务/内核失败；真实 CentOS 7 验收仍需在目标
+内核及插件配置上验证 reload、业务高峰和云端链路。
+
 ## 安装进度（0.3.44）
 
 Linux SaaS Bootstrap 在 stderr 显示八个编号步骤：终端中成功为绿色 `OK`、失败为红色
@@ -55,8 +113,9 @@ curl 与 GNU wget 都只在确认完整 HTTP 404 错误后回退旧入口；收�
 版本文件为最多 64 字符的 ASCII 版本，可带一个结尾 LF。除上述平台指针 404 允许读取旧入口外，
 缺失、为空、非法或不可达时，在修改主机前停止，不使用缓存或内嵌的旧版本。
 首次安装的信任机制仍为 HTTPS 发布和安装包 SHA-256，
-该版本文件本身没有独立签名；安装后的升级默认使用 HTTPS 加文件大小、SHA-256 校验。
-配置升级公钥后才强制验证签名清单；信任变更、紧急停止和远程回退仍只能在签名模式使用。此入口仅决定新安装版本，
+该版本文件本身没有独立签名。安装后，未配置签名信任的升级使用 HTTPS 加文件大小、SHA-256 校验。
+签名 SaaS Bootstrap 会配置发布公钥并强制验证签名清单；信任变更、紧急停止和远程回退仍只能在签名模式使用。
+通用安装包默认关闭自动升级，详见[升级信任配置](tenant-auto-update.zh-CN.md#升级信任配置0379)。此入口仅决定新安装版本，
 不会强制升级存量设备。
 
 Linux 支持 amd64/arm64/loong64，要求 Bash、curl/wget、tar、SHA-256 工具、coreutils
@@ -104,7 +163,9 @@ python3 scripts/publish-release-channel.py \
 只重新生成 Bootstrap 时，保留正常 `BOOTSTRAP_*` 配置，可选设置
 `BOOTSTRAP_UPDATE_PUBLIC_KEY_FILE=<已有公钥路径>`，再设置 `BOOTSTRAP_ONLY=1`、
 `OUT_DIR=<全新输出目录>` 后运行 `./scripts/package-release.sh`。此模式不需要签名私钥，也不重建
-Agent 包；源码版本和来源门禁仍生效，脏构建仅用于测试。省略公钥即保留无签名升级模式，不能静默更换已有信任公钥。
+Agent 包；源码版本和来源门禁仍生效，脏构建仅用于测试。签名部署生成 Bootstrap 时必须提供已有公钥，
+保证全新主机获得信任。从 Agent 0.3.79 起，安装器省略公钥时保留主机已有信任，只有从未配置信任的新配置保持无签名模式。
+不能静默更换已有信任公钥。
 普通打包不会自动提升线上安装版本；必须在真实服务目录的全部包就绪后显式提升。
 
 Agent Gateway（服务端 rc.69+）通过白名单提供 `AGENT_RELEASE_ROOT/releases/latest-*-version.txt`；

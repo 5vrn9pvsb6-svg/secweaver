@@ -23,8 +23,14 @@ type fixture struct {
 // particular host's audit setup. Sink failures exercise the real state machine.
 func newFixture(t *testing.T) *fixture {
 	t.Helper()
+	return fixtureWithConfig(t, Config{Enabled: true, StateDir: t.TempDir()})
+}
+
+// fixtureWithConfig exercises both policies through the same real sinks/store;
+// only time is controlled so boundary tests do not sleep or query host services.
+func fixtureWithConfig(t *testing.T, cfg Config) *fixture {
+	t.Helper()
 	f := &fixture{now: time.Now()}
-	cfg, _ := (Config{Enabled: true, StateDir: t.TempDir()}).Normalize()
 	e, err := New(cfg, "device-test", func(raw json.RawMessage) error {
 		if f.failRaw {
 			return errors.New("disk full")

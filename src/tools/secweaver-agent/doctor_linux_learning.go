@@ -21,6 +21,8 @@ func doctorCheckLinuxLearning(modules []runtimeModule, add func(doctorLevel, str
 			configPath = ""
 		}
 		outputPath, _ := modulecontract.StringFlag(module.Config.Args, "output-log")
+		fileStatus, fileErr := auditportexecmon.ReadFileLearningStatus(strings.TrimSpace(configPath), outputPath)
+		doctorReportFileLearning(fileStatus, fileErr, add)
 		status, err := auditportexecmon.ReadLearningStatus(strings.TrimSpace(configPath), outputPath)
 		if err != nil {
 			add(doctorWarn, "learning/status", "Linux behavior learning state is unavailable or invalid", fmt.Sprintf("mode=%s; %v; original audit events remain available", status.Mode, err))

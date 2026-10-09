@@ -13,11 +13,20 @@ import (
 // its rule ownership. It is deliberately read-only and failure tolerant at the
 // caller so audit collection remains independent from status reporting.
 func ReadLearningStatus(configPath, outputPath string) (behaviorlearning.StatusSnapshot, error) {
+	return readLearningStatus(configPath, outputPath, false)
+}
+
+// ReadFileLearningStatus reads the independent five-field file baseline.
+func ReadFileLearningStatus(configPath, outputPath string) (behaviorlearning.StatusSnapshot, error) {
+	return readLearningStatus(configPath, outputPath, true)
+}
+
+func readLearningStatus(configPath, outputPath string, file bool) (behaviorlearning.StatusSnapshot, error) {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return behaviorlearning.StatusSnapshot{Mode: "unknown", Reason: "config_unavailable"}, err
 	}
-	policy, err := behaviorlearning.Decode(cfg.BehaviorLearning)
+	policy, err := behaviorlearning.DecodeExec(cfg.BehaviorLearning)
 	if err != nil {
 		return behaviorlearning.StatusSnapshot{Mode: "unknown", Reason: "config_invalid"}, fmt.Errorf("decode behavior_learning: %w", err)
 	}
@@ -29,13 +38,8 @@ func ReadLearningStatus(configPath, outputPath string) (behaviorlearning.StatusS
 		path = resolveOutputLog("", cfg.OutputLog)
 	}
 	policy = learningPaths(policy, path)
-	state, stateErr := behaviorlearning.Inspect(policy.StateDir, policy.StateMB)
-	var latest *behaviorlearning.Summary
-	if summary, summaryErr := behaviorlearning.ReadLatestSummary(policy.OutputLog); summaryErr == nil {
-		latest = summary
+	if file {
+		policy = behaviorlearning.FilePolicy(policy, false)
 	}
-	if stateErr != nil {
-		return behaviorlearning.Snapshot(policy, nil, latest, time.Now()), stateErr
-	}
-	return behaviorlearning.Snapshot(policy, state, latest, time.Now()), nil
+	return behaviorlearning.InspectStatus(policy)
 }

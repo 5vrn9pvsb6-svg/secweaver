@@ -12,9 +12,10 @@ import (
 )
 
 func activityFixture(now time.Time) (*Learning, Event) {
-	w := &Learning{started: now.Add(-time.Minute), contexts: map[string]activityContext{}}
+	w := &Learning{started: now.Add(-time.Minute), fileContexts: map[string]fileContext{}, networkEngine: &behaviorlearning.Engine{}}
 	exec := eligibleWindowsEvent(now.Add(-time.Second))
-	w.rememberExecution(learningObservation(exec, w.started, now), now)
+	exec.Fields["Image"] = exec.Exe
+	w.rememberFileExecution(exec, now)
 	e := Event{EvidenceID: "connect-1", EventType: "active_connect", WindowsEventID: "3", WindowsRecordID: "11", Provider: exec.Provider, Channel: exec.Channel,
 		HostName: exec.HostName, Time: now.Format(time.RFC3339Nano), Exe: exec.Exe, User: exec.Fields["User"], SrcIP: "10.0.0.1", DstIP: "10.0.0.2", DstPort: "443", Protocol: "tcp",
 		Fields: map[string]string{"ProcessGuid": exec.Fields["ProcessGuid"], "Initiated": "true"}}
@@ -47,17 +48,16 @@ func TestObservedProcessTamperingDisablesAllMatching(t *testing.T) {
 	}
 }
 
-func TestActivityRequiresSameObservedGUIDImageAndIdentity(t *testing.T) {
+func TestActivityRequiresSameObservedGUIDAndImage(t *testing.T) {
 	now := time.Now()
 	w, e := activityFixture(now)
 	o := w.activityObservation(e, now)
-	if !o.Complete || o.Context.Operation.Port != 443 || o.ParentInstance != o.Instance {
+	if !o.Complete || o.Context.Network == nil || o.Context.Network.Port != 443 {
 		t.Fatalf("valid activity rejected: %+v", o)
 	}
 	for name, mutate := range map[string]func(*Event){
 		"reused-pid-new-guid": func(e *Event) { e.Fields["ProcessGuid"] = "{bbbb0000-0000-0000-0000-000000000001}" },
 		"changed-image":       func(e *Event) { e.Exe = `C:\Program Files\Example\different.exe` },
-		"changed-user":        func(e *Event) { e.User = "attacker" },
 		"inbound":             func(e *Event) { e.Fields["Initiated"] = "false" },
 		"missing-direction":   func(e *Event) { delete(e.Fields, "Initiated") },
 		"stale":               func(e *Event) { e.Time = now.Add(-time.Hour).Format(time.RFC3339Nano) },
@@ -73,21 +73,12 @@ func TestActivityRequiresSameObservedGUIDImageAndIdentity(t *testing.T) {
 	}
 }
 
-func TestFileActivityUsesCreateOnlyAndNoContextGuessing(t *testing.T) {
+func TestNetworkAdapterDoesNotHandleFileEvents(t *testing.T) {
 	now := time.Now()
 	w, e := activityFixture(now)
 	e.EventType, e.WindowsEventID, e.Action, e.Path = "file_op", "11", "create", `C:\ProgramData\Example\worker.log`
-	if o := w.activityObservation(e, now); !o.Complete || o.Context.Operation.Path != e.Path {
-		t.Fatal("file event did not carry exact path")
-	}
-	e.WindowsEventID, e.Action = "23", "delete"
 	if w.activityObservation(e, now).Complete {
-		t.Fatal("file deletion qualified")
-	}
-	e.WindowsEventID, e.Action = "11", "create"
-	w.forgetInstance(processInstance(e.HostName, e.Fields["ProcessGuid"]))
-	if w.activityObservation(e, now).Complete {
-		t.Fatal("lost/terminated identity guessed from image")
+		t.Fatal("file event reached the network activity policy")
 	}
 }
 
@@ -98,13 +89,14 @@ func TestActivityCacheBoundedAndExpires(t *testing.T) {
 		e := eligibleWindowsEvent(now)
 		e.Fields["ProcessGuid"] = fmt.Sprintf("{abcd0000-0000-0000-0000-%012x}", i)
 		e.Fields["CommandLine"] += strings.Repeat("x", 5000)
-		w.rememberExecution(learningObservation(e, w.started, now), now)
+		e.Fields["Image"] = e.Exe
+		w.rememberFileExecution(e, now)
 	}
-	if len(w.contexts) > 1024 || w.contextBytes > activityContextBytes {
+	if len(w.fileContexts) > 1024 || w.fileContextBytes > activityContextBytes {
 		t.Fatal("unbounded process context cache")
 	}
 	w.pruneContexts(now.Add(61 * time.Minute))
-	if len(w.contexts) != 0 || w.contextBytes != 0 {
+	if len(w.fileContexts) != 0 || w.fileContextBytes != 0 {
 		t.Fatal("expired context retained")
 	}
 }

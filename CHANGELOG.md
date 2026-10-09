@@ -51,6 +51,75 @@
   saved without first changing credential type or editing the raw YAML.
 - Synchronize Community package/CLI identity and source SBOM; Agent remains 0.3.78.
 
+## Agent 0.3.83
+
+- Unify Windows Sysmon/Security exec, outbound connection and ordinary PowerShell
+  script learning with the shared rolling-hour/five-hit engine: durable admission
+  filters the fifth event immediately, and completion only freezes new entries.
+- Remove service/hash/parent/tool, private-destination/port, CDXML-class/path and
+  legacy rate/expiry gates from installed adapters. Preserve incomplete originals,
+  source/persistence fault fallback and recognized high/critical risk alerts.
+- Share one bounded host/ProcessGuid command cache between file/network streams;
+  isolate connection state, archive compatible legacy exec/risk baselines, retain
+  existing file state, and expose independent doctor status and summary types.
+- Add real-store migration/window and native-shaped Windows end-to-end regressions;
+  synchronize bilingual requirements, architecture and current operating rules.
+- Remove the superseded complex-learning design and implementation-review documents
+  in both languages; direct documentation indexes and references to the unified policy.
+
+## Agent 0.3.82
+
+- Extend immediate five-events-per-rolling-hour learning to Linux audit and
+  Windows Sysmon 11/23 file_op using exact ordered file_paths, listener_process,
+  pid_name, exe and command_line. Actions and path/tool restrictions are not gates.
+- Use a literal empty Windows listener and a bounded same-host/ProcessGuid
+  command cache independent of legacy exec eligibility; preserve incomplete originals.
+- Isolate file baselines/journals, checkpoint both Windows engines before cursors,
+  propagate source/sink faults and expose file-learning/status in doctor. Select
+  summaries by baseline so file status cannot replace exec status.
+- Add Windows evidence parser 0.3.1 fields without removing path; normalize quoted
+  audit titles/encoded PATH names and reject incomplete/capped file evidence.
+- Add exact-match, rolling-window, persistence, GUID/cache and failure regressions;
+  synchronize bilingual requirements, architecture and operating guides.
+
+## Agent 0.3.81
+
+- Simplify Linux audit/eBPF exec learning to exact listener_process, pid_name,
+  exe and command_line: five distinct events in a rolling hour, filtering from
+  the fifth while learning other behaviors. Completion freezes new admissions.
+- Remove Linux /proc/image/credential/tool gates, hour buckets and P95 limits;
+  retain unknown/incomplete originals, bounded queues/dedup/state and fault fallback.
+- Persist admissions before filtering, archive compatible legacy state and relearn;
+  keep normal restart progress and report empty completion without degradation.
+- Prefer full EXECVE over truncated PROCTITLE and decode native audit hex arguments;
+  allow complete eBPF commands independent of identity enrichment.
+- Add real-store and controlled-clock regressions, keep Windows policies, and
+  document Gateway rc.72 / Workspace rc.112 rollout prerequisites. No deployment.
+
+## Agent 0.3.80
+
+- Check Linux audit queue configuration during dependency setup. Raise dispatcher
+  `q_depth` to at least 2000 and kernel/persistent backlog to at least 8192,
+  preserving larger live and persistent values. Select audispd.conf for audit 2.x
+  and auditd.conf for audit 3.x/4.x; preserve plugin and failure/restart policies.
+- Back up changed native files and publish atomically with their permissions and
+  metadata. Persist backlog for both direct audit.rules and augenrules loaders,
+  place missing directives before immutable locks, and never reload/clear rules.
+- Use bounded audit service operations, the RHEL/CentOS init-script interface and
+  reload rather than restart. Verify kernel daemon registration and live backlog;
+  report failures and deferred immutable changes. Add AUDIT_TUNE=0 opt-out,
+  isolated installer regressions and bilingual packaged operating guidance.
+
+## Agent 0.3.79
+
+- Preserve existing update signing keys, rotation keys, revoked key IDs, TLS CA
+  and persistent trust-state directory when Linux/Windows installers rerun
+  `config set-update` without those values. Explicit primary-key replacement
+  retains rotation and revocation history; disabling updates also retains trust.
+- Reject malformed existing trust before writing configuration. Add installer-CLI
+  regressions and bilingual package/default, trust-recovery and verification
+  guidance. Fresh configurations without signing retain their compatibility mode.
+
 ## Agent 0.3.78
 
 - Add an independent 24-hour Windows risk-log learning baseline for eligible,

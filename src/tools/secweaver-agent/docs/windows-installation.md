@@ -1,11 +1,15 @@
-# Windows service and Data Cloud delivery (0.3.78)
+# Windows service and Data Cloud delivery (0.3.83)
 
-0.3.78 enables independent native PowerShell risk learning in fresh installations.
-Existing configs are preserved; `-LearningMode enable|shadow|disable` explicitly
-controls both exec and risk policies on the unified reader. Ordinary eligible
-SYSTEM CDXML blocks learn for 24 healthy hours; protected security events retain
-originals. Sysmon is not required for risk learning. Doctor reports the independent
-`risk-learning/*` state. See [scope, limits and verification](behavior-learning.md#windows-risk-logs-0378).
+0.3.83 unifies Windows exec, file/network and native PowerShell learning: five
+distinct exact matches within a rolling hour admit a behavior and immediately
+filter matching events, including the fifth, unless shadow mode is enabled.
+The default 24 healthy hours bound new admission, not when filtering can start.
+PowerShell no longer requires SYSTEM/CDXML; high/critical alerts retain originals.
+Existing enabled/disabled choices remain unchanged; authentic legacy exec/risk
+baselines are archived and relearned once. `-LearningMode enable|shadow|disable`
+explicitly controls evidence and risk policies on the unified reader. Risk learning
+is enabled for fresh installations since 0.3.78 and needs no Sysmon. Doctor reports
+separate stream states. See [matching fields, limits and verification](behavior-learning.md).
 
 0.3.58 separates installation results: green OK for verified steps, cyan INFO for
 normal behavior/configuration, yellow WARN for limited or unverified capabilities,
@@ -15,10 +19,10 @@ longer count this mechanism as a warning. Successful installation does not print
 a startup error path. Failure diagnostics use only a current detail file up to 16 KiB.
 
 Learning summaries reuse preflight without another channel query. Missing or
-inaccessible Sysmon explicitly means Sysmon-based whitelist reduction is unavailable;
-Security 4688 process events and protected risk events retain originals; native risk
-learning is independent of Sysmon and collection continues.
-An accessible Sysmon channel does not prove a completed baseline or active filtering.
+inaccessible Sysmon prevents file/network command correlation. Complete Security
+4688 commands can learn when configured sources are healthy; a configured unavailable
+Sysmon channel still degrades evidence learning. Native risk learning is independent.
+An accessible channel does not prove active filtering. Incomplete events retain originals.
 Cloud receipt retains a PENDING VERIFICATION warning: the installer does not query
 SLS/ES, so this means neither confirmed upload failure nor verified receipt. Verify
 installation output, doctor results and a recent event for this host in the cloud.
@@ -89,10 +93,13 @@ Both Bootstrap and install-service.ps1 accept `-LearningMode preserve|enable|sha
 The default preserves existing choices; fresh installations retain template defaults.
 Enable explicitly permits eligible matching, shadow learns while retaining all originals,
 and disable turns learning off. Only the enabled event owner is changed; duration, scope,
-generation and state survive, and no second reader is started. Prefer shadow for migration.
-An enabled flag does not certify suppression: enrolled identity and eligible Sysmon
-GUID/SHA256/context are required for exec learning. Security 4688, protected risk alerts and incomplete context remain
-full-output. Doctor distinguishes these conditions.
+generation survive, and no second reader is started. Prefer shadow for migration.
+An enabled flag does not certify suppression: enrolled identity, healthy sources
+and complete commands are required. Since 0.3.83, both Sysmon 1 and Security 4688
+can learn exec; GUID correlation is required only for Sysmon file/network commands,
+not exec admission. No image SHA256 is required. The fifth distinct match in one
+hour can filter immediately. High/critical risk alerts and incomplete events retain
+originals. Doctor distinguishes stream states; legacy baselines migrate as above.
 
 Installation uses green `[OK]`, yellow `[WARN]` and red `[ERROR]` stages for collection,
 authorization, learning, shipper configuration and cloud acceptance. One

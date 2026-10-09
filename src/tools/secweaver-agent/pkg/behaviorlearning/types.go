@@ -5,29 +5,59 @@ import (
 	"time"
 )
 
-// Context is an adapter-verified canonical behavior. Instance IDs are explicitly
-// excluded from Fingerprint; adapters must verify them before setting Complete.
+// Context is an adapter-verified behavior. Installed adapters use the exact
+// Exec/File/Network/Risk tuples; legacy fields remain for checkpoint compatibility.
 type Context struct {
-	Service    string   `json:"service"`
-	Parent     string   `json:"parent"`
-	Executable string   `json:"executable"`
-	Digest     string   `json:"digest"`
-	Args       []string `json:"argv"`
-	CWD        string   `json:"cwd"`
-	UID        string   `json:"uid"`
-	EUID       string   `json:"euid"`
-	GID        string   `json:"gid"`
-	EGID       string   `json:"egid"`
-	AUID       string   `json:"auid"`
-	Session    string   `json:"session"`
-	Capability string   `json:"capability"`
-	// Omission preserves Linux fingerprints; Windows never invents Unix credentials.
+	// Exec is the complete four-field contract. It excludes process
+	// instance and credential enrichment, including when those fields are known.
+	Exec       *ExecFields    `json:"exec_fields,omitempty"`
+	File       *FileFields    `json:"file_fields,omitempty"`
+	Network    *NetworkFields `json:"network_fields,omitempty"`
+	Service    string         `json:"service"`
+	Parent     string         `json:"parent"`
+	Executable string         `json:"executable"`
+	Digest     string         `json:"digest"`
+	Args       []string       `json:"argv"`
+	CWD        string         `json:"cwd"`
+	UID        string         `json:"uid"`
+	EUID       string         `json:"euid"`
+	GID        string         `json:"gid"`
+	EGID       string         `json:"egid"`
+	AUID       string         `json:"auid"`
+	Session    string         `json:"session"`
+	Capability string         `json:"capability"`
+	// Windows is retained only for the legacy identity-based contract.
 	Windows *WindowsContext `json:"windows,omitempty"`
 	// Operation is absent for exec, preserving existing execution fingerprints.
 	Operation *Operation `json:"operation,omitempty"`
 	// Risk uses native Event Log identity, not invented Sysmon process ancestry.
 	// Omission preserves all existing execution/network/file fingerprints.
 	Risk *WindowsRiskContext `json:"windows_risk,omitempty"`
+}
+
+// ExecFields is an exact string tuple; no case, whitespace or argument folding
+// is allowed. Only its keyed fingerprint is persisted, never CommandLine.
+type ExecFields struct {
+	ListenerProcess string `json:"listener_process"`
+	PIDName         string `json:"pid_name"`
+	Exe             string `json:"exe"`
+	CommandLine     string `json:"command_line"`
+}
+
+// FileFields extends the exact execution tuple with the ordered path array.
+// It deliberately excludes action, PID, user and wildcard/normalized paths.
+type FileFields struct {
+	ExecFields
+	FilePaths []string `json:"file_paths"`
+}
+
+// NetworkFields uses the exact process tuple and remote endpoint. Numeric PID,
+// source port and process GUID correlate evidence but are not behavior keys.
+type NetworkFields struct {
+	ExecFields
+	Protocol string `json:"protocol"`
+	Address  string `json:"address"`
+	Port     int    `json:"port"`
 }
 
 // WindowsRiskContext binds a complete script to its exact origin and content.
@@ -75,9 +105,12 @@ type Observation struct {
 	At             time.Time
 }
 
-// Entry contains immutable promotion evidence. Samples intentionally omit argv:
-// the HMAC retains exact matching without persisting command-line credentials.
+// Entry holds bounded candidate evidence, then immutable promotion evidence.
+// Samples omit argv; HMACs match commands without storing their credentials.
 type Entry struct {
+	// Recent holds at most five reception times while a simple candidate learns.
+	// Promoted entries discard it; low-frequency later hits remain allowed.
+	Recent      []time.Time    `json:"recent,omitempty"`
 	EventType   string         `json:"source_event_type,omitempty"`
 	Fingerprint string         `json:"behavior_fingerprint"`
 	Executable  string         `json:"executable"`
@@ -89,9 +122,13 @@ type Entry struct {
 	Limit       uint64         `json:"max_events_per_window"`
 }
 
-// State is a checkpoint, not an event log. Only Store may commit it. Runtime
-// rate counters are not trusted across restart; a warm-up window restores them.
+// State is a checkpoint, not an event log. Only Store may commit it. Legacy rate
+// counters need restart warm-up; the simple strategy restores exact entries.
 type State struct {
+	Strategy string `json:"strategy,omitempty"`
+	// Seen contains HMAC source IDs for the simple policy's one-hour dedup window.
+	// Legacy checkpoints omit it, preserving their serialization and semantics.
+	Seen           map[string]time.Time `json:"seen,omitempty"`
 	Version        int                  `json:"schema_version"`
 	CleanShutdown  bool                 `json:"clean_shutdown"`
 	Device         string               `json:"device_id"`

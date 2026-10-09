@@ -52,10 +52,33 @@ func primaryHostIP() string {
 	return fallback
 }
 
+// completeAuditArgv accepts only a contiguous EXECVE set. The kernel's SYSCALL
+// pointer fields are never copied into acc.argv, so hex-looking real arguments
+// are valid here. PROCTITLE can be truncated and cannot establish completeness.
+func completeAuditArgv(acc *auditAccumulator) bool {
+	argc, err := strconv.Atoi(acc.fields["argc"])
+	if !acc.seenExecve || err != nil || argc <= 0 || argc != len(acc.argv) {
+		return false
+	}
+	for i := 0; i < argc; i++ {
+		if _, ok := acc.argv[i]; !ok {
+			return false
+		}
+	}
+	return true
+}
+
+// resolveAuditCommand prefers complete EXECVE even when a shorter PROCTITLE is
+// present. Fallback cannot train exec; files validate their own PATH/title set.
+func resolveAuditCommand(acc *auditAccumulator, comm string) []string {
+	if completeAuditArgv(acc) {
+		return orderedArgs(acc.argv)
+	}
+	return resolveCommand(acc.argv, acc.proctitle, acc.fields["exe"], comm)
+}
+
+// resolveCommand provides best-effort evidence when complete EXECVE is absent.
 func resolveCommand(argv map[int]string, proctitle, exe, comm string) []string {
-	// PROCTITLE is preferred because it preserves the complete NUL-separated
-	// argv. EXECVE arguments are the fallback; comm/exe only prevent an otherwise
-	// useful exec event from becoming empty when audit emits incomplete records.
 	if decoded := decodeProctitle(proctitle); len(decoded) > 0 {
 		return decoded
 	}

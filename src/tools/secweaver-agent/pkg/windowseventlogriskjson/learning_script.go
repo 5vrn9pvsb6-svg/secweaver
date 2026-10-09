@@ -22,10 +22,6 @@ const maxPendingScripts = 64
 
 var scriptGUID = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
-// Native generators use script-scoped camel-case names; PowerShell identifiers
-// are case-insensitive. Accept literal declarations only, never computed values.
-var cdxmlClass = regexp.MustCompile(`(?i)^[\t ]*(?:\[(?:system\.)?string\][\t ]*)?\$(?:(?:script:)?__cmdletization_classname|script:classname)[\t ]*=[\t ]*['"]([^'"\r\n]+)['"][\t ]*;?[\t \r]*$`)
-
 type scriptGroup struct {
 	total, bytes, cost int
 	path               string
@@ -45,10 +41,10 @@ func (w *riskLearning) observe(source windowseventlog.Event, event riskEvent) (i
 	id := strings.TrimSpace(fields["ScriptBlockId"])
 	at, errTime := time.Parse(time.RFC3339Nano, source.System.TimeCreated)
 	now := time.Now()
-	// Provider-supplied SID/record/time are mandatory. Historical lookback data
-	// remains evidence but cannot train an installation's fresh baseline.
+	// Provider-supplied SID/record/time are mandatory. Any known user may learn;
+	// historical lookback still cannot manufacture five new online observations.
 	valid := event.EventID == "4104" && source.System.Provider == "Microsoft-Windows-PowerShell" &&
-		source.System.Channel == powerShellChannel && source.System.UserID == "S-1-5-18" &&
+		source.System.Channel == powerShellChannel && source.System.UserID != "" &&
 		source.System.Computer != "" && source.System.ProcessID != "" && source.System.ProcessID != "0" &&
 		source.RecordIDUint() > 0 && scriptGUID.MatchString(id) && errNumber == nil && errTotal == nil &&
 		number >= 1 && number <= total && total <= maxScriptFragments && errTime == nil &&
@@ -93,10 +89,9 @@ func (w *riskLearning) observe(source windowseventlog.Event, event riskEvent) (i
 	// O(1) removal avoids re-encoding every other retained script on completion.
 	w.pendingBytes -= group.cost
 	parts, script := group.assemble()
-	moduleClass := eligibleCDXML(script, path)
 	reason := ""
-	if moduleClass == "" {
-		reason = "risk_script_not_eligible"
+	if script == "" {
+		reason = "risk_script_empty"
 	}
 	// Classification must inspect the assembled script too: a dangerous token
 	// may straddle fragment boundaries and be invisible in each native record.
@@ -112,9 +107,11 @@ func (w *riskLearning) observe(source windowseventlog.Event, event riskEvent) (i
 		}
 	}
 	digest := fmt.Sprintf("%x", sha256.Sum256([]byte(script)))
-	ctx := behaviorlearning.Context{Executable: moduleClass, Capability: "windows-powershell-cdxml-v1", Risk: &behaviorlearning.WindowsRiskContext{
+	// Script content is exact, including whitespace; only its digest enters the
+	// reusable tuple. Known high-severity alerts continue to bypass learning.
+	ctx := behaviorlearning.Context{Risk: &behaviorlearning.WindowsRiskContext{
 		Provider: source.System.Provider, Channel: source.System.Channel, UserSID: source.System.UserID,
-		Path: path, ModuleClass: moduleClass, ScriptSHA256: digest}}
+		Path: path, ScriptSHA256: digest}}
 	// Only decision metadata enters the Engine; full scripts stay in this
 	// bounded adapter and never occupy its exec ancestry replay cache.
 	w.current = parts
@@ -140,87 +137,6 @@ func (g *scriptGroup) assemble() ([]riskEvent, string) {
 		script.WriteString(part.Command)
 	}
 	return parts, script.String()
-}
-
-// eligibleCDXML is a conservative admission heuristic, not signature trust.
-// Only stable SYSTEM-generated network/scheduler module definitions may train;
-// exact full-content matching, rate checks and security exclusions still apply.
-func eligibleCDXML(script, path string) string {
-	if containsSuspiciousCommand(script) {
-		return ""
-	}
-	lower := strings.ToLower(script)
-	for _, token := range []string{"invoke-expression", "iex ", "iex(", "start-process", "invoke-command", "downloadfile",
-		"net.webclient", "reflection.assembly", "writeallbytes", "set-content", "add-content", "remove-item", "set-itemproperty"} {
-		if strings.Contains(lower, token) {
-			return ""
-		}
-	}
-	// Non-empty paths must be literal protected built-in module paths. Empty
-	// paths are normal for generated CDXML; never normalize dot segments/UNC.
-	if path != "" {
-		p := strings.ToLower(strings.ReplaceAll(path, `\`, "/"))
-		if len(p) < 3 || p[1:3] != ":/" || p[0] < 'a' || p[0] > 'z' || strings.Contains(p[3:], ":") ||
-			!strings.HasPrefix(p[3:], "windows/system32/windowspowershell/v1.0/modules/") || strings.Contains(p, "/../") ||
-			strings.Contains(p, "/./") || strings.HasSuffix(p, "/..") || strings.HasSuffix(p, "/.") || strings.ContainsAny(p, "*?\x00") {
-			return ""
-		}
-	}
-	className := cdxmlModuleClass(script)
-	if className == "" || !strings.Contains(script, "__cmdletization_BindCommonParameters") ||
-		!strings.Contains(script, "Microsoft.PowerShell.Cmdletization.Cim.CimCmdletAdapter") {
-		return ""
-	}
-	class := strings.ToLower(strings.ReplaceAll(className, `\`, "/"))
-	switch class {
-	case "root/standardcimv2/msft_nettcpconnection", "root/standardcimv2/msft_netudpendpoint",
-		"root/standardcimv2/msft_netipaddress", "root/standardcimv2/msft_netipinterface",
-		"root/standardcimv2/msft_netroute", "root/standardcimv2/msft_netneighbor",
-		"root/standardcimv2/msft_netcompartment", "root/standardcimv2/msft_netipv4protocol",
-		"root/standardcimv2/msft_netipv6protocol", "root/standardcimv2/msft_netoffloadglobalsetting",
-		"root/standardcimv2/msft_netprefixpolicy", "root/standardcimv2/msft_nettcpsetting",
-		"root/standardcimv2/msft_nettransportfilter", "root/standardcimv2/msft_netudpsetting",
-		"root/microsoft/windows/taskscheduler/msft_scheduledtask",
-		"root/microsoft/windows/taskscheduler/ps_scheduledtask",
-		"root/microsoft/windows/taskscheduler/ps_clusteredscheduledtask":
-		return class
-	}
-	return ""
-}
-
-// cdxmlModuleClass scans lines cheaply and applies the declaration regex only
-// to relevant lines. Avoid a whole-body regex over large generated modules;
-// repeated/ambiguous declarations still disqualify the entire block.
-func cdxmlModuleClass(script string) string {
-	class := ""
-	for script != "" {
-		line, rest, _ := strings.Cut(script, "\n")
-		script = rest
-		name, _, assignment := strings.Cut(line, "=")
-		if !assignment {
-			continue
-		}
-		name = strings.TrimSpace(name)
-		if strings.HasPrefix(name, "[") {
-			typeName, rest, ok := strings.Cut(name[1:], "]")
-			if !ok || (!strings.EqualFold(typeName, "string") && !strings.EqualFold(typeName, "system.string")) {
-				continue
-			}
-			name = strings.TrimSpace(rest)
-		}
-		if !strings.EqualFold(name, "$script:ClassName") && !strings.EqualFold(name, "$script:__cmdletization_ClassName") && !strings.EqualFold(name, "$__cmdletization_ClassName") {
-			continue
-		}
-		match := cdxmlClass.FindStringSubmatch(line)
-		if len(match) == 0 {
-			continue
-		}
-		if class != "" {
-			return ""
-		}
-		class = match[1]
-	}
-	return class
 }
 
 // riskRecordCost reserves worst-case JSON escaping plus struct/map overhead.

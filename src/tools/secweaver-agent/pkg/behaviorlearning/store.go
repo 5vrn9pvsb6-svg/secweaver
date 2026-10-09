@@ -131,6 +131,20 @@ func (s *Store) Load() (*State, error) {
 // Commit reserves room for both old and replacement checkpoints. A state is
 // enforceable only after this durable write succeeds.
 func (s *Store) Commit(state State) error {
+	if err := s.commitFile("state.json", state); err != nil {
+		return err
+	}
+	// Publish the checkpoint before clearing admissions. A crash between these
+	// writes replays duplicate entries idempotently instead of losing admission.
+	if simpleStrategyKnown(state.Strategy) {
+		return s.atomic("admissions.jsonl", nil)
+	}
+	return nil
+}
+
+// commitFile also archives an authenticated legacy generation before migration.
+// Only Commit may compact the current generation's admission journal.
+func (s *Store) commitFile(name string, state State) error {
 	body, err := json.Marshal(state)
 	if err != nil {
 		return err
@@ -150,7 +164,7 @@ func (s *Store) Commit(state State) error {
 	if int64(len(envelope)) > s.limit/3 {
 		return fmt.Errorf("learning state budget exceeded")
 	}
-	if err = s.atomic("state.json", envelope); err != nil {
+	if err = s.atomic(name, envelope); err != nil {
 		return err
 	}
 	s.fresh = false

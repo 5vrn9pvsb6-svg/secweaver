@@ -14,15 +14,24 @@ import (
 // Config is an opt-in contract for existing installations. Packaged new-install
 // configurations explicitly enable it; omission must not change upgrade behavior.
 type Config struct {
-	Enabled         bool     `json:"enabled"`
-	StateDir        string   `json:"state_dir,omitempty"`
-	OutputLog       string   `json:"output_log,omitempty"`
-	LearningSeconds int      `json:"learning_duration_seconds"`
-	OnlineDeadline  int      `json:"learning_online_deadline_seconds"`
-	Activation      string   `json:"activation"`
-	EventTypes      []string `json:"event_types"`
-	// FileRoots is explicit scope, not a wildcard whitelist. Each exact .log
-	// creation still has to pass identity checks and the full learning period.
+	// Simple policies are adapter-selected, never user-supplied JSON switches.
+	// simpleExec enables the shared exact engine; simpleKind selects the stable
+	// tuple. Keeping this selector private prevents an untrusted config from
+	// bypassing the adapter that proves the tuple is complete.
+	simpleExec         bool
+	simpleFile         bool
+	fileWindows        bool
+	simpleKind         string
+	eventTypesExplicit bool
+	Enabled            bool     `json:"enabled"`
+	StateDir           string   `json:"state_dir,omitempty"`
+	OutputLog          string   `json:"output_log,omitempty"`
+	LearningSeconds    int      `json:"learning_duration_seconds"`
+	OnlineDeadline     int      `json:"learning_online_deadline_seconds"`
+	Activation         string   `json:"activation"`
+	EventTypes         []string `json:"event_types"`
+	// FileRoots remains parseable for legacy policies. Exact file matching does
+	// not use roots or suffixes as an admission gate.
 	FileRoots      []string `json:"file_roots,omitempty"`
 	MinOccurrences int      `json:"min_occurrences"`
 	MinHours       int      `json:"min_distinct_hours"`
@@ -42,7 +51,22 @@ type Config struct {
 // Decode rejects unknown learning fields without rejecting the outer collector
 // configuration. The caller reports the error and retains full collection.
 func Decode(raw json.RawMessage) (Config, error) {
-	var c Config
+	return decode(raw, false)
+}
+
+// DecodeExec selects the Linux four-field policy for both old and new configs.
+// Omitted enabled still means disabled; old admission knobs remain parseable.
+func DecodeExec(raw json.RawMessage) (Config, error) {
+	c, err := decode(raw, true)
+	if err != nil {
+		return c, err
+	}
+	c.simpleKind = "exec"
+	return c.Normalize()
+}
+
+func decode(raw json.RawMessage, simpleExec bool) (Config, error) {
+	c := Config{simpleExec: simpleExec}
 	if len(raw) == 0 {
 		return c, nil
 	}
@@ -54,6 +78,7 @@ func Decode(raw json.RawMessage) (Config, error) {
 	if err := d.Decode(new(any)); err != io.EOF {
 		return c, fmt.Errorf("trailing learning configuration")
 	}
+	c.eventTypesExplicit = len(c.EventTypes) > 0
 	return c.Normalize()
 }
 
@@ -99,9 +124,12 @@ func (c Config) Normalize() (Config, error) {
 			return c, fmt.Errorf("learning file roots must be absolute non-root directories without wildcards")
 		}
 	}
+	// The simple policy always uses five occurrences within 3600 seconds. Old
+	// bucket/span settings must not prevent a one-hour learning duration.
+	invalidLegacy := !c.simpleExec && (c.MinOccurrences < 2 || c.MinHours < 2 || c.MinHours > 168 ||
+		c.MinHours*3600 > c.LearningSeconds || c.MinSpan < 3600 || c.MinSpan > c.LearningSeconds)
 	if c.LearningSeconds < 3600 || c.LearningSeconds > 604800 || c.OnlineDeadline < c.LearningSeconds || c.OnlineDeadline > 2592000 ||
-		c.MinOccurrences < 2 || c.MinHours < 2 || c.MinHours > 168 || c.MinHours*3600 > c.LearningSeconds ||
-		c.MinSpan < 3600 || c.MinSpan > c.LearningSeconds || c.SummarySeconds < 60 || c.SummarySeconds > 3600 ||
+		invalidLegacy || c.SummarySeconds < 60 || c.SummarySeconds > 3600 ||
 		c.ExpiryDays < 1 || c.ExpiryDays > 365 || c.MaxEntries < 1 || c.MaxEntries > 10000 ||
 		c.MaxCandidates < c.MaxEntries || c.MaxCandidates > 20000 || c.MemoryMB < 8 || c.MemoryMB > 256 ||
 		c.StateMB < 8 || c.StateMB > 256 || c.Activation != "auto_eligible" || c.OnError != "emit" {

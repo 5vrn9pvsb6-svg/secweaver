@@ -10,6 +10,7 @@ SHIPPER_DIR="${SHIPPER_DIR:-${INSTALL_ROOT}/shipper}"
 COMMAND_LINK="${COMMAND_LINK:-/usr/local/bin/secweaver-agent}"
 SYSTEMD_DIR="${SYSTEMD_DIR:-/etc/systemd/system}"
 INSTALL_DEPS="${INSTALL_DEPS:-1}"
+AUDIT_TUNE="${AUDIT_TUNE:-1}"
 REQUIRE_SYSTEMD="${REQUIRE_SYSTEMD:-1}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENTERPRISE_ID=""
@@ -52,6 +53,10 @@ Options:
   --update-ca-file PATH               PEM CA file for the update HTTPS endpoint
   --update-require-server-policy BOOL Require Data Cloud approval (default: true)
   -h, --help                          Show this help
+
+Environment:
+  AUDIT_TUNE=0                       Preserve host audit queues (default: raise small queues)
+  INSTALL_DEPS=0                     Skip dependency and audit service/configuration management
 EOF
 }
 
@@ -414,16 +419,261 @@ ensure_linux_dependencies() {
   start_auditd_service
 }
 
+# Read only active numeric directives. Refuse ambiguous/invalid configuration
+# rather than silently repairing unrelated syntax. Backlog directives can occur
+# repeatedly in rule files; q_depth must have one unambiguous effective value.
+audit_queue_values() {
+  local file="$1" kind="$2"
+  [[ ! -L "${file}" ]] || return 1
+  if [[ ! -e "${file}" ]]; then
+    printf '0 0 0\n'
+    return 0
+  fi
+  [[ -f "${file}" && -r "${file}" ]] || return 1
+  [[ "$(wc -c <"${file}")" -le 1048576 ]] || return 1
+  LC_ALL=C awk -v kind="${kind}" '
+    /^[[:space:]]*(#|$)/ { next }
+    {
+      line = $0
+      if (kind == "q_depth") {
+        if (line !~ /^[[:space:]]*q_depth([[:space:]]|=|$)/) next
+        sub(/^[[:space:]]*q_depth[[:space:]]*=[[:space:]]*/, "", line)
+      } else {
+        if (line !~ /^[[:space:]]*-b/) next
+        sub(/^[[:space:]]*-b[[:space:]]*/, "", line)
+      }
+      sub(/[[:space:]]*#.*$/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line !~ /^[0-9]+$/ || line + 0 > 4294967295) { invalid = 1; next }
+      value = line + 0
+      if (!count || value < minimum) minimum = value
+      if (value > maximum) maximum = value
+      count++
+    }
+    END {
+      if (invalid || (kind == "q_depth" && count > 1)) exit 1
+      printf "%d %.0f %.0f\n", count, minimum, maximum
+    }
+  ' "${file}"
+}
+
+# Replace only smaller queue directives, preserving comments and all other
+# audit policy. Same-directory staging makes publication atomic; cp -a retains
+# ownership, permissions and Linux security metadata. A concurrent operator
+# edit aborts publication instead of being overwritten. Backups never match the
+# *.rules glob, so neither auditctl nor augenrules will load them accidentally.
+audit_queue_raise() {
+  local file="$1" kind="$2" floor="$3" values count minimum maximum temporary backup=""
+  values="$(audit_queue_values "${file}" "${kind}")" || {
+    warn "audit queue configuration is ambiguous, oversized or not a regular file: ${file}; unchanged"
+    return 0
+  }
+  read -r count minimum maximum <<<"${values}"
+  if [[ "${count}" -gt 0 && "${minimum}" -ge "${floor}" ]]; then
+    log "audit queue: ${kind} preserved (minimum=${minimum}, maximum=${maximum}, file=${file})"
+    return 0
+  fi
+  temporary="$(mktemp "$(dirname "${file}")/.secweaver-audit-stage.XXXXXX")" || \
+    fatal "cannot stage audit queue configuration: ${file}"
+  if [[ -e "${file}" ]]; then
+    backup="$(mktemp "${file}.secweaver-backup.XXXXXX")" || {
+      rm -f "${temporary}"
+      fatal "cannot back up audit queue configuration: ${file}"
+    }
+    if ! cp -a "${file}" "${backup}" || ! cp -a "${file}" "${temporary}"; then
+      rm -f "${temporary}"
+      fatal "cannot preserve audit queue configuration metadata: ${file}; backup=${backup}"
+    fi
+  else
+    chmod 0600 "${temporary}"
+  fi
+  if ! LC_ALL=C awk -v kind="${kind}" -v floor="${floor}" -v missing="${count}" '
+    BEGIN {
+      # A directly loaded rules file can finish with immutable -e 2. A new -b
+      # must precede that lock instead of being appended after it.
+      if (kind == "backlog" && missing == 0) print "-b " floor
+    }
+    {
+      line = $0
+      if (kind == "q_depth" && line ~ /^[[:space:]]*q_depth[[:space:]]*=/) {
+        seen = 1
+        value = line; sub(/^[^=]*=[[:space:]]*/, "", value)
+        if (value + 0 < floor) sub(/[0-9]+/, floor, line)
+      } else if (kind == "backlog" && line ~ /^[[:space:]]*-b[[:space:]]*[0-9]/) {
+        seen = 1
+        value = line; sub(/^[[:space:]]*-b[[:space:]]*/, "", value)
+        if (value + 0 < floor) sub(/[0-9]+/, floor, line)
+      }
+      print line
+    }
+    END {
+      if (!seen && kind == "q_depth") print "q_depth = " floor
+    }
+  ' "${backup:-/dev/null}" >"${temporary}"; then
+    rm -f "${temporary}"
+    fatal "cannot write audit queue configuration: ${file}; backup=${backup:-none}"
+  fi
+  if [[ -n "${backup}" ]]; then
+    if ! cmp -s "${file}" "${backup}"; then
+      rm -f "${temporary}"
+      fatal "audit queue configuration changed during installation: ${file}; retry after reviewing backup=${backup}"
+    fi
+  elif [[ -e "${file}" || -L "${file}" ]]; then
+    rm -f "${temporary}"
+    fatal "audit queue configuration appeared during installation: ${file}"
+  fi
+  if ! mv -f "${temporary}" "${file}"; then
+    rm -f "${temporary}"
+    fatal "cannot publish audit queue configuration: ${file}; backup=${backup:-none}"
+  fi
+  # A newly created rules file must get the native SELinux label before a future
+  # daemon start; existing files retained their original label through staging.
+  if [[ -z "${backup}" ]] && need_cmd restorecon; then
+    restorecon "${file}" || fatal "cannot restore audit queue configuration label: ${file}"
+  fi
+  log "audit queue: ${kind} raised to ${floor} (file=${file}, backup=${backup:-new-file})"
+  if [[ "${kind}" == "q_depth" ]]; then
+    AUDIT_DISPATCHER_CHANGED=1
+    AUDIT_DISPATCHER_BACKUP="${backup}"
+  fi
+}
+
+# Audit 2.x has a separate audispd; 3.x/4.x integrate the dispatcher into auditd.
+# Prepare only native layouts and never edit restart limits, failure actions or
+# plugin bindings. Tune both generated audit.rules and its source -b directives
+# without loading the full ruleset, which could delete another collector's rules.
+prepare_audit_queues() {
+  local audit_conf="$1" audisp_conf="$2" rules_dir="$3"
+  local version status values count minimum maximum file dispatcher dispatcher_conf="" direct_rules
+  local files=() backlog_source=0
+  AUDIT_DISPATCHER_CHANGED=0
+  AUDIT_DISPATCHER_BACKUP=""
+  AUDIT_BACKLOG_FLOOR=0
+  case "${AUDIT_TUNE}" in
+    0|false|no) log "audit queue tuning disabled by AUDIT_TUNE=${AUDIT_TUNE}"; return 0 ;;
+    1|true|yes) ;;
+    *) fatal "AUDIT_TUNE must be 1/0, true/false or yes/no" ;;
+  esac
+  [[ -f "${audit_conf}" && ! -L "${audit_conf}" ]] || \
+    fatal "native auditd configuration is missing or symlinked: ${audit_conf}; use AUDIT_TUNE=0 for an operator-managed layout"
+  version="$(timeout --kill-after=5s 10s auditctl -v 2>&1)" || \
+    fatal "cannot determine audit version before queue tuning"
+  if [[ "${version}" =~ auditctl[[:space:]]+version[[:space:]]+2\. ]]; then
+    dispatcher="$(awk -F= '/^[[:space:]]*dispatcher[[:space:]]*=/ {value=$2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", value)} END {print value}' "${audit_conf}")"
+    if [[ "${dispatcher}" == /sbin/audispd || "${dispatcher}" == /usr/sbin/audispd ]] && [[ -f "${audisp_conf}" ]]; then
+      dispatcher_conf="${audisp_conf}"
+    else
+      warn "audit 2.x dispatcher is disabled/custom or its configuration is missing; q_depth unchanged"
+    fi
+  elif [[ "${version}" =~ auditctl[[:space:]]+version[[:space:]]+[34]\. ]]; then
+    dispatcher_conf="${audit_conf}"
+  else
+    warn "unsupported audit version for dispatcher tuning; q_depth unchanged: ${version}"
+  fi
+  status="$(timeout --kill-after=5s 10s auditctl -s)" || \
+    fatal "cannot read kernel audit queue status"
+  AUDIT_BACKLOG_FLOOR="$(awk '$1 == "backlog_limit" {print $2}' <<<"${status}")"
+  [[ "${AUDIT_BACKLOG_FLOOR}" =~ ^[0-9]{1,10}$ ]] && \
+    (( 10#${AUDIT_BACKLOG_FLOOR} <= 4294967295 )) || fatal "invalid audit backlog_limit"
+  AUDIT_BACKLOG_FLOOR="$((10#${AUDIT_BACKLOG_FLOOR}))"
+  (( AUDIT_BACKLOG_FLOOR >= 8192 )) || AUDIT_BACKLOG_FLOOR=8192
+  [[ ! -L "${rules_dir}" ]] || fatal "refusing to tune a symlinked audit rules directory: ${rules_dir}"
+  direct_rules="$(dirname "${audit_conf}")/audit.rules"
+  [[ ! -e "${direct_rules}" && ! -L "${direct_rules}" ]] || files+=("${direct_rules}")
+  for file in "${rules_dir}/"*.rules; do
+    [[ -e "${file}" || -L "${file}" ]] || continue
+    files+=("${file}")
+  done
+  [[ "${#files[@]}" -le 256 ]] || fatal "too many audit rule files for automatic queue tuning; use AUDIT_TUNE=0"
+  # Plan the complete floor before publishing: an existing larger persistent
+  # value anywhere in the native ruleset must never be lowered by this installer.
+  for file in ${files[@]+"${files[@]}"}; do
+    values="$(audit_queue_values "${file}" backlog)" || \
+      fatal "cannot safely inspect audit backlog policy: ${file}; use AUDIT_TUNE=0 after review"
+    read -r count minimum maximum <<<"${values}"
+    if [[ "${count}" -gt 0 ]]; then
+      [[ "${file}" == "${direct_rules}" ]] || backlog_source=1
+      (( maximum <= AUDIT_BACKLOG_FLOOR )) || AUDIT_BACKLOG_FLOOR="${maximum}"
+    fi
+  done
+  [[ -z "${dispatcher_conf}" ]] || audit_queue_raise "${dispatcher_conf}" q_depth 2000
+  for file in ${files[@]+"${files[@]}"}; do
+    values="$(audit_queue_values "${file}" backlog)"
+    read -r count minimum maximum <<<"${values}"
+    [[ "${count}" -eq 0 ]] || audit_queue_raise "${file}" backlog "${AUDIT_BACKLOG_FLOOR}"
+  done
+  if [[ "${backlog_source}" -eq 0 && -d "${rules_dir}" ]]; then
+    audit_queue_raise "${rules_dir}/70-secweaver-backlog.rules" backlog "${AUDIT_BACKLOG_FLOOR}"
+  fi
+  if [[ -f "${direct_rules}" ]]; then
+    # Generated policy is not an augenrules source. Conversely, a source -b does
+    # not cover a direct auditctl -R loader: both native paths must persist it.
+    values="$(audit_queue_values "${direct_rules}" backlog)"
+    read -r count minimum maximum <<<"${values}"
+    [[ "${count}" -gt 0 ]] || audit_queue_raise "${direct_rules}" backlog "${AUDIT_BACKLOG_FLOOR}"
+  elif [[ ! -d "${rules_dir}" ]]; then
+    warn "no native audit rules location found; backlog change will not persist across reboot"
+  fi
+}
+
+# RHEL/CentOS 7 require the audit init script for lifecycle actions. A running
+# daemon is only reloaded, never restarted/killed, preserving live audit rules.
+# Every service/auditctl call is bounded and startup failure blocks installation.
 start_auditd_service() {
   if ! need_cmd systemctl; then
     warn "systemctl not found; cannot enable/start auditd automatically"
     return 0
   fi
-  if systemctl cat auditd.service >/dev/null 2>&1; then
-    systemctl enable --now auditd.service || systemctl start auditd.service || true
-  else
-    warn "auditd.service not found in systemd unit files"
+  need_cmd timeout || fatal "timeout is required for bounded audit service setup"
+  if ! timeout --kill-after=5s 10s systemctl cat auditd.service >/dev/null 2>&1; then
+    fatal "auditd.service is unavailable; inspect systemctl status auditd; use INSTALL_DEPS=0 only for verified operator-managed audit"
   fi
+  prepare_audit_queues "/etc/audit/auditd.conf" "/etc/audisp/audispd.conf" "/etc/audit/rules.d"
+  timeout --kill-after=5s 30s systemctl enable auditd.service || fatal "cannot enable auditd.service"
+  local action=start status pid enabled backlog
+  local lifecycle=(systemctl)
+  if [[ -x /etc/init.d/auditd ]] && need_cmd service; then
+    lifecycle=(service auditd)
+  fi
+  if timeout --kill-after=5s 10s systemctl is-active --quiet auditd.service; then
+    if [[ "${AUDIT_DISPATCHER_CHANGED}" -eq 1 ]]; then
+      action=reload
+    else
+      action=""
+    fi
+  fi
+  if [[ -n "${action}" ]]; then
+    if [[ "${lifecycle[0]}" == systemctl ]]; then
+      timeout --kill-after=5s 30s systemctl "${action}" auditd.service || \
+        fatal "auditd ${action} failed; inspect journalctl -u auditd; dispatcher backup=${AUDIT_DISPATCHER_BACKUP:-none}"
+    else
+      timeout --kill-after=5s 30s "${lifecycle[@]}" "${action}" || \
+        fatal "auditd ${action} failed; inspect journalctl -u auditd; dispatcher backup=${AUDIT_DISPATCHER_BACKUP:-none}"
+    fi
+  fi
+  timeout --kill-after=5s 10s systemctl is-active --quiet auditd.service || fatal "auditd.service is not active after setup"
+  status="$(timeout --kill-after=5s 10s auditctl -s)" || fatal "cannot verify auditd after setup"
+  pid="$(awk '$1 == "pid" {print $2}' <<<"${status}")"
+  enabled="$(awk '$1 == "enabled" {print $2}' <<<"${status}")"
+  [[ "${pid}" =~ ^[0-9]+$ && "${pid}" != 0 ]] && [[ "${enabled}" == 1 || "${enabled}" == 2 ]] || \
+    fatal "auditd is not registered/enabled in the kernel (pid=${pid:-unknown}, enabled=${enabled:-unknown})"
+  if [[ "${AUDIT_BACKLOG_FLOOR}" -gt 0 ]]; then
+    backlog="$(awk '$1 == "backlog_limit" {print $2}' <<<"${status}")"
+    [[ "${backlog}" =~ ^[0-9]{1,10}$ ]] && (( 10#${backlog} <= 4294967295 )) || fatal "invalid audit backlog_limit after service setup"
+    backlog="$((10#${backlog}))"
+    if (( backlog < AUDIT_BACKLOG_FLOOR )); then
+      if [[ "${enabled}" == 2 ]]; then
+        warn "audit policy is immutable; backlog floor=${AUDIT_BACKLOG_FLOOR} saved for the next reboot"
+      else
+        timeout --kill-after=5s 10s auditctl -b "${AUDIT_BACKLOG_FLOOR}" || fatal "cannot raise live audit backlog; existing rules were not reloaded"
+        status="$(timeout --kill-after=5s 10s auditctl -s)" || fatal "cannot verify updated audit backlog"
+        backlog="$(awk '$1 == "backlog_limit" {print $2}' <<<"${status}")"
+        [[ "${backlog}" =~ ^[0-9]{1,10}$ ]] && (( 10#${backlog} >= AUDIT_BACKLOG_FLOOR && 10#${backlog} <= 4294967295 )) || fatal "audit backlog update was not applied"
+        log "audit queue: kernel backlog_limit=${backlog} verified"
+      fi
+    fi
+  fi
+  log "auditd service ready (pid=${pid}, enabled=${enabled})"
 }
 
 stop_legacy_collectors() {

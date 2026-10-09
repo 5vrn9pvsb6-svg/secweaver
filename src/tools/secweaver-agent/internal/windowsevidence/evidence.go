@@ -10,7 +10,7 @@ import (
 	"secweaver-agent/pkg/windowseventlog"
 )
 
-const parserVersion = "0.3.0"
+const parserVersion = "0.3.1"
 
 // Event is the stable JSON contract emitted for Windows host evidence.
 type Event struct {
@@ -30,6 +30,9 @@ type Event struct {
 	User            string            `json:"user,omitempty"`
 	Process         string            `json:"process,omitempty"`
 	Comm            string            `json:"comm,omitempty"`
+	PIDName         string            `json:"pid_name,omitempty"`
+	ListenerProcess *string           `json:"listener_process,omitempty"`
+	FilePaths       []string          `json:"file_paths,omitempty"`
 	Exe             string            `json:"exe,omitempty"`
 	Command         string            `json:"command,omitempty"`
 	CommandLine     string            `json:"command_line,omitempty"`
@@ -103,6 +106,14 @@ func Classify(event windowseventlog.Event, includeRaw bool) []Event {
 		item := base
 		item.AssetType, item.EventType, item.PID, item.User, item.Exe = "host_file_op", "file_op", event.Field("ProcessId"), event.Field("User"), event.Field("Image")
 		item.Process, item.Comm, item.Path = windowsBase(item.Exe), windowsBase(item.Exe), event.Field("TargetFilename")
+		// Keep the original path and add the exact tuple contract. Windows has
+		// no listener-root evidence; an explicit empty value is not a guess.
+		item.Exe, item.Path = base.Fields["Image"], base.Fields["TargetFilename"]
+		item.PIDName = windowsBase(item.Exe)
+		item.ListenerProcess = new(string)
+		if item.Path != "" {
+			item.FilePaths = []string{item.Path}
+		}
 		if event.EventIDInt() == 23 {
 			item.Action, item.Message = "delete", "Sysmon file delete"
 		} else {

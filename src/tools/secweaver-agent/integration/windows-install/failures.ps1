@@ -119,11 +119,12 @@ if ($installArgs.ContainsKey('EnterpriseEnrollmentToken')) { throw 'argument tok
   # Exercise user-visible results with known/unknown channel evidence. Reading a
   # channel must never certify filtering, and normal update behavior is not WARN.
   $LearningConfig = Join-Path $Temp 'learning-summary.json'
-  [IO.File]::WriteAllText($LearningConfig, '{"modules":{"windows-eventlog-risk-json":{"enabled":true,"args":["-behavior-learning=true","-learning-shadow=false"]}}}')
+  [IO.File]::WriteAllText($LearningConfig, '{"modules":{"windows-eventlog-risk-json":{"enabled":true,"args":["-behavior-learning=true","-learning-shadow=false","-risk-behavior-learning=true"]}}}')
   $Missing = (Write-WindowsLearningSummary $LearningConfig @('[WARN] windows-channel/Microsoft-Windows-Sysmon/Operational: unavailable') 6>&1 | Out-String)
-  Assert-True ($Missing -match '\[WARN\] learning-readiness: Sysmon is missing or its channel is inaccessible' -and $Missing -match 'remain full-output; collection continues') 'Missing Sysmon consequence hidden'
+  Assert-True ($Missing -match '\[WARN\] learning-readiness: Sysmon is missing or its channel is inaccessible' -and $Missing -match 'file/network command correlation is unavailable' -and $Missing -match 'configured unavailable channel degrades evidence learning') 'Missing Sysmon consequence hidden'
   $Available = (Write-WindowsLearningSummary $LearningConfig @('[OK] windows-channel/Microsoft-Windows-Sysmon/Operational: available') 6>&1 | Out-String)
-  Assert-True ($Available -match '\[INFO\] learning-readiness: Sysmon channel available' -and $Available -match 'completed baseline' -and $Available -notmatch '\[WARN\]') 'Available Sysmon misclassified or filtering certified'
+  Assert-True ($Available -match '\[INFO\] learning-readiness: Sysmon channel available' -and $Available -match 'Security 4688 with complete commands' -and $Available -match 'alone does not prove filtering' -and $Available -notmatch '\[WARN\]') 'Available Sysmon misclassified or filtering certified'
+  Assert-True ($Available -match 'five events within one hour' -and $Available -notmatch 'GUID/SHA256|CDXML baseline|completed baseline') 'Installer still describes superseded learning gates'
   $Unknown = (Write-WindowsLearningSummary $LearningConfig @($null) 6>&1 | Out-String)
   Assert-True ($Unknown -match '\[WARN\].*capability was not verified') 'Unknown channel capability treated as ready'
   $UpdateSummary = (Confirm-WindowsUpdateConfiguration $Config $true 6>&1 | Out-String)

@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"secweaver-agent/internal/modulecontract"
+	"secweaver-agent/internal/windowsevidence"
 	"secweaver-agent/pkg/agentlicense"
 	"secweaver-agent/pkg/layout"
 	"secweaver-agent/pkg/windowseventlogriskjson"
@@ -13,8 +15,8 @@ import (
 
 // doctorCheckWindowsLearning reuses preflight's channel observation: repeated
 // PowerShell probes create their own audit load. Configuration is not proof of
-// filtering readiness; eligible GUID/hash/context and runtime baseline state
-// remain necessary even with an accessible Sysmon channel.
+// filtering readiness; complete fields and the runtime baseline state remain
+// necessary even when the native channel is accessible.
 func doctorCheckWindowsLearning(cfg agentConfig, modules []runtimeModule, sysmon bool, add func(doctorLevel, string, string, string)) {
 	if !cfg.License.Enabled {
 		add(doctorWarn, "authorization", "Managed authorization is disabled", "Local collection/test configuration; this is not proof of SaaS registration")
@@ -37,14 +39,32 @@ func doctorCheckWindowsLearning(cfg agentConfig, modules []runtimeModule, sysmon
 			continue
 		}
 		add(doctorOK, "learning/config", "Windows learning policy is enabled", fmt.Sprintf("module=%s shadow=%t; not proof of active suppression", module.Spec.Name, shadow))
+		cursor, _ := modulecontract.StringFlag(module.Config.Args, "state-file")
+		eventPath := layout.WindowsLogs + `\windows-process-execmon.log`
+		outputFlag := "output"
+		if module.Spec.Name == "windows-eventlog-risk-json" {
+			outputFlag = "evidence-output"
+		}
+		if value, ok := modulecontract.StringFlag(module.Config.Args, outputFlag); ok {
+			eventPath = value
+		}
+		// An empty evidence path transfers ownership to the other reader.
+		if strings.TrimSpace(eventPath) != "" {
+			execStatus, execErr := windowsevidence.ReadLearningStatus(module.Config.Args, cursor, eventPath)
+			doctorReportStreamLearning("exec", execStatus, execErr, add)
+			fileStatus, fileErr := windowsevidence.ReadFileLearningStatus(module.Config.Args, cursor, eventPath)
+			doctorReportFileLearning(fileStatus, fileErr, add)
+			networkStatus, networkErr := windowsevidence.ReadNetworkLearningStatus(module.Config.Args, cursor, eventPath)
+			doctorReportStreamLearning("network", networkStatus, networkErr, add)
+		}
 		state, err := agentlicense.LoadState(cfg.License.Normalize().StatePath)
 		if err != nil || state.DeviceID == "" || state.EnterpriseID != cfg.EnterpriseID || state.RegisteredAt == "" || !cfg.License.Enabled {
 			add(doctorWarn, "learning/identity", "Registered device identity unavailable or does not match configuration", "Original events remain available; complete managed device registration before learning")
 		}
 		if !sysmon {
-			add(doctorWarn, "learning/capability", "Sysmon is missing or inaccessible; Sysmon-based whitelist reduction is unavailable", "Security 4688 and protected risk events retain originals; native PowerShell risk learning is independent of Sysmon")
+			add(doctorWarn, "learning/capability", "Sysmon is missing or inaccessible; file/network command correlation is unavailable", "Security 4688 with a complete command can learn when configured sources are healthy; a configured unavailable channel degrades evidence learning. Native PowerShell learning is independent of Sysmon")
 		} else {
-			add(doctorWarn, "learning/readiness", "Sysmon is accessible; baseline filtering is not certified by doctor", "Verify behavior-learning.log and eligible GUID/SHA256 context. Security 4688, protected risk events and incomplete context always retain originals")
+			add(doctorOK, "learning/capability", "Sysmon is accessible", "Exact tuples qualify after five events within one hour; incomplete context and protected risk alerts retain originals")
 		}
 	}
 }
@@ -84,7 +104,7 @@ func doctorCheckWindowsRiskLearning(cfg agentConfig, args []string, add func(doc
 	if value, ok := modulecontract.StringFlag(args, "output"); ok {
 		output = value
 	}
-	add(doctorOK, "risk-learning/config", "Windows risk learning policy is enabled", fmt.Sprintf("shadow=%t; native PowerShell CDXML only; independent of Sysmon", shadow))
+	add(doctorOK, "risk-learning/config", "Windows risk learning policy is enabled", fmt.Sprintf("shadow=%t; exact complete PowerShell script blocks; independent of Sysmon", shadow))
 	identity, err := agentlicense.LoadState(cfg.License.Normalize().StatePath)
 	if err != nil || !cfg.License.Enabled || identity.EnterpriseID != cfg.EnterpriseID || identity.RegisteredAt == "" {
 		add(doctorWarn, "risk-learning/identity", "Registered risk learning identity unavailable", "Original risk events retained")

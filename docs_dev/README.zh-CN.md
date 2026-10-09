@@ -23,11 +23,20 @@
 
 按运维任务查阅 [Agent 专题索引](../src/tools/secweaver-agent/docs/README.zh-CN.md)。
 
+了解当前自学习逻辑，先看[统一简化需求](36-agent-unified-simple-learning-requirements.zh-CN.md)、
+[模块架构](37-agent-unified-simple-learning-architecture.zh-CN.md)与
+[使用指南](../src/tools/secweaver-agent/docs/behavior-learning.zh-CN.md)。
+
 | 文档 | 说明 |
 |---|---|
 | [`secweaver-agent` 工程手册](../src/tools/secweaver-agent/README.zh-CN.md) | 构建、配置、模块开发、签名升级、公钥轮换、紧急停止和回滚行为 |
 | [26-secweaver-agent-device-identity-and-enrollment-design.zh-CN.md](26-secweaver-agent-device-identity-and-enrollment-design.zh-CN.md) | 不可变设备身份、注册协议、设备额度和撤销模型 |
-| [30-agent-behavior-learning-design.zh-CN.md](30-agent-behavior-learning-design.zh-CN.md) | 24 小时行为学习、首期实现边界、日志减量、证据保留与上线验收设计 |
+| [32-agent-simple-exec-learning-requirements.zh-CN.md](32-agent-simple-exec-learning-requirements.zh-CN.md) | 0.3.81 四字段完全相同、一小时 5 次入名单并立即过滤的需求 |
+| [33-agent-simple-exec-learning-architecture.zh-CN.md](33-agent-simple-exec-learning-architecture.zh-CN.md) | 简化学习模块、持久化、迁移、性能与验证边界 |
+| [34-agent-simple-file-learning-requirements.zh-CN.md](34-agent-simple-file-learning-requirements.zh-CN.md) | 0.3.82 五字段文件学习需求与 Windows 空 listener 约定 |
+| [35-agent-simple-file-learning-architecture.zh-CN.md](35-agent-simple-file-learning-architecture.zh-CN.md) | 文件独立名单、原生证据关联、有界缓存与游标顺序 |
+| [36-agent-unified-simple-learning-requirements.zh-CN.md](36-agent-unified-simple-learning-requirements.zh-CN.md) | 0.3.83 将 Windows exec、网络与普通 PowerShell 统一为一小时五次 |
+| [37-agent-unified-simple-learning-architecture.zh-CN.md](37-agent-unified-simple-learning-architecture.zh-CN.md) | 共用精确计数、GUID 缓存、分片组装、迁移与独立状态 |
 | [真实服务升级集成测试](../src/tools/secweaver-agent/integration/service-upgrade/README.md) | Linux systemd 与 Windows SCM 的 N-1 到 N 失败和自动回滚测试 |
 
 ## 架构与规划

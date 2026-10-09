@@ -23,11 +23,20 @@ Use the [release checklist](community-release-checklist.md) to prepare a clean H
 
 Find operational topics in the [Agent topic index](../src/tools/secweaver-agent/docs/README.md).
 
+For current behavior learning, start with the [unified requirements](36-agent-unified-simple-learning-requirements.md),
+[architecture](37-agent-unified-simple-learning-architecture.md) and
+[operating guide](../src/tools/secweaver-agent/docs/behavior-learning.md).
+
 | Document | Description |
 |---|---|
 | [`secweaver-agent` engineering manual](../src/tools/secweaver-agent/README.md) | Build, configuration, module development, signed updates, key rotation, emergency stop, and rollback behavior |
 | [26-secweaver-agent-device-identity-and-enrollment-design.md](26-secweaver-agent-device-identity-and-enrollment-design.md) | Immutable device identity, enrollment protocol, quotas, and revocation model |
-| [30-agent-behavior-learning-design.md](30-agent-behavior-learning-design.md) | 24-hour behavior learning design, first implementation boundaries, evidence retention, and release acceptance |
+| [32-agent-simple-exec-learning-requirements.md](32-agent-simple-exec-learning-requirements.md) | 0.3.81 exact-four-field requirements: five per hour and immediate filtering |
+| [33-agent-simple-exec-learning-architecture.md](33-agent-simple-exec-learning-architecture.md) | Simple learning modules, persistence, migration, performance and verification scope |
+| [34-agent-simple-file-learning-requirements.md](34-agent-simple-file-learning-requirements.md) | 0.3.82 five-field file learning, including Windows empty listener semantics |
+| [35-agent-simple-file-learning-architecture.md](35-agent-simple-file-learning-architecture.md) | Independent file baselines, native evidence correlation, bounded caches and cursor ordering |
+| [36-agent-unified-simple-learning-requirements.md](36-agent-unified-simple-learning-requirements.md) | 0.3.83 rolling-hour/five-hit Windows exec, network and ordinary PowerShell learning |
+| [37-agent-unified-simple-learning-architecture.md](37-agent-unified-simple-learning-architecture.md) | Shared exact counter, GUID cache, fragment assembly, migration and independent state |
 | [Real-service upgrade integration tests](../src/tools/secweaver-agent/integration/service-upgrade/README.md) | Linux systemd and Windows SCM N-1 to N failure and automatic rollback tests |
 
 ## Architecture And Planning

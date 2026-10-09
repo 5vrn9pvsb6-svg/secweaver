@@ -32,32 +32,34 @@ type evidence struct {
 // Engine owns its mutable state under mu. I/O is invoked by the bounded adapter
 // worker, never the kernel reader. Fault can concurrently invalidate matching.
 type Engine struct {
-	mu            sync.Mutex
-	cfg           Config
-	store         *Store
-	state         State
-	now           func() time.Time
-	lastTick      time.Time
-	healthUntil   time.Time
-	healthySince  time.Time
-	warmUntil     time.Time
-	lastFlush     time.Time
-	lastSave      time.Time
-	counters      map[string]*counters
-	evidence      map[string]evidence
-	evidenceBytes int
-	seen          map[string]time.Time
-	original      func(json.RawMessage) error
-	summary       func(Summary) error
-	runID         string
-	sequence      uint64
-	rateOrigin    time.Time
-	closed        bool
-	pendingFault  atomic.Pointer[string]
+	mu              sync.Mutex
+	cfg             Config
+	store           *Store
+	state           State
+	now             func() time.Time
+	lastTick        time.Time
+	healthUntil     time.Time
+	healthySince    time.Time
+	warmUntil       time.Time
+	lastFlush       time.Time
+	lastSave        time.Time
+	lastSimplePrune time.Time
+	counters        map[string]*counters
+	evidence        map[string]evidence
+	evidenceBytes   int
+	seen            map[string]time.Time
+	original        func(json.RawMessage) error
+	summary         func(Summary) error
+	runID           string
+	sequence        uint64
+	rateOrigin      time.Time
+	closed          bool
+	pendingFault    atomic.Pointer[string]
 }
 
-// New loads a compatible checkpoint; policy changes require a higher explicit
-// generation. The adapter supplies verified device identity and bounded sinks.
+// New loads a compatible checkpoint. Exact-policy migration archives a matching
+// legacy Linux/Windows policy once; other changes need a higher generation.
+// The adapter supplies verified device identity and bounded sinks.
 func New(cfg Config, device string, original func(json.RawMessage) error, summary func(Summary) error) (*Engine, error) {
 	var err error
 	cfg, err = cfg.Normalize()
@@ -84,7 +86,15 @@ func New(cfg Config, device string, original func(json.RawMessage) error, summar
 		return nil, err
 	}
 	now := e.now()
-	if prior == nil || cfg.Generation > prior.Generation {
+	migrate := prior != nil && cfg.simpleExec && !cfg.simpleFile && prior.Strategy == "" && prior.Device == device &&
+		prior.Generation == cfg.Generation && prior.Policy == legacyPolicyHash(cfg)
+	if migrate {
+		if err := s.commitFile("legacy-state.json", *prior); err != nil {
+			s.Close()
+			return nil, fmt.Errorf("archive legacy learning state: %w", err)
+		}
+	}
+	if prior == nil || cfg.Generation > prior.Generation || migrate {
 		if prior != nil && prior.Device != device {
 			s.Close()
 			return nil, fmt.Errorf("learning state belongs to another device")
@@ -95,6 +105,15 @@ func New(cfg Config, device string, original func(json.RawMessage) error, summar
 			return nil, err
 		}
 		e.state = State{Version: 1, Device: device, Policy: policy, Generation: cfg.Generation, BaselineID: baselineID, Mode: "learning", Started: now, Entries: map[string]*Entry{}, Candidates: map[string]*Entry{}, LastSeen: map[string]time.Time{}}
+		if cfg.simpleExec {
+			e.state.Strategy = cfg.simpleStrategy()
+		}
+		if migrate {
+			e.state.Reason = "simple_exec_policy_migrated"
+			if cfg.simpleStrategy() != simpleExecStrategy {
+				e.state.Reason = "simple_policy_migrated"
+			}
+		}
 		if err = s.Commit(e.state); err != nil {
 			s.Close()
 			return nil, err
@@ -105,14 +124,32 @@ func New(cfg Config, device string, original func(json.RawMessage) error, summar
 			return nil, fmt.Errorf("learning state policy/device mismatch; explicit relearn required")
 		}
 		e.state = *prior
+		if cfg.simpleExec {
+			if err := s.replayAdmissions(&e.state); err != nil {
+				s.Close()
+				return nil, err
+			}
+		}
 		if !prior.CleanShutdown {
 			e.faultLocked("unclean_restart_requires_relearn")
 		}
-		if e.state.Mode == "enforcing" {
+		if e.state.Mode == "enforcing" && !cfg.simpleExec {
 			e.state.Reason = "restart_context_and_counter_gap"
 		}
 		// Unknown downtime cannot reset idle expiry or outstanding anomaly protection.
-		e.warmUntil = now.Add(10 * time.Minute)
+		if !cfg.simpleExec {
+			e.warmUntil = now.Add(10 * time.Minute)
+		}
+	}
+	if cfg.simpleExec {
+		if e.state.Seen == nil {
+			e.state.Seen = map[string]time.Time{}
+		}
+		e.seen = e.state.Seen
+		if err := e.validateSimpleState(now); err != nil {
+			s.Close()
+			return nil, err
+		}
 	}
 	e.state.CleanShutdown = false
 	if err := s.Commit(e.state); err != nil {
@@ -171,13 +208,16 @@ func (e *Engine) fingerprint(c Context) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-// Process never treats missing context as a wildcard. Evidence is cached before
-// suppression; memory pressure, failed output and bad health preserve originals.
+// Process never treats missing context as a wildcard. Each strategy owns its
+// admission evidence; memory pressure, failed output and bad health retain raw.
 func (e *Engine) Process(o Observation) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.applyFault()
 	now := e.now()
+	if e.cfg.simpleExec {
+		return e.processSimple(o, now)
+	}
 	if len(o.Raw) > 65536 || len(o.EventID) > 256 {
 		return e.original(o.Raw)
 	}
@@ -423,11 +463,15 @@ func (e *Engine) Tick() error {
 	now := e.now()
 	delta := now.Sub(e.lastTick).Seconds()
 	e.lastTick = now
+	if delta < 0 && e.cfg.simpleExec {
+		// A backward clock must not extend a restored reception-time window.
+		e.faultLocked("clock_regression")
+	}
 	if delta >= 0 {
 		e.state.OnlineSeconds += delta
 	}
 	if delta >= 0 && delta <= 5 {
-		if e.state.Mode == "learning" && now.Before(e.healthUntil) && now.Sub(e.healthySince) >= 10*time.Minute {
+		if e.state.Mode == "learning" && e.sourceHealthy(now) {
 			e.state.HealthySeconds += delta
 		}
 	}
@@ -452,9 +496,13 @@ func (e *Engine) Tick() error {
 		}
 		e.lastSave = now
 	}
-	for id, observed := range e.seen {
-		if now.Sub(observed) > time.Minute {
-			delete(e.seen, id)
+	if e.cfg.simpleExec {
+		e.pruneSimple(now)
+	} else {
+		for id, observed := range e.seen {
+			if now.Sub(observed) > time.Minute {
+				delete(e.seen, id)
+			}
 		}
 	}
 	// Periodic reclamation, not per-event scans, keeps hot-path work bounded.
@@ -468,9 +516,21 @@ func (e *Engine) Tick() error {
 	return nil
 }
 
-// freeze deterministically promotes only qualified candidates and commits before
-// any subsequent event can match. Sparse buckets include zeros in the P95.
+// freeze closes exact-policy admissions without changing durable entries.
+// Legacy compatibility still promotes at completion; installed adapters select
+// exact policies. Both transitions commit before subsequent event matching.
 func (e *Engine) freeze(now time.Time) {
+	if e.cfg.simpleExec {
+		e.state.Candidates = map[string]*Entry{}
+		e.state.Mode, e.state.Reason = "enforcing", ""
+		if len(e.state.Entries) == 0 {
+			e.state.Reason = "baseline_empty"
+		}
+		if err := e.store.Commit(e.state); err != nil {
+			e.faultLocked("baseline_commit_failed")
+		}
+		return
+	}
 	keys := make([]string, 0, len(e.state.Candidates))
 	for k := range e.state.Candidates {
 		keys = append(keys, k)
@@ -563,12 +623,26 @@ func (e *Engine) flushCounters(now time.Time) error {
 	return nil
 }
 func (e *Engine) summaryBase(now time.Time) Summary {
-	healthy := now.Before(e.healthUntil) && now.Sub(e.healthySince) >= 10*time.Minute
-	return Summary{SourceHealthy: healthy, Shadow: e.cfg.Shadow, FilteringActive: healthy && !e.cfg.Shadow && e.state.Mode == "enforcing" && now.After(e.warmUntil), Time: now, EventType: "behavior_summary", AssetType: "host_behavior_summary", DeviceID: e.state.Device, BaselineID: e.state.BaselineID, WindowEnd: now, Mode: e.state.Mode, Reason: e.state.Reason, Complete: e.state.Mode != "degraded", HealthySeconds: e.state.HealthySeconds, Entries: len(e.state.Entries), Candidates: len(e.state.Candidates)}
+	healthy := e.sourceHealthy(now)
+	filterable := e.state.Mode == "enforcing"
+	if e.cfg.simpleExec {
+		filterable = (filterable || e.state.Mode == "learning") && len(e.state.Entries) > 0
+	}
+	source := ""
+	if e.cfg.simpleExec {
+		source = e.cfg.simpleEventType()
+	}
+	return Summary{SourceEventType: source, SourceHealthy: healthy, Shadow: e.cfg.Shadow, FilteringActive: healthy && !e.cfg.Shadow && filterable && now.After(e.warmUntil), Time: now, EventType: "behavior_summary", AssetType: "host_behavior_summary", DeviceID: e.state.Device, BaselineID: e.state.BaselineID, WindowEnd: now, Mode: e.state.Mode, Reason: e.state.Reason, Complete: e.state.Mode != "degraded", HealthySeconds: e.state.HealthySeconds, Entries: len(e.state.Entries), Candidates: len(e.state.Candidates)}
 }
 
-// Close flushes before releasing ownership. A crash cannot silently finish the
-// learning clock; restart also uses a ten-minute full-output protection window.
+// sourceHealthy retains warm-up only for the legacy compatibility engine.
+// All installed adapters use exact policies and require a current health lease.
+func (e *Engine) sourceHealthy(now time.Time) bool {
+	return now.Before(e.healthUntil) && (e.cfg.simpleExec || now.Sub(e.healthySince) >= 10*time.Minute)
+}
+
+// Close flushes before releasing ownership. Downtime cannot finish learning;
+// only legacy strategies need a ten-minute restart window to rebuild context.
 func (e *Engine) Close() error {
 	return e.CloseWithCheckpoint(nil)
 }

@@ -31,22 +31,13 @@ func TestWindowsEligibilityAndBypasses(t *testing.T) {
 		t.Fatalf("eligible record rejected: %+v", o)
 	}
 	for name, mutate := range map[string]func(*Event){
-		"security4688":       func(e *Event) { e.WindowsEventID = "4688"; e.Provider = "Microsoft-Windows-Security-Auditing" },
-		"missing-hash":       func(e *Event) { delete(e.Fields, "Hashes") },
-		"md5-only":           func(e *Event) { e.Fields["Hashes"] = "MD5=" + strings.Repeat("a", 32) },
-		"missing-command":    func(e *Event) { delete(e.Fields, "CommandLine") },
-		"bad-guid":           func(e *Event) { e.Fields["ProcessGuid"] = "42" },
-		"interactive":        func(e *Event) { e.Fields["TerminalSessionId"] = "1" },
-		"changed-user":       func(e *Event) { e.Fields["ParentUser"] = "alice" },
-		"domain-token":       func(e *Event) { e.Fields["LogonId"] = "0x1234" },
-		"elevation":          func(e *Event) { e.Fields["IntegrityLevel"] = "High" },
-		"powershell":         func(e *Event) { e.Exe = `C:\Windows\System32\powershell.exe` },
-		"renamed-powershell": func(e *Event) { e.Fields["OriginalFileName"] = "PowerShell.EXE" },
-		"shell-parent":       func(e *Event) { e.ParentProcess = `C:\Windows\System32\cmd.exe` },
-		"download":           func(e *Event) { e.Fields["CommandLine"] += " https://example.org/a" },
-		"temp-image":         func(e *Event) { e.Exe = `C:\Users\Public\worker.exe` },
-		"old-record":         func(e *Event) { e.Time = now.Add(-time.Hour).Format(time.RFC3339Nano) },
-		"fake-provider":      func(e *Event) { e.Provider = "NotSysmon" },
+		"security-wrong-channel": func(e *Event) { e.WindowsEventID = "4688"; e.Provider = "Microsoft-Windows-Security-Auditing" },
+		"missing-command":        func(e *Event) { delete(e.Fields, "CommandLine") },
+		"missing-image":          func(e *Event) { e.Exe = "" },
+		"missing-record":         func(e *Event) { e.WindowsRecordID = "" },
+		"invalid-command":        func(e *Event) { e.Fields["CommandLine"] = "bad\xffcommand" },
+		"old-record":             func(e *Event) { e.Time = now.Add(-time.Hour).Format(time.RFC3339Nano) },
+		"fake-provider":          func(e *Event) { e.Provider = "NotSysmon" },
 	} {
 		t.Run(name, func(t *testing.T) {
 			e := eligibleWindowsEvent(now)
@@ -55,6 +46,24 @@ func TestWindowsEligibilityAndBypasses(t *testing.T) {
 				t.Fatal("unsafe record qualified")
 			}
 		})
+	}
+}
+
+// Identity enrichment is deliberately outside the simple tuple. Both native
+// providers can train without hashes, parents, service tokens or a live PID.
+func TestWindowsExactExecDoesNotUseLegacyEligibility(t *testing.T) {
+	now := time.Now()
+	for _, provider := range []string{"sysmon", "security"} {
+		e := eligibleWindowsEvent(now)
+		e.Exe = `C:\Users\Alice\powershell.exe`
+		e.Fields = map[string]string{"CommandLine": "powershell -File task.ps1"}
+		if provider == "security" {
+			e.WindowsEventID, e.Provider, e.Channel = "4688", "Microsoft-Windows-Security-Auditing", "Security"
+		}
+		o := learningObservation(e, now.Add(-time.Minute), now)
+		if !o.Complete || o.Context.Exec == nil || o.Context.Exec.ListenerProcess != "" || o.Context.Exec.CommandLine != e.Fields["CommandLine"] {
+			t.Fatalf("simple %s exec rejected: %+v", provider, o)
+		}
 	}
 }
 

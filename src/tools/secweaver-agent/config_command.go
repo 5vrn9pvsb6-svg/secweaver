@@ -79,8 +79,8 @@ func runConfigCommand(args []string) int {
 		fs.StringVar(&configPath, "config", configPath, "agent JSON config path")
 		fs.BoolVar(&cfg.Enabled, "enabled", true, "enable Agent updates")
 		fs.StringVar(&cfg.ManifestURL, "manifest-url", "", "update manifest HTTPS URL")
-		fs.StringVar(&cfg.CAFile, "ca-file", "", "optional PEM CA file for the update HTTPS endpoint")
-		fs.StringVar(&cfg.PublicKey, "public-key", "", "optional trusted Ed25519 update public key in base64; enables signed-manifest verification")
+		fs.StringVar(&cfg.CAFile, "ca-file", "", "optional PEM CA file for the update HTTPS endpoint; empty preserves the existing CA")
+		fs.StringVar(&cfg.PublicKey, "public-key", "", "optional trusted Ed25519 update public key in base64; empty preserves existing trust")
 		fs.StringVar(&cfg.DeviceID, "device-id", "", "immutable rollout device ID for standalone updates")
 		fs.StringVar(&cfg.Channel, "channel", "stable", "update channel")
 		fs.IntVar(&cfg.IntervalSeconds, "interval-seconds", 21600, "periodic update check interval")
@@ -297,8 +297,9 @@ func setLicenseInConfig(path string, licenseCfg agentlicense.Config) error {
 	return validateAndWriteConfig(path, payload)
 }
 
-// setUpdateInConfig keeps signing opt-in: an omitted public key writes the
-// HTTPS plus artifact-hash mode, while a supplied key is validated immediately.
+// setUpdateInConfig applies installer settings without discarding provisioned
+// trust. An omitted key keeps unsigned compatibility only on a config that never
+// had trust; existing trust must be changed explicitly, not erased by defaults.
 func setUpdateInConfig(path string, cfg updateConfig) error {
 	cfg.ManifestURL = strings.TrimSpace(cfg.ManifestURL)
 	cfg.PublicKey = strings.TrimSpace(cfg.PublicKey)
@@ -306,11 +307,6 @@ func setUpdateInConfig(path string, cfg updateConfig) error {
 	if cfg.Enabled {
 		if !strings.HasPrefix(strings.ToLower(cfg.ManifestURL), "https://") {
 			return fmt.Errorf("update manifest_url must use HTTPS")
-		}
-		if cfg.PublicKey != "" {
-			if _, err := parseEd25519PublicKey(cfg.PublicKey); err != nil {
-				return fmt.Errorf("update public_key: %w", err)
-			}
 		}
 	}
 	body, err := os.ReadFile(path)
@@ -324,6 +320,31 @@ func setUpdateInConfig(path string, cfg updateConfig) error {
 	if payload == nil {
 		return fmt.Errorf("config must be a JSON object")
 	}
+	var previous updateConfig
+	if raw, exists := payload["update"]; exists {
+		if err := decodeStrictJSON(raw, &previous); err != nil {
+			return fmt.Errorf("parse existing update config: %w", err)
+		}
+	}
+	if cfg.PublicKey == "" {
+		cfg.PublicKey = previous.PublicKey
+	}
+	if cfg.TrustedPublicKeys == nil {
+		cfg.TrustedPublicKeys = previous.TrustedPublicKeys
+	}
+	if cfg.RevokedKeyIDs == nil {
+		cfg.RevokedKeyIDs = previous.RevokedKeyIDs
+	}
+	// The state directory anchors persisted rotations, revocations and replay
+	// protection. Resetting it would lose that history even if public_key survived.
+	if strings.TrimSpace(cfg.StateDir) == "" {
+		cfg.StateDir = previous.StateDir
+	}
+	if strings.TrimSpace(cfg.CAFile) == "" {
+		cfg.CAFile = previous.CAFile
+	}
+	// Validate the merged configuration before the atomic write; malformed existing
+	// keys must fail visibly instead of being replaced by an unsigned configuration.
 	encodedUpdate, _ := json.Marshal(cfg)
 	payload["update"] = encodedUpdate
 	return validateAndWriteConfig(path, payload)

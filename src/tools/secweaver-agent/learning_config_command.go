@@ -58,7 +58,7 @@ func setLearningModeInConfig(path, mode string) (string, error) {
 	var policy behaviorlearning.Config
 	learning := map[string]json.RawMessage{}
 	if raw := payload["behavior_learning"]; len(raw) > 0 && strings.TrimSpace(string(raw)) != "null" {
-		policy, err = behaviorlearning.Decode(raw)
+		policy, err = behaviorlearning.DecodeExec(raw)
 		if err != nil && mode == "preserve" {
 			return "disabled; reason=existing-config-invalid", nil
 		}
@@ -84,7 +84,7 @@ func setLearningModeInConfig(path, mode string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, err := behaviorlearning.Decode(encoded); err != nil {
+	if _, err := behaviorlearning.DecodeExec(encoded); err != nil {
 		return "", fmt.Errorf("behavior_learning: %w", err)
 	}
 	payload["behavior_learning"] = encoded

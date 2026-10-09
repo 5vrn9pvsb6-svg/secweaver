@@ -41,7 +41,7 @@ func descriptorOutputPaths(args []string) []string {
 			if strings.TrimSpace(cfg.OutputLog) != "" {
 				path = strings.TrimSpace(cfg.OutputLog)
 			}
-			learning, _ = behaviorlearning.Decode(cfg.BehaviorLearning)
+			learning, _ = behaviorlearning.DecodeExec(cfg.BehaviorLearning)
 		}
 	}
 	if value, ok := modulecontract.StringFlag(args, "output-log"); ok {

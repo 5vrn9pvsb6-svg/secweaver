@@ -9,6 +9,12 @@ import (
 // SourceEventType gives old exec-only entries their original semantics without
 // changing their stored fingerprints or requiring a format migration.
 func (c Context) SourceEventType() string {
+	if c.Network != nil {
+		return "active_connect"
+	}
+	if c.File != nil {
+		return "file_op"
+	}
 	if c.Risk != nil {
 		return "powershell_script_block"
 	}
@@ -18,9 +24,9 @@ func (c Context) SourceEventType() string {
 	return "exec"
 }
 
-// operationReason enforces policy again at the engine boundary. Event-specific
-// adapters prove process identity; neither config nor frequent repetition can
-// whitelist authentication, persistence, destructive operations or remote admin.
+// operationReason enforces stream scope at the engine boundary. Installed exact
+// policies use only this switch; identity/target gates below belong exclusively
+// to the legacy contract and must not affect the shared five-hit counter.
 func (e *Engine) operationReason(c Context) string {
 	kind := c.SourceEventType()
 	enabled := false
@@ -31,6 +37,11 @@ func (e *Engine) operationReason(c Context) string {
 	}
 	if !enabled {
 		return "event_type_not_enabled"
+	}
+	// Exact policies validate their tuple separately and do not inherit legacy
+	// account, destination, path-prefix or service-identity admission gates.
+	if e.cfg.simpleExec {
+		return ""
 	}
 	if c.Risk != nil {
 		if !complete(c) {

@@ -13,6 +13,22 @@ import (
 // reader. It reads only the authenticated checkpoint and summary tail; no
 // Event Log query is started merely to populate a device inventory heartbeat.
 func ReadLearningStatus(args []string, stateFile, eventPath string) (behaviorlearning.StatusSnapshot, error) {
+	return readLearningStatus(args, stateFile, eventPath, "exec")
+}
+
+// ReadFileLearningStatus inspects the independent Windows file baseline without
+// querying Event Log or treating the exec baseline as proof of file filtering.
+func ReadFileLearningStatus(args []string, stateFile, eventPath string) (behaviorlearning.StatusSnapshot, error) {
+	return readLearningStatus(args, stateFile, eventPath, "file_op")
+}
+
+// ReadNetworkLearningStatus exposes the independently persisted connection
+// baseline without opening another Event Log reader or taking its writer lock.
+func ReadNetworkLearningStatus(args []string, stateFile, eventPath string) (behaviorlearning.StatusSnapshot, error) {
+	return readLearningStatus(args, stateFile, eventPath, "active_connect")
+}
+
+func readLearningStatus(args []string, stateFile, eventPath string, kind string) (behaviorlearning.StatusSnapshot, error) {
 	enabled, _, err := modulecontract.BoolFlag(args, "behavior-learning")
 	if err != nil {
 		return behaviorlearning.StatusSnapshot{}, err
@@ -51,13 +67,10 @@ func ReadLearningStatus(args []string, stateFile, eventPath string) (behaviorlea
 	if err != nil {
 		return behaviorlearning.StatusSnapshot{}, err
 	}
-	state, stateErr := behaviorlearning.Inspect(policy.StateDir, policy.StateMB)
-	var latest *behaviorlearning.Summary
-	if summary, summaryErr := behaviorlearning.ReadLatestSummary(policy.OutputLog); summaryErr == nil {
-		latest = summary
+	if kind == "file_op" {
+		policy = behaviorlearning.FilePolicy(policy, true)
+	} else if kind == "active_connect" {
+		policy = behaviorlearning.NetworkPolicy(policy)
 	}
-	if stateErr != nil {
-		return behaviorlearning.Snapshot(policy, nil, latest, time.Now()), stateErr
-	}
-	return behaviorlearning.Snapshot(policy, state, latest, time.Now()), nil
+	return behaviorlearning.InspectStatus(policy)
 }

@@ -143,8 +143,8 @@ func emitEBPFExecEventWithContext(source processtracker.Event, listener listener
 		ListenerAddress:  listener.Address,
 		ListenerPort:     listener.Port,
 	}
-	// Enrichment remains best effort; only the separate kernel validity bit can
-	// grant learning eligibility. A missing field never becomes a zero identity.
+	// Identity enrichment remains best effort. Exact-command learning uses argv
+	// completeness independently; short-lived processes need no /proc identity.
 	if source.IdentityValid {
 		event.AUID = strconv.FormatUint(uint64(source.AUID), 10)
 		event.AUIDName = resolveAccountName(event.AUID)
@@ -156,9 +156,12 @@ func emitEBPFExecEventWithContext(source processtracker.Event, listener listener
 			"learning_dev":           fmt.Sprintf("%x:%x", source.ExecutableDev>>20, source.ExecutableDev&((1<<20)-1)),
 			"learning_start_boot_ns": strconv.FormatUint(source.StartBootNS, 10),
 		}
-		if !source.ArgsTruncated && len(source.Args) > 0 {
-			event.Fields["learning_argv_complete"] = "yes"
+	}
+	if !source.ArgsTruncated && len(source.Args) > 0 {
+		if event.Fields == nil {
+			event.Fields = make(map[string]string)
 		}
+		event.Fields["learning_argv_complete"] = "yes"
 	}
 	return emitNormalizedEvent(out, event)
 }
