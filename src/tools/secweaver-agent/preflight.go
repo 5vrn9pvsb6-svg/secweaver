@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"secweaver-agent/pkg/agentupdate"
 )
 
 type preflightLevel string
@@ -468,6 +470,16 @@ func checkScheduledUpdate(updater *scheduledUpdateConfig, add func(preflightLeve
 		return
 	}
 	add(preflightOK, "update", "scheduled update is enabled", fmt.Sprintf("manifest=%s channel=%s interval=%s auto_install=%v", updater.Options.ManifestURL, updater.Options.Channel, updater.Interval, updater.AutoInstall))
+	// Inspect only local inputs. Doctor/preflight must not advance signed-manifest
+	// replay state or make working collectors depend on endpoint availability.
+	if err := agentupdate.ValidateCAFile(updater.Options.CAFile); err != nil {
+		add(preflightError, "update/ca", "update TLS CA configuration is unusable", err.Error())
+	} else {
+		add(preflightOK, "update/ca", "update TLS trust is readable", "empty ca_file uses the OS certificate store")
+	}
+	if err := agentupdate.ValidateTrust(updater.Options, updater.Options.ServerManaged); err != nil {
+		add(preflightError, "update/trust", "update signature trust is unusable", err.Error())
+	}
 	if strings.Contains(updater.Options.ManifestURL, "example.com") {
 		add(preflightWarn, "update", "manifest_url still points to an example domain", "configure the internal update server manifest URL before enabling production auto-update")
 	}

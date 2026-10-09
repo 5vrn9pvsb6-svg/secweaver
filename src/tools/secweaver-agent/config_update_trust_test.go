@@ -5,6 +5,8 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -41,6 +43,11 @@ func TestSetUpdateCommandPreservesExistingTrust(t *testing.T) {
 				RevokedKeyIDs:     []string{agentupdate.PublicKeyID(primary)},
 				StateDir:          filepath.Join(dir, "operator-update-state"),
 				CAFile:            filepath.Join(dir, "operator-ca.crt"),
+			}
+			server := httptest.NewTLSServer(nil)
+			defer server.Close()
+			if err := os.WriteFile(previous.CAFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
+				t.Fatal(err)
 			}
 			body, err := json.Marshal(agentConfig{
 				EnterpriseID: "TESTENTERPRISE01",

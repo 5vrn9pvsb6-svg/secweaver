@@ -7,6 +7,38 @@
 
 本文区分模块归属、协议边界和已实施行为。第 11 节记录本轮实现；生产发布前仍需按发布门禁验证。
 
+### 0.3.84 修复的模块归属与恢复流程
+
+`packaging/install.sh`、`windows/install-service.ps1` 只负责完整传参；
+`config_command.go` 负责显式 CA 清除、写入前校验并保留信任历史。
+`pkg/agentupdate/diagnostics.go` 提供有界 CA 读取、只读信任检查和带类型的错误；
+`manifest.go` 验签结果经 `update.go` 持久化为稳定原因码，preflight/doctor 复用本地检查。
+不把网络预检变成采集服务启动的强依赖。
+
+```mermaid
+flowchart TD
+  A[运维提供可信 profile] --> B[核对版本/服务/身份/现有事务]
+  B --> C[HTTPS 下载并核对固定清单与二进制哈希]
+  C --> D[隔离状态目录执行原生验签/有效期/吊销检查]
+  D --> E{显式 apply}
+  E -->|否| F[只读检查结果]
+  E -->|是| G[备份并停止服务/复核并发变化]
+  G --> H[原子替换配置及必要的二进制]
+  H --> I[启动并观察新鲜模块健康与相同设备身份]
+  I -->|成功| J[报告版本和备份路径]
+  I -->|失败且没有自动升级接管| K[恢复原配置/二进制并启动]
+  I -->|已有自动升级接管| L[保留事务/提示运维复查]
+```
+
+恢复脚本归属 `packaging/recovery/`，Linux 用 Python 标准库处理结构化数据与原子写入，
+Windows 用 PowerShell 5.1/.NET；不依赖新增服务、数据库或 Agent 注册接口。
+脚本备份配置/二进制，不回退采集过程中产生的模块状态/日志；保留现有公钥吊销与防重放。
+验收映射：配置命令 → `config_update_diagnostics_test.go`；错误分类 →
+`pkg/agentupdate/diagnostics_test.go`；备份/迁移/恢复 → `integration/recovery/`；
+真实服务边界的测试限制见[恢复指南](update-recovery.zh-CN.md)。
+现有 `update.go` 已超过 1000 行，本次只接入错误分类，新增诊断职责独立成文件，
+没有借此次修复拆改其安装事务和平台替换逻辑。
+
 ## 1. 系统边界
 
 ```text

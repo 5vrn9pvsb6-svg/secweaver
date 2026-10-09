@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "version": "0.3.83",
+  "server_url": "https://agent-gateway.id-net.cn:30443",
+  "manifest_url": "https://agent-gateway.id-net.cn:30443/secweaver-agent/updates/immutable/fb2c341e8750445c561c31a2140ee38a80bcf9a71b79a9c63825d6b1ada2eb8a/update-manifest.json",
+  "manifest_sha256": "fb2c341e8750445c561c31a2140ee38a80bcf9a71b79a9c63825d6b1ada2eb8a",
+  "scheduled_manifest_url": "https://agent-gateway.id-net.cn:30443/secweaver-agent/updates/stable/update-manifest.json",
+  "public_key": "MlBBd0HYSz/EUehQDPY1bMlfjfmvW4GQO81lEy2ZvIQ=",
+  "key_id": "ed25519-58cec20e470ac260"
+}

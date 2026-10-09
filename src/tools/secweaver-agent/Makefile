@@ -2,7 +2,7 @@ APP_NAME ?= secweaver-agent
 VERSION_FILE := VERSION
 VERSION ?= $(shell tr -d '[:space:]' < $(VERSION_FILE))
 
-.PHONY: build build-cross build-smoke package test vet race fmt-check check integration-service-linux integration-service-windows clean
+.PHONY: build build-cross build-smoke package test recovery-test vet race fmt-check check integration-service-linux integration-service-windows clean
 
 build:
 	@test -n "$(VERSION)" || { echo "$(VERSION_FILE) is empty" >&2; exit 1; }
@@ -16,6 +16,13 @@ package:
 
 test:
 	go test ./...
+
+# Standard-library recovery fixtures perform real atomic writes/backups in
+# temporary directories; no host services, credentials or external downloads.
+# Keep this POSIX-only target separate from Windows' Go checks; PowerShell
+# recovery has native probes under integration/recovery instead.
+recovery-test:
+	python3 -m unittest discover -s integration/recovery -v
 
 vet:
 	go vet ./...

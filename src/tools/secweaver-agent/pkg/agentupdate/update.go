@@ -156,6 +156,7 @@ func Install(opts Options) (status Status, resultErr error) {
 	manifest, err := fetchManifest(opts.ManifestURL, opts)
 	if err != nil {
 		status.Reason = "manifest_fetch_failed"
+		classifyStatusFailure(&status, err)
 		_ = writeStateExclusive(opts, status.StatePath, stateFromStatus(status, "failed"))
 		return status, err
 	}
@@ -722,6 +723,13 @@ func newAttemptID() string {
 
 func classifyStatusFailure(status *Status, err error) {
 	if status == nil || (err == nil && status.Status != "failed") {
+		return
+	}
+	var failure *updateFailure
+	if errors.As(err, &failure) {
+		status.Reason = failure.reason
+		status.FailureClass = failure.class
+		status.Retryable = false
 		return
 	}
 	retryableReasons := map[string]string{

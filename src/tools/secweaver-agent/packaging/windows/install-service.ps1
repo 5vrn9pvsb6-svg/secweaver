@@ -23,6 +23,7 @@ param(
   [string]$UpdatePublicKey = "",
   [string]$UpdateDeviceId = "",
   [string]$UpdateCAFile = "",
+  [switch]$UpdateUseSystemCA,
   [ValidateSet("true", "false")]
   [string]$UpdateRequireServerPolicy = "true",
   [string]$LogtailAliUid = "",
@@ -317,8 +318,9 @@ if ($UpdateManifestUrl) {
     "-manifest-url", $UpdateManifestUrl,
     "-device-id", $UpdateDeviceId,
     "-channel", "stable",
-    "-auto-install", "true",
-    "-require-server-policy", $UpdateRequireServerPolicy,
+    # Go boolean flags must not leave a positional token before the trust flags.
+    "-auto-install=true",
+    "-require-server-policy=$UpdateRequireServerPolicy",
     "-health-timeout-seconds", "90"
   )
   if ($UpdatePublicKey) {
@@ -326,6 +328,9 @@ if ($UpdateManifestUrl) {
   }
   if ($UpdateCAFile) {
     $UpdateArgs += @("-ca-file", $UpdateCAFile)
+  }
+  if ($UpdateUseSystemCA) {
+    $UpdateArgs += "-use-system-ca"
   }
   & $BinarySource @UpdateArgs
   if ($LASTEXITCODE -ne 0) {

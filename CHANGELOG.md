@@ -51,6 +51,24 @@
   saved without first changing credential type or editing the raw YAML.
 - Synchronize Community package/CLI identity and source SBOM; Agent remains 0.3.78.
 
+## Agent 0.3.84
+
+- Fix Linux/Windows installer boolean flags silently stopping Go argument
+  parsing before the update signer and CA options; reject unused CLI arguments.
+- Default generic update templates to OS certificate trust. Validate CA/managed
+  signing trust before configuration writes, support explicit CA clearing, retain
+  rotations/revocations/replay state and update log output, and add doctor checks.
+- Report CA, trust, TLS, manifest-signature and parse failures distinctly instead
+  of treating every failure as a retryable manifest transport error.
+- Add explicit check/apply SaaS recovery scripts: Linux 0.3.79 configuration
+  repair, and Linux/Windows 0.3.45/0.3.64 one-time migration to pinned published
+  0.3.83. Preserve identity/learning data, verify trusted artifacts before
+  execution, back up config/binary, check module health and restore on failure.
+- Include bilingual recovery guidance and isolated installer/update/recovery
+  regressions. Validate recovery inputs before building and copy the tools/guides
+  into each platform archive after staging its destination. Recovery remains an
+  explicit operator action; publishing a package does not migrate existing hosts.
+
 ## Agent 0.3.83
 
 - Unify Windows Sysmon/Security exec, outbound connection and ordinary PowerShell

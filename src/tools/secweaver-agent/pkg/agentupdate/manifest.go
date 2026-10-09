@@ -102,14 +102,14 @@ func latestForPlatform(manifest Manifest, platform string) ManifestLatest {
 func fetchManifest(location string, opts Options) (Manifest, error) {
 	data, err := readSmallURLOrFile(location, 4*1024*1024, opts.AllowInsecureHTTP, opts.CAFile)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, classifyFetchError(err)
 	}
 	// A configured or previously persisted trust key opts this installation into
 	// strict signature verification. With no trust key, HTTPS and the artifact
 	// SHA-256 remain the default integrity boundary for simpler deployments.
 	keys, revoked, err := effectiveTrustedKeys(opts)
 	if err != nil {
-		return Manifest{}, err
+		return Manifest{}, failUpdate("update_trust_invalid", "configuration", err)
 	}
 	var envelope ManifestEnvelope
 	if err := decodeJSONStrict(data, &envelope); err == nil && strings.TrimSpace(envelope.Payload) != "" {
@@ -123,31 +123,31 @@ func fetchManifest(location string, opts Options) (Manifest, error) {
 					continue
 				}
 				if keyID != "" {
-					return Manifest{}, fmt.Errorf("legacy signed manifest without key_id is ambiguous across multiple trusted keys")
+					return Manifest{}, failUpdate("manifest_signer_ambiguous", "configuration", fmt.Errorf("legacy signed manifest without key_id is ambiguous across multiple trusted keys"))
 				}
 				keyID = candidate
 			}
 		}
 		if keyID == "" {
-			return Manifest{}, fmt.Errorf("signed update manifest requires a trusted public key")
+			return Manifest{}, failUpdate("update_trust_missing", "configuration", fmt.Errorf("signed update manifest requires a trusted public key"))
 		}
 		if revoked[keyID] {
-			return Manifest{}, fmt.Errorf("update manifest signer %q is revoked", keyID)
+			return Manifest{}, failUpdate("manifest_signer_revoked", "integrity", fmt.Errorf("update manifest signer %q is revoked", keyID))
 		}
 		publicKey, ok := keys[keyID]
 		if !ok {
-			return Manifest{}, fmt.Errorf("update manifest signer %q is not trusted", keyID)
+			return Manifest{}, failUpdate("manifest_signer_untrusted", "configuration", fmt.Errorf("update manifest signer %q is not trusted", keyID))
 		}
 		payload, err := base64.StdEncoding.DecodeString(strings.TrimSpace(envelope.Payload))
 		if err != nil {
-			return Manifest{}, fmt.Errorf("update manifest payload must be base64: %w", err)
+			return Manifest{}, failUpdate("manifest_invalid", "integrity", fmt.Errorf("update manifest payload must be base64: %w", err))
 		}
 		if err := verifyEd25519Signature(payload, envelope.Signature, publicKey); err != nil {
-			return Manifest{}, fmt.Errorf("verify update manifest signature: %w", err)
+			return Manifest{}, failUpdate("manifest_signature_invalid", "integrity", fmt.Errorf("verify update manifest signature: %w", err))
 		}
 		var manifest Manifest
 		if err := decodeJSONStrict(payload, &manifest); err != nil {
-			return Manifest{}, fmt.Errorf("parse signed manifest: %w", err)
+			return Manifest{}, failUpdate("manifest_invalid", "integrity", fmt.Errorf("parse signed manifest: %w", err))
 		}
 		manifest.verifiedKeyID = keyID
 		manifest.verifiedPublicKey = publicKey
@@ -156,14 +156,14 @@ func fetchManifest(location string, opts Options) (Manifest, error) {
 		return manifest, nil
 	}
 	if len(keys) > 0 {
-		return Manifest{}, fmt.Errorf("update manifest must use a signed envelope because a trusted public key is configured")
+		return Manifest{}, failUpdate("manifest_signature_required", "integrity", fmt.Errorf("update manifest must use a signed envelope because a trusted public key is configured"))
 	}
 	var manifest Manifest
 	if err := decodeJSONStrict(data, &manifest); err != nil {
-		return Manifest{}, fmt.Errorf("parse manifest: %w", err)
+		return Manifest{}, failUpdate("manifest_invalid", "integrity", fmt.Errorf("parse manifest: %w", err))
 	}
 	if manifest.TrustUpdate != nil || manifest.EmergencyStop != nil || manifest.Rollback != nil {
-		return Manifest{}, fmt.Errorf("trust updates, emergency stops, and rollbacks require a signed manifest")
+		return Manifest{}, failUpdate("manifest_signature_required", "integrity", fmt.Errorf("trust updates, emergency stops, and rollbacks require a signed manifest"))
 	}
 	return manifest, nil
 }

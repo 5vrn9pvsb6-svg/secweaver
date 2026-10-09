@@ -38,7 +38,6 @@
   "update": {
     "enabled": false,
     "manifest_url": "https://updates.example.com/secweaver-agent/stable/update-manifest.json",
-    "ca_file": "/opt/secweaver-agent/shipper/ca.crt",
     "channel": "stable",
     "interval_seconds": 21600,
     "initial_delay_seconds": 60,

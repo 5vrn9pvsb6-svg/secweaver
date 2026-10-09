@@ -44,6 +44,9 @@ if [[ "$1" == enroll ]]; then
   if [[ "$SCENARIO" == malformed ]]; then printf 'ABCD1234EFGH5678\textra\n'; else printf 'ABCD1234EFGH5678\t%s\n' "$DEVICE"; fi
 elif [[ "$*" == 'config set-update'* ]]; then
   [[ "$*" == *"-device-id $DEVICE"* ]]
+  # Assert the native Go flag contract, not merely that the wrapper was called.
+  [[ "$*" == *'-auto-install=true'* && "$*" == *'-require-server-policy=true'* ]]
+  [[ "$*" != *'-auto-install true'* ]]
   touch "$MARKER"
 elif [[ "$*" == 'config set-license'* && "$SCENARIO" != legacy ]]; then
   [[ "$*" == *"-state-path $STATE_DIR/license-state.json"* ]]

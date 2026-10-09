@@ -349,13 +349,11 @@ func newHTTPClient(timeout time.Duration, allowInsecureHTTP bool, caFile string)
 		if err != nil || roots == nil {
 			roots = x509.NewCertPool()
 		}
-		pemData, err := os.ReadFile(filepath.Clean(strings.TrimSpace(caFile)))
+		pemData, err := readUpdateCA(caFile)
 		if err != nil {
-			return http.Client{}, fmt.Errorf("read update CA file: %w", err)
+			return http.Client{}, err
 		}
-		if !roots.AppendCertsFromPEM(pemData) {
-			return http.Client{}, fmt.Errorf("update CA file does not contain a valid PEM certificate")
-		}
+		roots.AppendCertsFromPEM(pemData)
 		transport.TLSClientConfig = &tls.Config{
 			MinVersion: tls.VersionTLS12,
 			RootCAs:    roots,

@@ -1,5 +1,10 @@
 # secweaver-agent
 
+Source 0.3.84 fixes Linux/Windows installer flag parsing before update trust
+arguments, defaults public updates to OS certificate trust, and reports CA/key
+failures separately from network errors. See [SaaS update repair and legacy
+migration](docs/update-recovery.md) for the explicit recovery scripts.
+
 Source 0.3.83 unifies the remaining Windows exec, connection and ordinary
 PowerShell learning: five exact events in a rolling hour, immediate filtering
 from the fifth, and frozen new admissions after the default healthy day.

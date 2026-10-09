@@ -27,6 +27,7 @@ UPDATE_MANIFEST_URL=""
 UPDATE_PUBLIC_KEY=""
 UPDATE_DEVICE_ID=""
 UPDATE_CA_FILE=""
+UPDATE_USE_SYSTEM_CA=0
 UPDATE_REQUIRE_SERVER_POLICY="true"
 BOOTSTRAP_CA_FILE="${SECWEAVER_BOOTSTRAP_CA_FILE:-}"
 PERSISTENT_CA_FILE="${SHIPPER_DIR}/ca.crt"
@@ -51,6 +52,7 @@ Options:
   --update-public-key KEY             Trusted Ed25519 update public key in Base64
   --update-device-id ID               Legacy rollout identity; token installs derive it from enrollment
   --update-ca-file PATH               PEM CA file for the update HTTPS endpoint
+  --update-use-system-ca              Explicitly clear an existing update CA override
   --update-require-server-policy BOOL Require Data Cloud approval (default: true)
   -h, --help                          Show this help
 
@@ -168,6 +170,10 @@ while [[ "$#" -gt 0 ]]; do
       ;;
     --update-device-id=*)
       UPDATE_DEVICE_ID="${1#*=}"
+      shift
+      ;;
+    --update-use-system-ca)
+      UPDATE_USE_SYSTEM_CA=1
       shift
       ;;
     --update-ca-file)
@@ -802,8 +808,9 @@ if [[ -n "${UPDATE_MANIFEST_URL}" ]]; then
     -manifest-url "${UPDATE_MANIFEST_URL}"
     -device-id "${UPDATE_DEVICE_ID}"
     -channel stable
-    -auto-install true
-    -require-server-policy "${UPDATE_REQUIRE_SERVER_POLICY}"
+    # Go boolean flags need '='; a separate value stops parsing before trust.
+    -auto-install=true
+    "-require-server-policy=${UPDATE_REQUIRE_SERVER_POLICY}"
     -health-timeout-seconds 90
   )
   if [[ -n "${UPDATE_PUBLIC_KEY}" ]]; then
@@ -811,6 +818,9 @@ if [[ -n "${UPDATE_MANIFEST_URL}" ]]; then
   fi
   if [[ -n "${UPDATE_CA_FILE}" ]]; then
     update_args+=( -ca-file "${UPDATE_CA_FILE}" )
+  fi
+  if [[ "${UPDATE_USE_SYSTEM_CA}" == 1 ]]; then
+    update_args+=( -use-system-ca )
   fi
   "${ROOT_DIR}/bin/secweaver-agent" config set-update \
     "${update_args[@]}"

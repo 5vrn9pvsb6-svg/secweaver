@@ -7,6 +7,41 @@
 
 This document separates ownership, protocol boundaries, and implemented behavior. Section 11 records this implementation; release gates still require production verification.
 
+### 0.3.84 Remediation Ownership
+
+Linux/Windows installers own complete argv delivery. `config_command.go` owns
+explicit CA clearing, validation before writes and trust retention.
+`pkg/agentupdate/diagnostics.go` owns bounded CA reads, read-only trust checks and
+typed failures. Manifest authentication failures flow through `update.go` into
+persisted reason codes; preflight/doctor reuse local checks. Network readiness
+does not become a collector-startup dependency.
+
+```mermaid
+flowchart TD
+  A[Trusted operator profile] --> B[Check version/service/identity/transactions]
+  B --> C[HTTPS download and pinned manifest/binary hashes]
+  C --> D[Native signature/expiry/revocation check in isolated state]
+  D --> E{Explicit apply}
+  E -->|No| F[Check result only]
+  E -->|Yes| G[Backup/stop/recheck concurrent changes]
+  G --> H[Atomic config and optional binary replacement]
+  H --> I[Start/observe fresh module health and unchanged identity]
+  I -->|Success| J[Report version and backup]
+  I -->|Failure without another updater| K[Restore config/binary and start]
+  I -->|Automatic update took ownership| L[Preserve transaction for operator review]
+```
+
+`packaging/recovery/` uses Python standard-library parsing/atomic I/O on Linux
+and PowerShell 5.1/.NET on Windows, without another service, database or enrollment
+call. Backup scope is config/binary, not rewind of live collection state/logs.
+Revocations and replay protection remain intact. Verification mapping: config
+CLI to `config_update_diagnostics_test.go`; taxonomy to
+`pkg/agentupdate/diagnostics_test.go`; migration/backup/restore to
+`integration/recovery/`. See [recovery guidance](update-recovery.md) for native
+service-boundary limitations. Existing `update.go` exceeds 1000 lines; this fix
+only hooks in classification and extracts new diagnostics into a separate file,
+without refactoring its transaction/platform replacement machinery.
+
 ## 1. System Boundary
 
 ```text

@@ -31,7 +31,9 @@ it does not clear rotation keys or revocations. Disabling updates retains trust.
 An empty argument is not a request to erase trust. Invalid retained keys or a
 malformed update block fail before writing the configuration.
 
-Fresh unsigned configurations keep their HTTPS/hash compatibility mode. This fix
+Standalone unmanaged configurations keep HTTPS/hash compatibility. From 0.3.84,
+explicit managed configuration requires a non-revoked trust key and checks its
+CA file; existing old Agents can still collect normally. This fix
 does not reconstruct already lost keys: binary-only automatic upgrades also keep
 the existing configuration. Restore a missing key from the operator's verified
 release public key or a verified backup, preserving device identity, learning
@@ -51,3 +53,7 @@ Regression verification: from the Agent directory run
 omitted/replaced keys, disabled updates and malformed existing trust. Windows
 runtime installation still requires a Windows service test; cross-compilation
 does not replace that check.
+
+0.3.84 fixes installer boolean-argument truncation and removes the default
+private CA from generic templates. See [SaaS update recovery](update-recovery.md)
+for explicit CA clearing, reason codes, 0.3.79 repair and legacy migration.

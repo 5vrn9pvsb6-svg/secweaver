@@ -142,13 +142,21 @@ validate_es_integration_inputs() {
   # Shipped README links must resolve without a source checkout. Validate these
   # lifecycle guides before the first architecture build starts.
   local guide language
-  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update; do
+  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery; do
     for language in md zh-CN.md; do
       [[ -f "${ROOT_DIR}/docs/${guide}.${language}" ]] || {
         echo "missing Agent package guide: ${guide}.${language}" >&2
         exit 1
       }
     done
+  done
+  # Validate before building; the destination does not exist until each target
+  # is staged. Copying here would reference an unset package_root under set -u.
+  for file in repair-saas-update.sh migrate-saas-agent.sh recover-saas-update.py migrate-saas-agent.ps1 saas-0.3.83.json; do
+    [[ -f "${ROOT_DIR}/packaging/recovery/${file}" ]] || {
+      echo "missing Agent recovery file: ${file}" >&2
+      exit 1
+    }
   done
 }
 
@@ -164,11 +172,16 @@ install_es_integration() {
   # Keep installation recovery, update trust and health semantics available
   # offline in both Linux and Windows archives, including linked trust guidance.
   local guide language
-  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update; do
+  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery; do
     for language in md zh-CN.md; do
       install -m 0644 "${ROOT_DIR}/docs/${guide}.${language}" "${package_root}/docs/${guide}.${language}"
     done
   done
+  # Recovery is explicit operator tooling, never an automatic installer hook.
+  # Keep each archive self-contained, excluding local caches and test fixtures.
+  install -d -m 0755 "${package_root}/recovery"
+  install -m 0644 "${ROOT_DIR}/packaging/recovery/"*.sh "${ROOT_DIR}/packaging/recovery/"*.py \
+    "${ROOT_DIR}/packaging/recovery/"*.ps1 "${ROOT_DIR}/packaging/recovery/"*.json "${package_root}/recovery/"
   install -m 0644 "${ROOT_DIR}/logtail/behavior-learning.example.json" "${package_root}/logtail/behavior-learning.example.json"
   install -m 0755 "${ES_INTEGRATION_SOURCE}/init_es.py" "${package_root}/elasticsearch/init_es.py"
   install -m 0644 "${ES_INTEGRATION_SOURCE}/index-template.json" "${package_root}/elasticsearch/index-template.json"

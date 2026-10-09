@@ -7,6 +7,20 @@
 
 This document is the requirements baseline. It records the implemented behavior and does not replace release approval or production-change authorization. See the [module and architecture document](agent-upgrade-architecture.md) for ownership and boundaries.
 
+### Authorized Remediation on 2026-10-09 (0.3.84)
+
+The user explicitly requested the product fixes, 0.3.79 repair and one-time
+0.3.45/0.3.64 migration scripts, reusing the established trust, identity and
+recovery requirements. Installers must consume all signer/CA arguments; public
+updates use OS trust, private CAs are explicit. Validate trust before writes,
+provide local doctor checks and classify configuration/integrity/transport errors.
+Scripts default to checking; explicit apply backs up, changes, restarts and
+observes health while retaining identity/learning. Tenant/capability gates remain.
+The bridge targets published 0.3.83 with repaired configuration; unpublished
+0.3.84 is not automatically released. See the [recovery guide](update-recovery.md)
+for scope, platforms, verification and limitations. No database/server protocol
+changes are included.
+
 ## 1. Context and Goals
 
 Agents run across multiple tenants and Linux/Windows hosts. Upgrades must protect the supply chain, spread fleet activity, preserve service availability, and leave an explainable recovery trail.

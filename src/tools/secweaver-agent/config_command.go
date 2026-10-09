@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"secweaver-agent/pkg/agentlicense"
+	"secweaver-agent/pkg/agentupdate"
 	"secweaver-agent/pkg/layout"
 	agentoutput "secweaver-agent/pkg/output"
 )
@@ -76,10 +77,12 @@ func runConfigCommand(args []string) int {
 		configPath := defaultAgentConfigPath()
 		cfg := updateConfig{Enabled: true, Channel: "stable", IntervalSeconds: 21600, InitialDelaySeconds: 60, JitterSeconds: 300, RetryInitialSeconds: 60, RetryMaxSeconds: 3600, HealthTimeoutSeconds: 90, LockStaleSeconds: 3600, MaxBackups: 3, MinFreeSpaceMB: 256}
 		autoInstall := true
+		useSystemCA := false
 		fs.StringVar(&configPath, "config", configPath, "agent JSON config path")
 		fs.BoolVar(&cfg.Enabled, "enabled", true, "enable Agent updates")
 		fs.StringVar(&cfg.ManifestURL, "manifest-url", "", "update manifest HTTPS URL")
 		fs.StringVar(&cfg.CAFile, "ca-file", "", "optional PEM CA file for the update HTTPS endpoint; empty preserves the existing CA")
+		fs.BoolVar(&useSystemCA, "use-system-ca", false, "explicitly clear the update CA override and use OS trust; incompatible with -ca-file")
 		fs.StringVar(&cfg.PublicKey, "public-key", "", "optional trusted Ed25519 update public key in base64; empty preserves existing trust")
 		fs.StringVar(&cfg.DeviceID, "device-id", "", "immutable rollout device ID for standalone updates")
 		fs.StringVar(&cfg.Channel, "channel", "stable", "update channel")
@@ -97,8 +100,14 @@ func runConfigCommand(args []string) int {
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
+		// Go boolean flags consume no following token. Reject leftovers so a
+		// wrapper cannot silently skip the public key after '-auto-install true'.
+		if fs.NArg() != 0 || (useSystemCA && strings.TrimSpace(cfg.CAFile) != "") {
+			fmt.Fprintln(os.Stderr, "set update failed: unexpected arguments or conflicting CA options; use -auto-install=true and -require-server-policy=true")
+			return 2
+		}
 		cfg.AutoInstall = boolPointer(autoInstall)
-		if err := setUpdateInConfig(configPath, cfg); err != nil {
+		if err := setUpdateInConfigWithCA(configPath, cfg, useSystemCA); err != nil {
 			fmt.Fprintf(os.Stderr, "set update failed: %v\n", err)
 			return 1
 		}
@@ -298,9 +307,16 @@ func setLicenseInConfig(path string, licenseCfg agentlicense.Config) error {
 }
 
 // setUpdateInConfig applies installer settings without discarding provisioned
-// trust. An omitted key keeps unsigned compatibility only on a config that never
-// had trust; existing trust must be changed explicitly, not erased by defaults.
+// trust. Standalone unsigned compatibility remains available without a key;
+// managed provisioning requires active trust. Defaults never erase old trust.
 func setUpdateInConfig(path string, cfg updateConfig) error {
+	return setUpdateInConfigWithCA(path, cfg, false)
+}
+
+// Only an explicit system-CA choice clears a provisioned private CA. Validation
+// happens at this write boundary, not Agent startup, so a broken update endpoint
+// does not terminate otherwise healthy collectors.
+func setUpdateInConfigWithCA(path string, cfg updateConfig, useSystemCA bool) error {
 	cfg.ManifestURL = strings.TrimSpace(cfg.ManifestURL)
 	cfg.PublicKey = strings.TrimSpace(cfg.PublicKey)
 	cfg.Channel = strings.TrimSpace(cfg.Channel)
@@ -340,8 +356,23 @@ func setUpdateInConfig(path string, cfg updateConfig) error {
 	if strings.TrimSpace(cfg.StateDir) == "" {
 		cfg.StateDir = previous.StateDir
 	}
-	if strings.TrimSpace(cfg.CAFile) == "" {
+	if strings.TrimSpace(cfg.CAFile) == "" && !useSystemCA {
 		cfg.CAFile = previous.CAFile
+	}
+	if cfg.StatusOutput == "" {
+		cfg.StatusOutput = previous.StatusOutput
+	}
+	if cfg.Enabled {
+		if err := agentupdate.ValidateCAFile(cfg.CAFile); err != nil {
+			return fmt.Errorf("%w; provide a readable -ca-file or explicitly select -use-system-ca for a publicly trusted endpoint", err)
+		}
+		runtime, err := scheduledUpdateFromConfig(cfg)
+		if err != nil {
+			return err
+		}
+		if err := agentupdate.ValidateTrust(runtime.Options, cfg.RequireServerPolicy); err != nil {
+			return err
+		}
 	}
 	// Validate the merged configuration before the atomic write; malformed existing
 	// keys must fail visibly instead of being replaced by an unsigned configuration.
