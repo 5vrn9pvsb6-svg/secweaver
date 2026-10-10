@@ -16,7 +16,8 @@ param(
   [string]$LicenseServerUrl = "",
   [string]$LicenseEnrollmentId = "",
   [int]$LicenseCheckIntervalSeconds = 21600,
-  [int]$LicenseHeartbeatIntervalSeconds = 180,
+  # Zero preserves a previously managed cadence; first setup defaults to 300s.
+  [int]$LicenseHeartbeatIntervalSeconds = 0,
   [ValidateRange(0, 604800)]
   [int]$LicenseOutageGraceSeconds = 86400,
   [string]$UpdateManifestUrl = "",

@@ -177,7 +177,7 @@ func runScheduledLicenseChecker(ctx context.Context, cfg agentlicense.Config, en
 // runScheduledHeartbeat publishes each raw request outcome before applying retry
 // backoff. A denied heartbeat still terminates supervision; transient failures
 // remain visible while the loop backs off up to its configured ceiling.
-func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, cfg agentlicense.Config, enterpriseID string, tracker *statusTracker, updater *scheduledUpdateConfig, updatePolicies chan agentlicense.UpdatePolicy, metricsExporter *metrics.Exporter) error {
+func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, configPath string, cfg agentlicense.Config, enterpriseID string, tracker *statusTracker, updater *scheduledUpdateConfig, updatePolicies chan agentlicense.UpdatePolicy, metricsExporter *metrics.Exporter) error {
 	interval := time.Duration(cfg.HeartbeatSeconds) * time.Second
 	if interval <= 0 {
 		return nil
@@ -240,6 +240,17 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 					valueOrDash(resp.SubscriptionExpiresAt),
 				)
 				nextWait = interval
+				if runtimePolicyRestartAllowed(updateHeartbeatReport(updater)) {
+					if changed, policyErr := applyManagedRuntimePolicy(configPath, resp.AgentRuntimePolicy, updater); policyErr != nil {
+						// A malformed or unwritable policy must not stop collection. The
+						// next heartbeat retries it, while the bounded local validator
+						// prevents the server from changing arbitrary Agent settings.
+						fmt.Fprintf(os.Stderr, "managed Agent runtime policy ignored; will retry: %v\n", policyErr)
+					} else if changed {
+						fmt.Fprintln(os.Stderr, "managed Agent runtime policy applied; restarting service")
+						return errRemoteConfigApplied
+					}
+				}
 				if resp.UpdatePolicy != nil && updatePolicies != nil && shouldPublishUpdatePolicy(*resp.UpdatePolicy, lastPolicyKey, lastPolicyPublishedAt) {
 					select {
 					case <-updatePolicies:
@@ -260,7 +271,7 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 
 // updatePolicyDeliveryKey excludes the short-lived lease timestamp. Stable
 // campaign changes wake the updater immediately; a lease refresh is delivered
-// at most every ten minutes so a three-minute heartbeat cannot cause an upgrade
+// at most every ten minutes so a frequent heartbeat cannot cause an upgrade
 // attempt on every heartbeat while still renewing a lease before expiry.
 func updatePolicyDeliveryKey(policy agentlicense.UpdatePolicy) string {
 	return strings.Join([]string{
@@ -313,7 +324,8 @@ func updateHeartbeatReport(updater *scheduledUpdateConfig) *agentlicense.UpdateR
 }
 
 func heartbeatBackoff(current, base time.Duration) time.Duration {
-	return controlPlaneBackoff(current, base, 15*time.Minute)
+	// A slow configured cadence must not be shortened by the legacy 15m cap.
+	return controlPlaneBackoff(current, base, max(15*time.Minute, base))
 }
 
 // controlPlaneBackoff is shared by heartbeat and authorization retry loops so

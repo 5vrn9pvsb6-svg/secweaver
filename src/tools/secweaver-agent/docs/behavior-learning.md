@@ -281,7 +281,7 @@ checkpoint progress can lag sixty seconds. Missing/stale startup summaries do
 not prove filtering readiness.
 
 The existing SaaS behavior_learning heartbeat describes only the main exec
-baseline, not every independent stream, and keeps the default three-minute cadence.
+baseline, not every independent stream, and keeps the default five-minute cadence.
 Gateway 0.6.0-rc.72+ accepts learning + filtering_active; Workspace rc.112+
 displays it. Deploy compatible servers before enabling new Agents.
 

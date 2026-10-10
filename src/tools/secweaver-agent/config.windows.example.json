@@ -22,7 +22,7 @@
     "state_path": "C:\\ProgramData\\SecWeaver\\Agent\\data\\license-state.json",
     "identity_key_path": "C:\\ProgramData\\SecWeaver\\Agent\\data\\device-ed25519.key",
     "check_interval_seconds": 21600,
-    "heartbeat_interval_seconds": 180,
+    "heartbeat_interval_seconds": 300,
 	"outage_grace_seconds": 86400,
     "fail_closed": true
   },
@@ -120,7 +120,7 @@
       "restart_delay_seconds": 5,
       "args": [
         "-interval",
-        "10m",
+        "30m",
         "-full-snapshot-interval",
         "24h",
         "-state",

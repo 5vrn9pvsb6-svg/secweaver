@@ -1,5 +1,11 @@
 # Changelog
 
+## Agent [0.3.87] - 2026-10-10
+
+- Default new Linux/Windows process deltas to 30 minutes and authorization heartbeats to 5 minutes.
+- Apply optional tenant cadence at heartbeat with bounds, atomic validated configuration writes, graceful reload and upgrade-transaction/health fences. Preserve learning, module enablement and state; retain local settings when no policy is delivered.
+- Add bilingual cadence guides and regression coverage; advertise optional capability/actual heartbeat interval for backward-compatible server delivery and presence calculation.
+
 ## [0.3.25] - 2026-10-07
 
 - Stop tracking the local Vault policy; ship only `.sops.yaml.example` and remove

@@ -30,7 +30,7 @@ const (
 	// not discard the existing baseline or force a full rescan solely for this
 	// parser-contract change.
 	parserVersion             = "0.3.1"
-	defaultInterval           = 10 * time.Minute
+	defaultInterval           = 30 * time.Minute
 	defaultFullSnapshotPeriod = 24 * time.Hour
 	defaultCollectionTimeout  = 45 * time.Second
 	linuxDefaultLog           = layout.LinuxLogs + "/host-process-snapshot.log"

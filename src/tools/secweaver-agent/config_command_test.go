@@ -233,7 +233,7 @@ func TestEnsureHostProcessSnapshotAddsMissingModule(t *testing.T) {
 	if !ok || module.Enabled == nil || !*module.Enabled {
 		t.Fatalf("module not enabled: %+v", module)
 	}
-	if interval, ok := stringFlag(module.Args, "interval"); !ok || interval != "10m" {
+	if interval, ok := stringFlag(module.Args, "interval"); !ok || interval != "30m" {
 		t.Fatalf("unexpected module args: %v", module.Args)
 	}
 	if full, ok := stringFlag(module.Args, "full-snapshot-interval"); !ok || full != "24h" {

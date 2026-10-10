@@ -83,7 +83,8 @@ ENTERPRISE_ID=""
 ENTERPRISE_ENROLLMENT_TOKEN=""
 LEARNING_MODE="preserve"
 LICENSE_CHECK_INTERVAL_SECONDS="21600"
-LICENSE_HEARTBEAT_INTERVAL_SECONDS="180"
+# Forward the preserve sentinel; new Agent configuration defaults to 300 seconds.
+LICENSE_HEARTBEAT_INTERVAL_SECONDS="0"
 LICENSE_OUTAGE_GRACE_SECONDS="86400"
 ALLOW_HTTP=0
 START_SERVICE=1
@@ -125,7 +126,7 @@ Options:
   --license-check-interval-seconds N
                            Periodic authorization recheck interval (default: 21600)
   --license-heartbeat-interval-seconds N
-                           Device heartbeat interval (default: 180)
+                           Device heartbeat interval (new host: 300; preserve existing by default)
   --license-outage-grace-seconds N
                            Cached authorization grace for transient outages (default: 86400)
   --skip-logtail           Install only secweaver-agent; do not configure log upload

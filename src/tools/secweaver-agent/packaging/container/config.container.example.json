@@ -26,7 +26,7 @@
     "state_path": "/var/lib/secweaver-agent/license-state.json",
     "identity_key_path": "/var/lib/secweaver-agent/device-ed25519.key",
     "check_interval_seconds": 21600,
-    "heartbeat_interval_seconds": 180,
+    "heartbeat_interval_seconds": 300,
     "outage_grace_seconds": 86400,
     "fail_closed": true
   },
@@ -48,7 +48,7 @@
       "restart": "on_failure",
       "restart_delay_seconds": 5,
       "args": [
-        "-interval", "10m",
+        "-interval", "30m",
         "-full-snapshot-interval", "24h",
         "-state", "/var/lib/secweaver-agent/host-process-snapshot-state.json",
         "-output", "/var/lib/secweaver-agent/host-process-snapshot.log"

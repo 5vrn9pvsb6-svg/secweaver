@@ -6,7 +6,7 @@
 
 ## Collection
 
-The built-in `host-process-snapshot` module emits an initial full baseline, scans for deltas every 10 minutes, and emits another full baseline every 24 hours. Linux reads `/proc` directly and resolves UIDs from one `/etc/passwd` read. Windows runs one non-profile PowerShell/CIM batch query per interval. Events are `process_snapshot`, `process_start`, `process_exit`, `process_change`, and the Linux-only `process_kernel_thread_summary`; records from one scan share `snapshot_id`. A collection is canceled after 45 seconds by default. Adjust the timeout with `-collection-timeout`. Windows excludes the PowerShell process used for collection.
+The built-in `host-process-snapshot` module emits an initial full baseline, scans for deltas every 30 minutes, and emits another full baseline every 24 hours. Linux reads `/proc` directly and resolves UIDs from one `/etc/passwd` read. Windows runs one non-profile PowerShell/CIM batch query per interval. Events are `process_snapshot`, `process_start`, `process_exit`, `process_change`, and the Linux-only `process_kernel_thread_summary`; records from one scan share `snapshot_id`. A collection is canceled after 45 seconds by default. Adjust the timeout with `-collection-timeout`. Windows excludes the PowerShell process used for collection.
 
 On an installed Linux Agent, run a one-shot check with your configured enterprise ID:
 
@@ -30,7 +30,7 @@ The default continuous settings are equivalent to:
 
 ```bash
 secweaver-agent module host-process-snapshot \
-  -interval 10m \
+  -interval 30m \
   -full-snapshot-interval 24h \
   -state /opt/secweaver-agent/data/host-process-snapshot-state.json
 ```
@@ -99,4 +99,4 @@ Query templates are `host_process_by_host_time`, `host_process_by_host_ip_time`,
 
 ## Limitations
 
-A 10-minute scan cannot observe a process that starts and exits between collection points, and exits are confirmed only at the next scan. It must not replace real-time Linux audit/eBPF or Windows Security 4688/Sysmon `host_exec` evidence.
+A 30-minute scan cannot observe a process that starts and exits between collection points, and exits are confirmed only at the next scan. It must not replace real-time Linux audit/eBPF or Windows Security 4688/Sysmon `host_exec` evidence.

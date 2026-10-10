@@ -20,7 +20,8 @@ ENTERPRISE_ENROLLMENT_TOKEN=""
 LICENSE_SERVER_URL=""
 LICENSE_ENROLLMENT_ID=""
 LICENSE_CHECK_INTERVAL_SECONDS="21600"
-LICENSE_HEARTBEAT_INTERVAL_SECONDS="180"
+# Zero preserves an existing interval; the Agent initializes new hosts at 300s.
+LICENSE_HEARTBEAT_INTERVAL_SECONDS="0"
 LICENSE_OUTAGE_GRACE_SECONDS="86400"
 LICENSE_PROTOCOL="legacy_v1"
 UPDATE_MANIFEST_URL=""
@@ -46,7 +47,7 @@ Options:
   --license-enrollment-id ID          Enrollment ID used for device authorization
   --license-check-interval-seconds N  Periodic authorization recheck interval (default: 21600)
   --license-heartbeat-interval-seconds N
-                                      Device heartbeat interval (default: 180)
+                                      Device heartbeat interval (new host: 300; preserve existing by default)
   --license-outage-grace-seconds N    Cached authorization grace for transient outages (default: 86400)
   --update-manifest-url URL           Signed Agent update manifest HTTPS URL
   --update-public-key KEY             Trusted Ed25519 update public key in Base64

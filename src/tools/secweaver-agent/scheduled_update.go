@@ -62,7 +62,10 @@ func runScheduledUpdater(ctx context.Context, cfg scheduledUpdateConfig, policie
 		attempted := false
 		if allowed {
 			attempted = true
-			status, err, nextPolicy = runScheduledUpdateOnce(ctx, effective, policies)
+			status, err, nextPolicy = runScheduledUpdateWithConfigFence(ctx, effective, policies)
+			if errors.Is(err, errRemoteConfigApplied) {
+				return err
+			}
 		}
 		if metricsExporter != nil {
 			metricsExporter.UpdateUpdateStatus(status.CurrentVersion, status.LatestVersion, status.Status)
@@ -204,6 +207,18 @@ func firstUpdatePolicyValue(values ...string) string {
 		}
 	}
 	return ""
+}
+
+// runScheduledUpdateWithConfigFence prevents config reload from interrupting a
+// binary transaction. Heartbeats use TryLock and keep reporting while this holds
+// the fence; once a config reload is scheduled, no new transaction may start.
+func runScheduledUpdateWithConfigFence(ctx context.Context, cfg scheduledUpdateConfig, policies <-chan agentlicense.UpdatePolicy) (agentupdate.Status, error, *agentlicense.UpdatePolicy) {
+	configMutationMu.Lock()
+	defer configMutationMu.Unlock()
+	if runtimeConfigRestartScheduled {
+		return agentupdate.Status{}, errRemoteConfigApplied, nil
+	}
+	return runScheduledUpdateOnce(ctx, cfg, policies)
 }
 
 func managedUpdateLease(value string, now time.Time) (time.Time, string) {

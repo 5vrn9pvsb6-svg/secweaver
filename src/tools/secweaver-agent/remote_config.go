@@ -96,6 +96,8 @@ func pullAndApplyRemoteConfig(ctx context.Context, cfg scheduledRemoteConfig) (b
 	if err := validateRemoteAgentConfig(configBytes, cfg.EnterpriseID); err != nil {
 		return false, err
 	}
+	configMutationMu.Lock()
+	defer configMutationMu.Unlock()
 	current, err := os.ReadFile(cfg.ConfigPath)
 	if err != nil {
 		return false, err

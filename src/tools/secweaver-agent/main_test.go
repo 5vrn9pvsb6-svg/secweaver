@@ -754,7 +754,7 @@ func TestExamplesEnableHostProcessSnapshotDeltasAndDailyBaseline(t *testing.T) {
 			t.Fatalf("%s should enable host-process-snapshot: %+v", path, module)
 		}
 		interval, ok := stringFlag(module.Args, "interval")
-		if !ok || interval != "10m" {
+		if !ok || interval != "30m" {
 			t.Fatalf("%s interval args=%v", path, module.Args)
 		}
 		if full, ok := stringFlag(module.Args, "full-snapshot-interval"); !ok || full != "24h" {

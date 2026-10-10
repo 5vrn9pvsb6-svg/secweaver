@@ -31,7 +31,7 @@ const (
 	enrollV2Path           = "/api/secweaver/v2/agent/enroll"
 	heartbeatV2Path        = "/api/secweaver/v2/agent/heartbeat"
 	remoteConfigV2Path     = "/api/secweaver/v2/agent/config"
-	defaultHeartbeatSecs   = 180
+	defaultHeartbeatSecs   = 300
 	defaultOutageGraceSecs = 24 * 60 * 60
 	maxOutageGraceSecs     = 7 * 24 * 60 * 60
 	stateLockStaleAfter    = 10 * time.Minute
@@ -85,9 +85,12 @@ type Request struct {
 	HardwareComponents  map[string]string       `json:"hardware_components,omitempty"`
 	// UpdateCapabilities is optional so older Agents can continue to heartbeat
 	// against newer Agent Servers without being rejected for an unknown field.
-	UpdateCapabilities []string                         `json:"update_capabilities,omitempty"`
-	UpdateStatus       *UpdateReport                    `json:"update_status,omitempty"`
-	BehaviorLearning   *behaviorlearning.StatusSnapshot `json:"behavior_learning,omitempty"`
+	UpdateCapabilities []string `json:"update_capabilities,omitempty"`
+	// Runtime capability gates additive response fields for older clients.
+	RuntimePolicyCapabilities []string                         `json:"runtime_policy_capabilities,omitempty"`
+	HeartbeatIntervalSeconds  int                              `json:"heartbeat_interval_seconds,omitempty"`
+	UpdateStatus              *UpdateReport                    `json:"update_status,omitempty"`
+	BehaviorLearning          *behaviorlearning.StatusSnapshot `json:"behavior_learning,omitempty"`
 }
 
 type UpdateReport struct {
@@ -170,6 +173,20 @@ type Response struct {
 	SubscriptionExpiresAt string        `json:"subscription_expires_at,omitempty"`
 	ServerTime            string        `json:"server_time,omitempty"`
 	UpdatePolicy          *UpdatePolicy `json:"update_policy,omitempty"`
+	// AgentRuntimePolicy is an optional server-owned runtime envelope. Older
+	// Agents ignore the additive response field; newer Agents apply it only
+	// after validating the bounded values locally.
+	AgentRuntimePolicy *RuntimePolicy `json:"agent_runtime_policy,omitempty"`
+}
+
+// RuntimePolicy contains the two tenant-controlled cadence settings that can
+// safely be changed through the authenticated heartbeat. Values are expressed
+// in minutes on the wire so the workspace and Agent Server share the same
+// operator-facing contract.
+type RuntimePolicy struct {
+	HostProcessIntervalMinutes int   `json:"host_process_interval_minutes"`
+	HeartbeatIntervalMinutes   int   `json:"heartbeat_interval_minutes"`
+	Revision                   int64 `json:"revision,omitempty"`
 }
 
 type RemoteConfigResponse struct {
@@ -429,6 +446,8 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 	}
 	req := buildRequest(enterpriseID, state, agentVersion, "online")
 	req.Modules = modules
+	req.RuntimePolicyCapabilities = []string{"agent-runtime-policy-v1"}
+	req.HeartbeatIntervalSeconds = cfg.HeartbeatSeconds
 	req.UpdateCapabilities = supportedUpdateCapabilities()
 	req.UpdateStatus = updateStatus
 	req.BehaviorLearning = learning
@@ -436,6 +455,8 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 		state = withCurrentHardwareObservation(state)
 		req = buildRequest(state.EnterpriseID, state, agentVersion, "online")
 		req.Modules = modules
+		req.RuntimePolicyCapabilities = []string{"agent-runtime-policy-v1"}
+		req.HeartbeatIntervalSeconds = cfg.HeartbeatSeconds
 		req.UpdateCapabilities = supportedUpdateCapabilities()
 		req.UpdateStatus = updateStatus
 		req.BehaviorLearning = learning

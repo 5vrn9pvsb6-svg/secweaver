@@ -349,7 +349,7 @@ func runAgentCommand(args []string) int {
 	}
 
 	printPreflightReport(os.Stderr, collectPreflightReport(configPath, modules, updateRuntime), false)
-	if err := runSupervisor(ctx, modules, updateRuntime, remoteRuntime, licenseRuntime, cfg.EnterpriseID, statusTracker, metricsExporter, &operationsRuntime); err != nil {
+	if err := runSupervisor(ctx, modules, updateRuntime, remoteRuntime, configPath, licenseRuntime, cfg.EnterpriseID, statusTracker, metricsExporter, &operationsRuntime); err != nil {
 		if errors.Is(err, errRestartAfterUpdate) || errors.Is(err, errRemoteConfigApplied) {
 			fmt.Fprintf(os.Stderr, "%v; exiting so the service manager can restart secweaver-agent\n", err)
 			return serviceRestartExitCode()

@@ -57,7 +57,7 @@ func runConfigCommand(args []string) int {
 		fs.StringVar(&licenseCfg.StatePath, "state-path", "", "local device registration state path")
 		fs.StringVar(&licenseCfg.IdentityKeyPath, "identity-key-path", "", "local Ed25519 device private key path")
 		fs.IntVar(&licenseCfg.CheckIntervalSeconds, "check-interval-seconds", 21600, "periodic authorization recheck interval; 0 disables periodic recheck")
-		fs.IntVar(&licenseCfg.HeartbeatSeconds, "heartbeat-interval-seconds", 180, "device heartbeat interval")
+		fs.IntVar(&licenseCfg.HeartbeatSeconds, "heartbeat-interval-seconds", 0, "device heartbeat seconds; 0 preserves existing cadence or defaults to 300 on first setup")
 		fs.IntVar(&outageGraceSeconds, "outage-grace-seconds", 86400, "cached authorization grace for transient control-plane outages; 0 disables")
 		fs.BoolVar(&failClosed, "fail-closed", true, "stop agent when authorization check fails")
 		if err := fs.Parse(args[1:]); err != nil {
@@ -286,10 +286,6 @@ func setLicenseInConfig(path string, licenseCfg agentlicense.Config) error {
 	licenseCfg.EnrollmentID = strings.TrimSpace(licenseCfg.EnrollmentID)
 	licenseCfg.StatePath = strings.TrimSpace(licenseCfg.StatePath)
 	licenseCfg.IdentityKeyPath = strings.TrimSpace(licenseCfg.IdentityKeyPath)
-	licenseCfg = licenseCfg.Normalize()
-	if err := licenseCfg.Validate(); err != nil {
-		return fmt.Errorf("license: %w", err)
-	}
 	body, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -300,6 +296,19 @@ func setLicenseInConfig(path string, licenseCfg agentlicense.Config) error {
 	}
 	if payload == nil {
 		return fmt.Errorf("config must be a JSON object")
+	}
+	// Installer defaults must not override a cadence previously applied by the
+	// tenant or a local operator. A positive explicit argument still replaces it.
+	if licenseCfg.HeartbeatSeconds == 0 && len(payload["license"]) > 0 {
+		var previous agentlicense.Config
+		if err := json.Unmarshal(payload["license"], &previous); err != nil {
+			return fmt.Errorf("parse existing license: %w", err)
+		}
+		licenseCfg.HeartbeatSeconds = previous.HeartbeatSeconds
+	}
+	licenseCfg = licenseCfg.Normalize()
+	if err := licenseCfg.Validate(); err != nil {
+		return fmt.Errorf("license: %w", err)
 	}
 	encodedLicense, _ := json.Marshal(licenseCfg)
 	payload["license"] = encodedLicense
@@ -387,7 +396,7 @@ func ensureHostProcessSnapshotInConfig(path string) (bool, error) {
 		Restart:             "on_failure",
 		RestartDelaySeconds: 5,
 		Args: []string{
-			"-interval", "10m",
+			"-interval", "30m",
 			"-full-snapshot-interval", "24h",
 			"-state", defaultHostProcessSnapshotStatePath(),
 			"-collection-timeout", "45s",

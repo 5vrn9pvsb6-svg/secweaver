@@ -21,7 +21,7 @@ const auditMetricsInterval = 5 * time.Second
 // runSupervisor owns every long-lived Agent worker. Metrics synchronization is
 // included in the same wait group so its final cumulative audit snapshot is
 // published before shutdown completes.
-func runSupervisor(ctx context.Context, modules []runtimeModule, updater *scheduledUpdateConfig, remoteCfg *scheduledRemoteConfig, licenseCfg agentlicense.Config, enterpriseID string, tracker *statusTracker, metricsExporter *metrics.Exporter, operations *operationsReportRuntime) error {
+func runSupervisor(ctx context.Context, modules []runtimeModule, updater *scheduledUpdateConfig, remoteCfg *scheduledRemoteConfig, configPath string, licenseCfg agentlicense.Config, enterpriseID string, tracker *statusTracker, metricsExporter *metrics.Exporter, operations *operationsReportRuntime) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	identity, err := agentoutput.HostIdentityFromEnv()
@@ -151,7 +151,7 @@ func runSupervisor(ctx context.Context, modules []runtimeModule, updater *schedu
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := runScheduledHeartbeat(ctx, modules, licenseCfg, enterpriseID, tracker, updater, updatePolicies, metricsExporter); err != nil {
+			if err := runScheduledHeartbeat(ctx, modules, configPath, licenseCfg, enterpriseID, tracker, updater, updatePolicies, metricsExporter); err != nil {
 				errCh <- err
 				cancel()
 			}

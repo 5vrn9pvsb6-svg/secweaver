@@ -227,7 +227,7 @@ filtering_active 需要健康输入、非 shadow、非空有效名单；learning
 启动后旧/缺失摘要不构成过滤就绪证据。
 
 现有 SaaS behavior_learning 心跳仍代表 exec 主基线，不代表其余独立名单。
-保持默认三分钟心跳。Gateway 需 0.6.0-rc.72+ 接受 learning + filtering_active，
+保持默认五分钟心跳。Gateway 需 0.6.0-rc.72+ 接受 learning + filtering_active，
 工作台 rc.112+ 支持显示；先发布兼容服务端，再启用新版 Agent。
 
 Linux/Windows 进程、文件、连接的摘要仍写日志目录的 behavior-learning.log。

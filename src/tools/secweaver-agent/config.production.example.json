@@ -69,7 +69,7 @@
       "enabled": true,
       "restart": "on_failure",
       "restart_delay_seconds": 5,
-      "args": ["-interval", "10m", "-full-snapshot-interval", "24h", "-state", "/opt/secweaver-agent/data/host-process-snapshot-state.json", "-output", "/opt/secweaver-agent/logs/host-process-snapshot.log"]
+      "args": ["-interval", "30m", "-full-snapshot-interval", "24h", "-state", "/opt/secweaver-agent/data/host-process-snapshot-state.json", "-output", "/opt/secweaver-agent/logs/host-process-snapshot.log"]
     },
     "host-state-snapshot": {
       "enabled": true,

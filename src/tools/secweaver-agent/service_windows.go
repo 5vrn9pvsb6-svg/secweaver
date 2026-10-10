@@ -251,6 +251,23 @@ func setWindowsServiceStatus(state, accepted, exitCode, waitHint uint32) {
 }
 
 func runWindowsServiceSupervisor(ctx context.Context, configPath string, managedBySCM bool) error {
+	// A cadence/config reload drains all children but keeps the SCM service
+	// Running. Binary replacement still belongs exclusively to the update helper.
+	for {
+		err := runWindowsServiceSupervisorOnce(ctx, configPath, managedBySCM)
+		if !errors.Is(err, errRemoteConfigApplied) || ctx.Err() != nil {
+			return err
+		}
+		configMutationMu.Lock()
+		runtimeConfigRestartScheduled = false
+		configMutationMu.Unlock()
+		serviceLogf("reloading managed Agent configuration")
+	}
+}
+
+// runWindowsServiceSupervisorOnce owns each generation's metrics and status
+// writer; deferred cleanup completes before the reload loop creates successors.
+func runWindowsServiceSupervisorOnce(ctx context.Context, configPath string, managedBySCM bool) error {
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
@@ -330,7 +347,7 @@ func runWindowsServiceSupervisor(ctx context.Context, configPath string, managed
 		}
 	}
 	printPreflightReport(os.Stderr, collectPreflightReport(configPath, modules, updateRuntime), false)
-	return runSupervisor(ctx, modules, updateRuntime, remoteRuntime, licenseRuntime, cfg.EnterpriseID, statusTracker, metricsExporter, &operationsRuntime)
+	return runSupervisor(ctx, modules, updateRuntime, remoteRuntime, configPath, licenseRuntime, cfg.EnterpriseID, statusTracker, metricsExporter, &operationsRuntime)
 }
 
 func serviceLogf(format string, args ...any) {

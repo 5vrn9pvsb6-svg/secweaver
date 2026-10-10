@@ -4,7 +4,7 @@
 
 ## 采集方式
 
-`secweaver-agent` 内置模块 `host-process-snapshot` 默认采用混合模式：启动后立即输出完整基线，随后每 10 分钟扫描并只输出增量，每 24 小时重新输出一次完整基线：
+`secweaver-agent` 内置模块 `host-process-snapshot` 默认采用混合模式：启动后立即输出完整基线，随后每 30 分钟扫描并只输出增量，每 24 小时重新输出一次完整基线：
 
 ```bash
 sudo SECWEAVER_ENTERPRISE_ID=YOUR_16_CHAR_ID \
@@ -31,7 +31,7 @@ sudo SECWEAVER_ENTERPRISE_ID=YOUR_16_CHAR_ID \
 
 ```bash
 secweaver-agent module host-process-snapshot \
-  -interval 10m \
+  -interval 30m \
   -full-snapshot-interval 24h \
   -state /opt/secweaver-agent/data/host-process-snapshot-state.json
 ```
@@ -105,4 +105,4 @@ secweaver-agent module host-process-snapshot \
 
 ## 能力边界
 
-10 分钟扫描看不到两个采集点之间快速启动并退出的进程，`process_exit` 也只会在下一轮扫描时确认，因此不能替代 `host_exec`。Linux 应继续使用 audit/eBPF，Windows 应使用 Security 4688/Sysmon 捕获实时执行。该模块主要用于长期运行进程盘点、可疑进程存活确认、父子关系补充和现场影响面分析。
+30 分钟扫描看不到两个采集点之间快速启动并退出的进程，`process_exit` 也只会在下一轮扫描时确认，因此不能替代 `host_exec`。Linux 应继续使用 audit/eBPF，Windows 应使用 Security 4688/Sysmon 捕获实时执行。该模块主要用于长期运行进程盘点、可疑进程存活确认、父子关系补充和现场影响面分析。

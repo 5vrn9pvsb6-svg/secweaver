@@ -176,12 +176,14 @@ Agent 0.3.22 修复 Linux 仅传企业令牌且启用自动更新时的安装错
 
 当前内置模块：
 
+Agent 0.3.87 起新安装默认进程增量 30 分钟、心跳 5 分钟，企业工作台可统一设置。见[企业采集策略](docs/runtime-collection-policy.zh-CN.md)。现有本地配置在企业策略明确保存前保持原值。
+
 | 模块 | 系统 | 源码包 | 用途 |
 |---|---|---|---|
 | `audit-port-execmon` | Linux | `pkg/auditportexecmon` | 基于 auditd 采集对外监听进程的命令执行、主动外连、文件操作、敏感文件读取 |
 | `syslog-risk-json` | Linux | `pkg/syslogriskjson` | 解析 Linux auth/syslog 日志，输出安全风险 JSON Lines |
 | `host-persistence` | Linux/Windows | `pkg/hostpersistence` | 监控 Linux cron/systemd/authorized_keys/sudoers/profile 以及 Windows 计划任务、启动目录、profile 脚本等文件型持久化位置；Linux 可通过 auditd 富化操作者/进程信息 |
-| `host-process-snapshot` | Linux/Windows | `pkg/hostprocesssnapshot` | 启动及每日输出完整进程基线，每 10 分钟输出启动、退出及程序/命令/cgroup/权限变化 |
+| `host-process-snapshot` | Linux/Windows | `pkg/hostprocesssnapshot` | 启动及每日输出完整进程基线，每 30 分钟输出启动、退出及程序/命令/cgroup/权限变化 |
 | `host-state-snapshot` | Linux/Windows | `pkg/hoststatesnapshot` | 统一采集监听端口、登录/身份、服务/计划任务、内核模块和容器上下文，输出完整快照或状态差异 |
 | `windows-eventlog-risk-json` | Windows | `pkg/windowseventlogriskjson` | 解析 Windows Event Log，输出风险 JSON Lines |
 | `windows-process-execmon` | Windows | `pkg/windowsprocessexecmon` | 从 Security 4688 和 Sysmon 事件生成进程/外连/文件证据 |
@@ -673,7 +675,7 @@ listener 对账默认每 5 分钟运行一次，实时 clone/exec 归属仍由 e
 
 `host-persistence` 使用模块 JSON 配置。Linux 可把 [`host-persistence.example.json`](host-persistence.example.json) 复制到 `/opt/secweaver-agent/etc/host-persistence.json` 后调整；Windows 安装脚本会把 [`host-persistence.windows.example.json`](host-persistence.windows.example.json) 复制到 `C:\ProgramData\SecWeaver\Agent\etc\host-persistence.json`。首次启动默认只建立 baseline，不输出已有文件；后续新增、修改、删除会输出 `asset_type=host_persistence`、`event_type=persistence_change` 的 JSON Lines。事件会自动识别并输出 `host_ip`；多网卡主机可在模块 JSON 中设置 `host_ip`，或使用 `-host-ip` 覆盖自动识别结果。Linux 默认输出 `/opt/secweaver-agent/logs/host-persistence.log`，auditd 可用时会富化 `user`、`process`、`command` 等字段；模块每分钟把已配置且当前存在的 watch 路径与内核规则对账，补齐新路径或原子替换后失效的 watch。audit reader 异常退出会触发模块重启，不会静默丢失富化。Windows 默认输出 `C:\ProgramData\SecWeaver\Agent\logs\host-persistence.log`，关闭 audit 富化，监控计划任务、启动目录、组策略脚本、PowerShell profile 等文件型持久化位置。小文本文件会输出受限 `content_diff`。如果 Linux 同机 audit 事件量很大、且已由其他模块集中消费 audit.log，可设置 `audit.follow_log=false` 关闭本模块的 audit.log follower；此时仍可管理 watch 规则，但事件不会带 actor/process 富化。
 
-`host-process-snapshot` 在 Linux/Windows 默认开启。启动时输出完整 `process_snapshot` 基线，之后每 10 分钟只输出增量，每 24 小时重发完整基线。Linux 默认将标准 `kworker/*` 的启动、退出和仅命令哈希变化聚合为 `process_kernel_thread_summary`，完整基线仍保留这些线程；增加 `-include-kernel-threads` 可恢复逐条事件。增量身份键为 `pid+start_time`，状态原子保存到平台默认状态目录。完整基线仅保留 `command_hash`；高价值增量事件保留脱敏后的命令。Linux 读取 `/proc`，Windows 使用一次 PowerShell/CIM 批量查询。详见 `docs_user/32-host-process-snapshot.zh-CN.md`。
+`host-process-snapshot` 在 Linux/Windows 默认开启。启动时输出完整 `process_snapshot` 基线，之后每 30 分钟只输出增量，每 24 小时重发完整基线。Linux 默认将标准 `kworker/*` 的启动、退出和仅命令哈希变化聚合为 `process_kernel_thread_summary`，完整基线仍保留这些线程；增加 `-include-kernel-threads` 可恢复逐条事件。增量身份键为 `pid+start_time`，状态原子保存到平台默认状态目录。完整基线仅保留 `command_hash`；高价值增量事件保留脱敏后的命令。Linux 读取 `/proc`，Windows 使用一次 PowerShell/CIM 批量查询。详见 `docs_user/32-host-process-snapshot.zh-CN.md`。
 
 `host-state-snapshot` 在 Linux/Windows 默认开启。监听端口、身份和服务均每 5 分钟检查，内核与容器上下文每 10 分钟检查。各类采集首次输出完整基线，中间只输出变化，每 24 小时重发完整基线。Linux 端口归属扫描默认最多检查 10 万个 FD；任一采集不完整时不更新状态，避免产生假删除事件。详见 `docs_user/33-host-state-snapshot.zh-CN.md`。
 
@@ -877,7 +879,7 @@ Windows 注意事项：
 - 两种 reader 共用 `internal/windowsevidence` 的 Security/Sysmon 证据分类器。Agent 自身 PowerShell 采集脚本通过完整脚本 SHA-256 精确登记；只复制 marker 或在合法脚本后追加命令不会被当作内部活动抑制。
 - 活动 reader 使用 `C:\ProgramData\SecWeaver\Agent\data\windows-eventlog-risk-json.cursor.json` 持久化一份 `EventRecordID` 游标。输出 flush 并同步成功后才推进游标。可通过 `-state-file <path>` 改路径，传空值可关闭持久化。
 - `host-persistence` 在 Windows 默认开启，输出到 `C:\ProgramData\SecWeaver\Agent\logs\host-persistence.log`；当前监控文件型持久化位置，尚未采集注册表持久化。
-- `host-process-snapshot` 在 Windows 默认开启，每 10 分钟扫描增量、每 24 小时输出完整基线，写入 `C:\ProgramData\SecWeaver\Agent\logs\host-process-snapshot.log`；不会创建单独的 Windows service 自身日志。
+- `host-process-snapshot` 在 Windows 默认开启，每 30 分钟扫描增量、每 24 小时输出完整基线，写入 `C:\ProgramData\SecWeaver\Agent\logs\host-process-snapshot.log`；不会创建单独的 Windows service 自身日志。
 - 管理员权限运行的服务安装脚本会自动启用 Audit Process Creation 成功事件和命令行数据；域组策略后续可能覆盖本地设置。网络连接和文件创建/删除证据仍需安装并启用 Sysmon。
 - Windows 服务入口为 `secweaver-agent.exe service -config C:\ProgramData\SecWeaver\Agent\etc\config.json`，由安装脚本自动注册。
 

@@ -235,8 +235,8 @@ func TestFetchRemoteConfigPostsDeviceIdentity(t *testing.T) {
 
 func TestConfigNormalizeDefaultsHeartbeatToThreeMinutes(t *testing.T) {
 	cfg := (Config{}).Normalize()
-	if cfg.HeartbeatSeconds != 180 {
-		t.Fatalf("heartbeat default = %d, want 180", cfg.HeartbeatSeconds)
+	if cfg.HeartbeatSeconds != 300 {
+		t.Fatalf("heartbeat default = %d, want 300", cfg.HeartbeatSeconds)
 	}
 	if cfg.OutageGracePeriod() != 24*time.Hour {
 		t.Fatalf("outage grace default = %s, want 24h", cfg.OutageGracePeriod())
