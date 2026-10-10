@@ -1,5 +1,13 @@
 # host_persistence Data Collection
 
+From Agent0.3.91, SaaS tenant Owner/Admin can set Linux/Windows persistence checks
+under My Enterprise → Agent Collection Policy (default30 seconds, integer10–3600).
+Requires Agent Server rc.77/schema36 and Workspace Server rc.117. The next successful
+heartbeat applies `-poll-interval`, preserving watches, audit rules, enablement and
+comparison/learning state. Only changes emit events; omitted policy preserves local
+cadence. See [Tenant Runtime Policy](../src/tools/secweaver-agent/docs/runtime-collection-policy.md)
+for fields, compatibility and verification.
+
 **Languages:** English (this page) | [简体中文](28-host-persistence-collection.zh-CN.md)
 
 `host_persistence` records creation, modification, and deletion at high-value Linux persistence locations. It focuses on paths used for long-term access, automatic execution, and privilege escalation rather than general file-system activity.

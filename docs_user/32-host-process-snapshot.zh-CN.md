@@ -1,5 +1,11 @@
 # host_process 主机进程快照采集
 
+Agent0.3.91起，SaaS企业Owner/Admin可单独设置进程全量基线周期（默认24小时，
+整数1–168小时），与30分钟增量检查独立。需要Agent Server rc.77/schema36及
+工作台Server rc.117。下次成功心跳更新 `-full-snapshot-interval`，保留pid+start_time
+比较状态和学习白名单；到期后在下一实际扫描轮次输出，不是精确的定时全量上传。
+旧策略省略时保留本地值，见[企业级运行策略](../src/tools/secweaver-agent/docs/runtime-collection-policy.zh-CN.md)。
+
 `host_process` 用于记录主机进程基线及两次扫描之间的状态变化。它适合回答“当时有哪些进程、哪些进程新启动或退出、程序路径/命令/cgroup/权限是否变化”，是 `host_exec` 实时执行审计的补充。
 
 ## 采集方式

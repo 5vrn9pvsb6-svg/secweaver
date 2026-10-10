@@ -1,5 +1,13 @@
 # host_process Host Process Snapshots
 
+From Agent0.3.91, SaaS tenant Owner/Admin can separately set the process full
+baseline period (default24 hours, integer1–168), independent of30-minute delta
+checks. Requires Agent Server rc.77/schema36 and Workspace Server rc.117. The next
+successful heartbeat updates `-full-snapshot-interval`, preserving pid+start_time
+comparison state and learning whitelists. Due baselines emit on the next actual
+scan rather than an exact upload timer. Omitted policy retains local values;
+see [Tenant Runtime Policy](../src/tools/secweaver-agent/docs/runtime-collection-policy.md).
+
 **Languages:** English (this page) | [简体中文](32-host-process-snapshot.zh-CN.md)
 
 `host_process` records periodic process baselines and changes between scans. It complements real-time `host_exec` evidence with process presence, starts, exits, ownership, ancestry, executable path, command, cgroup, and privilege changes.

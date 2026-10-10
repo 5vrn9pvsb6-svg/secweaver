@@ -442,7 +442,9 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             self.assertIn(f"--enterprise-id {enterprise_id}", install_args)
             self.assertIn("--license-server-url https://shield.example.com", install_args)
             self.assertIn(f"--license-enrollment-id {enrollment_id}", install_args)
-            self.assertIn("--license-heartbeat-interval-seconds 180", install_args)
+            # Zero preserves an existing host interval; fresh config supplies the
+            # five-minute default instead of Bootstrap overwriting both cases.
+            self.assertIn("--license-heartbeat-interval-seconds 0", install_args)
             self.assertNotIn("--update-public-key", install_args)
             self.assertIn(
                 f"preflight -config {agent_root}/etc/config.json -strict",
@@ -469,6 +471,18 @@ class TestSecWeaverAgentModules(unittest.TestCase):
             self.assertEqual(
                 (logtail_dir / "user_defined_id").read_text(encoding="utf-8").strip(),
                 enrollment_id,
+            )
+
+            # Preserve mode must not swallow an operator's explicit cadence.
+            # Execute the Bootstrap boundary rather than inspecting its source.
+            explicit_heartbeat = subprocess.run(
+                [*result.args, "--license-heartbeat-interval-seconds", "600"],
+                cwd=REPO_ROOT, env=env, text=True, capture_output=True, timeout=30,
+            )
+            self.assertEqual(explicit_heartbeat.returncode, 0, explicit_heartbeat.stderr)
+            self.assertIn(
+                "--license-heartbeat-interval-seconds 600",
+                install_record.read_text(encoding="utf-8"),
             )
 
             # A valid Linux pointer must be selected independently, even when

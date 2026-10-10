@@ -56,6 +56,10 @@ make test
   client platform/output limits, and generated Agent ES templates with verified TLS.
 - `tests/test_agent_elasticsearch.py` covers public ES initialization, idempotency,
   overwrite/redirect/TLS protection, ingestion checks, log routing, and export boundaries.
+- `tests/test_secweaver_agent_wrappers.py` executes an isolated Linux Bootstrap:
+  omitted heartbeat cadence forwards `0` (preserve an existing value; a fresh
+  configuration defaults to 300 seconds), while explicit cadence is forwarded
+  unchanged. It does not install services or change a real host.
 - `tests/test_secweaver_cli.py` — `validate`, `list`, `discover-format`, `demo`, `skill`
 - `tests/test_skill_catalog_and_output_contracts.py` — unified Skill catalog, domain output Schemas, all 27 catalog-backed offline assessment inputs checked against `_meta` verdicts/rules/Joins, batch query-gap behavior, a 9-vs-10 SSH failure threshold pair, alert and traceability evidence perturbations, six raw format samples plus WAF and host-exec normalization previews, committed Demos, both prompt-analysis fetch fixtures, and the strict prompt-analysis golden report
 - `tests/test_report_markdown.py` — JSON → Markdown rendering and `report markdown` CLI
@@ -77,6 +81,9 @@ automatically discover private SLS Proxy tests. Private service tests are mainta
 and run in the server checkout. The runner pins the repository root on Python's import
 path, so public tests may use absolute imports such as `src.dataasset` regardless of
 which suite directory `unittest` is currently discovering.
+Each suite explicitly owns its discovery import root. This also supports Python
+3.10/3.11, whose unittest loader retains the previous root between discoveries;
+directories without `__init__.py` must not accidentally become nested packages.
 
 The public workflow validates release hygiene, documentation links, supply-chain
 metadata, the open-source Agent, Attack Lab scripts, DataAsset configuration,

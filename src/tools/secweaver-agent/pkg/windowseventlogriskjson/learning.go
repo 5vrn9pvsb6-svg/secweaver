@@ -47,13 +47,15 @@ func (o RiskLearningOptions) policy(cursor string) (behaviorlearning.Config, err
 		o.StateDir = filepath.Join(dir, "behavior-learning-windows-risk")
 	}
 	return behaviorlearning.ScriptPolicy(behaviorlearning.Config{Enabled: o.Enabled, Shadow: o.Shadow, Generation: o.Generation,
-		StateDir: o.StateDir, LearningSeconds: int(o.Duration / time.Second),
+		StateDir: o.StateDir, OutputLog: filepath.Join(o.StateDir, "runtime-status.json"), LearningSeconds: int(o.Duration / time.Second),
 		EventTypes: []string{"powershell_script_block"}}).Normalize()
 }
 
 // ReadRiskLearningStatus verifies the authenticated checkpoint without changing
 // runtime ownership. An enabled flag alone is never proof of active filtering.
-func ReadRiskLearningStatus(o RiskLearningOptions, cursor, output, device string) (behaviorlearning.StatusSnapshot, error) {
+// The legacy output argument is retained for callers, but old risk-log summaries
+// cannot prove the current runtime is healthy after moving status out of logs.
+func ReadRiskLearningStatus(o RiskLearningOptions, cursor, _ string, device string) (behaviorlearning.StatusSnapshot, error) {
 	cfg, err := o.policy(cursor)
 	if err != nil {
 		return behaviorlearning.StatusSnapshot{}, err
@@ -65,7 +67,7 @@ func ReadRiskLearningStatus(o RiskLearningOptions, cursor, output, device string
 	if device == "" || state.Device != device {
 		return behaviorlearning.StatusSnapshot{}, fmt.Errorf("risk learning device identity mismatch")
 	}
-	latest, _ := behaviorlearning.ReadLatestSummary(output)
+	latest, _ := behaviorlearning.ReadBaselineSummary(cfg.OutputLog, state.BaselineID)
 	return behaviorlearning.Snapshot(cfg, state, latest, time.Now()), nil
 }
 
@@ -86,6 +88,7 @@ type riskEngine interface {
 type riskLearning struct {
 	mu                sync.Mutex
 	out               io.Writer
+	statusPath        string
 	engine            riskEngine
 	stop, done        chan struct{}
 	started, lastPoll time.Time
@@ -109,7 +112,7 @@ func wrapRiskLearning(out io.Writer, o RiskLearningOptions, cursor string, poll 
 	if err == nil && device == "" {
 		err = fmt.Errorf("registered device ID unavailable")
 	}
-	w := &riskLearning{out: out, started: time.Now(), lease: poll + 30*time.Second,
+	w := &riskLearning{out: out, statusPath: cfg.OutputLog, started: time.Now(), lease: poll + 30*time.Second,
 		pending: make(map[string]*scriptGroup), stop: make(chan struct{}), done: make(chan struct{})}
 	if w.lease < 45*time.Second {
 		w.lease = 45 * time.Second
@@ -125,7 +128,7 @@ func wrapRiskLearning(out io.Writer, o RiskLearningOptions, cursor string, poll 
 	return w, w.Close
 }
 
-// Write serializes ordinary/protected events with background learning summaries.
+// Write serializes ordinary/protected events with learning decisions.
 func (w *riskLearning) Write(p []byte) (int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -161,21 +164,16 @@ func (w *riskLearning) emitDecision(raw json.RawMessage) error {
 	return nil
 }
 
-// emitSummary keeps counters in the existing risk stream: no additional Logtail
-// route is required. Counts are complete script blocks, not native fragments.
+// emitSummary intentionally discards per-behavior counters: the risk stream
+// must contain security evidence only. Doctor still needs a fresh health proof,
+// so status replaces one local state file at the engine's five-minute cadence.
+// Called synchronously with mu and the engine lock held; never acquire either.
+// A status write failure propagates to the engine's existing fail-open handling.
 func (w *riskLearning) emitSummary(s behaviorlearning.Summary) error {
-	return json.NewEncoder(w.out).Encode(struct {
-		behaviorlearning.Summary
-		SourceStream  string `json:"source_stream"`
-		CountUnit     string `json:"count_unit"`
-		Timestamp     string `json:"timestamp"`
-		ParserVersion string `json:"parser_version"`
-		Severity      string `json:"severity"`
-		RiskLevel     string `json:"risk_level"`
-		RuleID        string `json:"rule_id"`
-		Message       string `json:"message"`
-	}{s, "windows_risk", "script_blocks", s.Time.UTC().Format(time.RFC3339Nano), parserVersion,
-		"info", "info", "WIN-BEHAVIOR-SUMMARY", "Windows risk behavior counters/status; not a security alert"})
+	if s.EventType != "behavior_learning_status" {
+		return nil
+	}
+	return behaviorlearning.WriteLatestSummary(w.statusPath, s)
 }
 
 // tick advances healthy time only after a successful PowerShell-channel poll.
@@ -199,8 +197,9 @@ func (w *riskLearning) tick() {
 	}
 }
 
-// Sync writes counters/originals before cursor advancement. Incomplete fragments
-// must already have been emitted by finishRound, never retained only in memory.
+// Sync commits the baseline and originals before cursor advancement. Aggregate
+// counters are intentionally not retained. Incomplete fragments must already
+// have been emitted by finishRound, never retained only in memory.
 func (w *riskLearning) Sync() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()

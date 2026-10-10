@@ -11,7 +11,7 @@ Introduced in `secweaver-agent 0.3.9`, the cross-platform `host-state-snapshot` 
 | Services and scheduled tasks | `host_service` | 5 minutes | Initial baseline, then service/timer/cron/task differences |
 | Kernel and container context | `host_kernel_context` | 10 minutes | Initial baseline, then module/driver/container differences |
 
-Stateful collectors repeat a full baseline every 24 hours. Baseline events use `action=observed`; additions, changes, and removals use `created`, `modified`, and `deleted`. Changes and removals carry `previous`; login sessions also emit `login_session_started` and `login_session_ended`. Linux reads `/proc`, account files, `who`, and `systemctl`. Socket ownership scanning is capped at 100,000 file descriptors per run by default with `-max-fd-scan`. Windows uses fixed non-profile PowerShell/CIM queries and builds shared process/session/service maps once per collection. Passwords and password hashes are never collected.
+Stateful collectors repeat a full baseline every 24 hours by default, configurable through `-full-snapshot-interval`. Baseline events use `action=observed`; additions, changes, and removals use `created`, `modified`, and `deleted`. Changes and removals carry `previous`; login sessions also emit `login_session_started` and `login_session_ended`. Linux reads `/proc`, account files, `who`, and `systemctl`. Socket ownership scanning is capped at 100,000 file descriptors per run by default with `-max-fd-scan`. Windows uses fixed non-profile PowerShell/CIM queries and builds shared process/session/service maps once per collection. Passwords and password hashes are never collected.
 
 ## Collection behavior and default files
 
@@ -42,6 +42,14 @@ Insert this fragment under `modules` in the Agent configuration (Linux paths sho
 ```
 
 Installation and upgrade run `secweaver-agent config ensure-host-state-snapshot`. It adds the module only when absent; it preserves custom settings and explicit disabling.
+
+From Agent 0.3.90, SaaS tenant Owner/Admin can set these four scan intervals under My Enterprise → Agent Collection Policy (whole minutes 1–1440; defaults 5/5/5/10). Requires Agent Server rc.76/schema35 and Workspace Server rc.116. Changes apply at the next successful heartbeat without changing the daily full baseline or resetting comparison/learning state. Older Agents retain local host-state intervals. See [Tenant Runtime Policy](../src/tools/secweaver-agent/docs/runtime-collection-policy.md) for fields, compatibility and verification; ES/offline hosts still edit local flags.
+
+Agent0.3.91 adds a separate host-state full-baseline period (default24 hours,
+integer1–168), requiring Agent Server rc.77/schema36 and Workspace Server rc.117.
+The next heartbeat updates `-full-snapshot-interval`, retaining comparison state
+and all four check intervals. Due baselines emit on actual check rounds. Existing
+tenants are not backfilled; unset settings/older clients retain local values.
 
 Run a one-shot check with:
 

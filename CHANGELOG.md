@@ -1,5 +1,38 @@
 # Changelog
 
+## [0.3.26] - 2026-10-10
+
+- Fix the Linux Bootstrap regression's obsolete 180-second heartbeat expectation:
+  validate the preserve sentinel (`0`) and execute an explicit 600-second override.
+- Give each public unittest suite an explicit import root, so Python 3.10/3.11 can
+  discover non-package suite directories just as the Python 3.12 CI does.
+- Synchronize bilingual test guidance, Community/CLI identity and source SBOM.
+  Agent binaries and installer behavior are unchanged by this CI repair.
+
+## Agent [0.3.91] - 2026-10-10
+
+- Apply optional tenant health-log minutes, persistence-check seconds and process/host-state full-baseline hours on Linux/Windows; retain defaults5m/30s/24h/24h and existing local values when omitted.
+- Negotiate extended-collection-cadence-v1, validate mixed units before atomic writes and preserve enablement, watch rules, learning/comparison state and upgrade/reload fences.
+- Update bilingual runtime policy guides and add real TLS delivery, bounds, replay and state-retention regressions.
+
+## Agent [0.3.90] - 2026-10-10
+
+- Apply four optional tenant host-state scan intervals for Linux/Windows: sockets, identity, services/tasks and kernel/container context. Preserve local values when omitted, module enablement, daily baselines and comparison/learning state.
+- Advertise independent host-state cadence capability; bound minutes, merge atomically and use existing graceful reload/upgrade fences. Normalize duplicate duration flags without heartbeat restart loops.
+- Synchronize bilingual cadence/state guides and verify optional/partial policies, invalid timers, argv ownership and real TLS heartbeat delivery.
+
+## Agent [0.3.89] - 2026-10-10
+
+- Stop writing Windows PowerShell `host_behavior_summary` records to the risk log routed to `tigersec-sys-messages` / `host-sys-messages`. Keep security evidence and existing learning/filtering decisions.
+- Retain only the latest learning health/status in the private state directory, using atomic replacement rather than a growing uploadable log. Doctor reads it with the existing identity, baseline and freshness checks; upgrades preserve the whitelist.
+- Allow Windows status readers to retain their old snapshot during replacement, so a concurrent Doctor read does not block status publication.
+- Synchronize bilingual learning guides and add regressions for summary exclusion, bounded local status, real whitelist filtering and checkpoint failures.
+
+## Agent [0.3.88] - 2026-10-10
+
+- Include both tenant collection policy guides in Linux and Windows archives, so the packaged README links resolve without a source checkout.
+- Retain Agent 0.3.87 cadence support and defaults: 30-minute process deltas and 5-minute authorization heartbeats; explicitly saved tenant policies override these intervals without resetting learning.
+
 ## Agent [0.3.87] - 2026-10-10
 
 - Default new Linux/Windows process deltas to 30 minutes and authorization heartbeats to 5 minutes.

@@ -152,7 +152,7 @@ func Main(args []string) int {
 	}
 	defer closeEvidence()
 	// Exec summaries have a separate route; they must not collide with the risk
-	// sink. Native risk-learning summaries deliberately use the risk stream.
+	// sink. Native risk learning keeps only local status, outside uploadable logs.
 	if learning.Enabled && evidenceOut != nil && strings.EqualFold(windowsevidence.LearningOutputPath(evidenceOutputPath, learning.Output), outputPath) {
 		fatalf("learning output must differ from risk output")
 	}

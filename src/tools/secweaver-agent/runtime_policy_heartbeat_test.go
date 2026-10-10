@@ -20,7 +20,7 @@ import (
 func TestHeartbeatAppliesRuntimePolicyAndRequestsReload(t *testing.T) {
 	dir := t.TempDir()
 	config := filepath.Join(dir, "config.json")
-	if err := os.WriteFile(config, []byte(`{"enterprise_id":"0123456789ABCDEF","license":{"heartbeat_interval_seconds":180},"modules":{"host-process-snapshot":{"enabled":false,"args":["-interval","10m"]},"syslog-risk-json":{"enabled":true}}}`), 0600); err != nil {
+	if err := os.WriteFile(config, []byte(`{"enterprise_id":"0123456789ABCDEF","license":{"heartbeat_interval_seconds":180},"operations_report":{"enabled":false,"snapshot_interval_seconds":300},"modules":{"host-process-snapshot":{"enabled":false,"args":["-interval","10m"]},"host-state-snapshot":{"enabled":false},"host-persistence":{"enabled":false},"syslog-risk-json":{"enabled":true}}}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -30,11 +30,15 @@ func TestHeartbeatAppliesRuntimePolicyAndRequestsReload(t *testing.T) {
 			w.WriteHeader(400)
 			return
 		}
-		if len(request.RuntimePolicyCapabilities) != 1 || request.RuntimePolicyCapabilities[0] != "agent-runtime-policy-v1" || request.HeartbeatIntervalSeconds != 1 {
+		if len(request.RuntimePolicyCapabilities) != 3 || request.RuntimePolicyCapabilities[0] != "agent-runtime-policy-v1" || request.RuntimePolicyCapabilities[1] != "host-state-cadence-v1" || request.RuntimePolicyCapabilities[2] != "extended-collection-cadence-v1" || request.HeartbeatIntervalSeconds != 1 {
 			t.Error("heartbeat capability/report missing")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(agentlicense.Response{Allowed: true, Registered: true, AgentRuntimePolicy: &agentlicense.RuntimePolicy{HostProcessIntervalMinutes: 45, HeartbeatIntervalMinutes: 10, Revision: 2}})
+		socket, identity, service, kernel := 15, 20, 30, 60
+		health, persistence, processFull, stateFull := 15, 60, 48, 72
+		_ = json.NewEncoder(w).Encode(agentlicense.Response{Allowed: true, Registered: true, AgentRuntimePolicy: &agentlicense.RuntimePolicy{HostProcessIntervalMinutes: 45, HeartbeatIntervalMinutes: 10, Revision: 2,
+			HostSocketIntervalMinutes: &socket, HostIdentityIntervalMinutes: &identity, HostServiceIntervalMinutes: &service, HostKernelContextIntervalMinutes: &kernel,
+			HealthReportIntervalMinutes: &health, HostPersistenceIntervalSeconds: &persistence, HostProcessFullSnapshotHours: &processFull, HostStateFullSnapshotHours: &stateFull}})
 	}))
 	defer server.Close()
 	ca := filepath.Join(dir, "ca.crt")
@@ -58,6 +62,23 @@ func TestHeartbeatAppliesRuntimePolicyAndRequestsReload(t *testing.T) {
 	}
 	if value, _ := stringFlag(cfg.Modules["host-process-snapshot"].Args, "interval"); value != "45m0s" {
 		t.Fatal("process cadence was not applied", value)
+	}
+	for flag, want := range map[string]string{"socket-interval": "15m0s", "identity-interval": "20m0s", "service-interval": "30m0s", "kernel-interval": "1h0m0s"} {
+		if value, _ := stringFlag(cfg.Modules["host-state-snapshot"].Args, flag); value != want {
+			t.Fatal("heartbeat did not apply state cadence", flag, value)
+		}
+	}
+	if value, _ := stringFlag(cfg.Modules["host-persistence"].Args, "poll-interval"); value != "1m0s" {
+		t.Fatal("persistence seconds not applied", value)
+	}
+	for name, want := range map[string]string{"host-process-snapshot": "48h0m0s", "host-state-snapshot": "72h0m0s"} {
+		if value, _ := stringFlag(cfg.Modules[name].Args, "full-snapshot-interval"); value != want {
+			t.Fatal("full baseline not applied", name, value)
+		}
+	}
+	report, err := normalizeOperationsReportConfig(cfg.Operations)
+	if err != nil || report.SnapshotInterval != 15*time.Minute || report.Enabled {
+		t.Fatal("health cadence/enablement", report, err)
 	}
 }
 

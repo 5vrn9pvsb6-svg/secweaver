@@ -1,5 +1,11 @@
 # host_persistence 数据采集介绍
 
+Agent0.3.91起，Linux/Windows的SaaS企业Owner/Admin可在“我的企业 → Agent采集策略”
+设置持久化文件检查周期（默认30秒，整数10–3600秒），需要Agent Server rc.77/schema36
+及工作台Server rc.117。下次成功心跳通过模块 `-poll-interval` 应用；保留watch列表、
+audit规则、开关及比较/学习状态，只有文件变化时输出。旧策略未设置则保留本地值。
+字段、兼容和验证见[企业级运行策略](../src/tools/secweaver-agent/docs/runtime-collection-policy.zh-CN.md)。
+
 **语言：** [English](28-host-persistence-collection.md) | 简体中文（本页）
 
 `host_persistence` 是 SecWeaver 面向 Linux 主机新增的一类主机侧证据，用来记录“持久化能力相关位置”的新增、修改和删除。它关注的不是普通文件系统变化，而是攻击者常用来长期驻留、自动启动、保留访问入口或提权的关键配置位置。

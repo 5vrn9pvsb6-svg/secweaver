@@ -140,9 +140,9 @@ validate_es_integration_inputs() {
     }
   done
   # Shipped README links must resolve without a source checkout. Validate these
-  # lifecycle guides before the first architecture build starts.
+  # lifecycle and managed-cadence guides before the first architecture build starts.
   local guide language
-  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery learning-recovery; do
+  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery learning-recovery runtime-collection-policy; do
     for language in md zh-CN.md; do
       [[ -f "${ROOT_DIR}/docs/${guide}.${language}" ]] || {
         echo "missing Agent package guide: ${guide}.${language}" >&2
@@ -170,9 +170,9 @@ install_es_integration() {
   install -m 0644 "${ROOT_DIR}/docs/behavior-learning.md" "${package_root}/docs/behavior-learning.md"
   install -m 0644 "${ROOT_DIR}/docs/behavior-learning.zh-CN.md" "${package_root}/docs/behavior-learning.zh-CN.md"
   # Keep installation recovery, update trust and health semantics available
-  # offline in both Linux and Windows archives, including linked trust guidance.
+  # offline in both Linux and Windows archives, including trust and cadence guidance.
   local guide language
-  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery learning-recovery; do
+  for guide in collector-lifecycle operations-health-report bootstrap-channel windows-installation tenant-auto-update update-recovery learning-recovery runtime-collection-policy; do
     for language in md zh-CN.md; do
       install -m 0644 "${ROOT_DIR}/docs/${guide}.${language}" "${package_root}/docs/${guide}.${language}"
     done

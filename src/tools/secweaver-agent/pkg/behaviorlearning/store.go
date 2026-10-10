@@ -195,7 +195,14 @@ func (s *Store) read(name string, max int64) ([]byte, error) {
 // atomic retains the previous valid checkpoint until rename, and fsyncs its
 // parent before reporting success. Temporary files are removed on all failures.
 func (s *Store) atomic(name string, body []byte) error {
-	f, err := os.CreateTemp(s.dir, ".checkpoint-")
+	return writeStateFile(filepath.Join(s.dir, name), body)
+}
+
+// writeStateFile shares the checkpoint's private-file and durable replacement
+// contract with the latest runtime status. The caller owns the directory lock;
+// readers need no lock and can see only an old or a complete new record.
+func writeStateFile(path string, body []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".checkpoint-")
 	if err != nil {
 		return err
 	}
@@ -212,7 +219,7 @@ func (s *Store) atomic(name string, body []byte) error {
 	if err = f.Close(); err != nil {
 		return err
 	}
-	return replaceStateFile(temp, filepath.Join(s.dir, name))
+	return replaceStateFile(temp, path)
 }
 
 // Close releases the lock without deleting its inode, avoiding split ownership.

@@ -84,3 +84,74 @@ func TestReadLatestSummaryBoundedTail(t *testing.T) {
 		t.Fatal("accepted missing status")
 	}
 }
+
+// Status publication retains the old readable record on pre-replace failures,
+// creates no accumulating temporary files, and rejects aggregate-sized input.
+func TestWriteLatestSummaryBoundedPrivateReplacement(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "runtime-status.json")
+	summary := Summary{Time: time.Now(), EventType: "behavior_learning_status", Mode: "learning"}
+	if err := WriteLatestSummary(path, summary); err != nil {
+		t.Fatal(err)
+	}
+	reader, err := openSummaryFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	summary.Mode = "degraded"
+	if err := WriteLatestSummary(path, summary); err != nil {
+		t.Fatal(err)
+	}
+	// Native Windows must also allow replacement while doctor holds its read
+	// handle; the old reader gets a whole snapshot, not the new or partial one.
+	var prior Summary
+	if err := json.NewDecoder(reader).Decode(&prior); err != nil || prior.Mode != "learning" {
+		t.Fatalf("reader lost its pre-replace snapshot: %+v %v", prior, err)
+	}
+	got, err := ReadLatestSummary(path)
+	if err != nil || got.Mode != "degraded" {
+		t.Fatalf("status not replaced: %+v %v", got, err)
+	}
+	info, err := os.Stat(path)
+	if err != nil || !stateFilePermissionsOK(info) {
+		t.Fatalf("status permissions: %+v %v", info, err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scenario := range []string{"aggregate", "fingerprint", "oversized"} {
+		t.Run(scenario, func(t *testing.T) {
+			invalid := summary
+			switch scenario {
+			case "aggregate":
+				invalid.EventType = "behavior_summary"
+			case "fingerprint":
+				invalid.Fingerprint = "per-behavior-key"
+			case "oversized":
+				invalid.Reason = strings.Repeat("x", 16<<10)
+			}
+			if err := WriteLatestSummary(path, invalid); err == nil {
+				t.Fatal("unbounded/per-behavior status accepted")
+			}
+			after, err := os.ReadFile(path)
+			if err != nil || string(after) != string(before) {
+				t.Fatalf("failure destroyed prior status: %v", err)
+			}
+		})
+	}
+	// Replacing a directory fails after creating the private temporary file;
+	// cleanup must remove that file on this error path too.
+	blocked := filepath.Join(dir, "blocked")
+	if err := os.Mkdir(blocked, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := WriteLatestSummary(blocked, summary); err == nil {
+		t.Fatal("directory accepted as status file")
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil || len(entries) != 2 || entries[0].Name() != "blocked" || entries[1].Name() != "runtime-status.json" {
+		t.Fatalf("status accumulated files: %v %v", entries, err)
+	}
+}

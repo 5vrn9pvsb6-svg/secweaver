@@ -216,22 +216,33 @@ func TestRiskIdentityAndProtectedScriptNeverTrain(t *testing.T) {
 
 // Complete two-fragment scripts exercise the actual durable counter. Five
 // scripts, not five fragments, are needed; a protected alert still emits after
-// the ordinary script baseline has started filtering.
+// the ordinary script baseline has started filtering. Drive ticks explicitly
+// so slow filesystem writes cannot publish status before the test admits a key.
 func TestSimpleRiskFifthWholeScriptFiltersThroughRealEngine(t *testing.T) {
-	t.Setenv("SECWEAVER_DEVICE_ID", "test-device")
 	var out bytes.Buffer
 	options := RiskLearningOptions{Enabled: true, StateDir: filepath.Join(t.TempDir(), "risk")}
-	wrapped, closeLearning := wrapRiskLearning(&out, options, "", time.Second)
+	cfg, err := options.policy("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &riskLearning{out: &out, statusPath: cfg.OutputLog, started: time.Now(), pending: make(map[string]*scriptGroup)}
+	engine, err := behaviorlearning.New(cfg, "test-device", w.emitDecision, w.emitSummary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.engine = engine
 	t.Cleanup(func() {
-		if err := closeLearning(); err != nil {
+		if err := engine.Close(); err != nil {
 			t.Error(err)
 		}
+		if strings.Contains(out.String(), "host_behavior_summary") {
+			t.Error("learning summaries reached the risk sink, including shutdown")
+		}
 	})
-	w, ok := wrapped.(*riskLearning)
-	if !ok {
-		t.Fatal("real risk engine was not initialized")
-	}
+	w.mu.Lock()
+	w.lastPoll = time.Now()
 	w.engine.Health(true, false)
+	w.mu.Unlock()
 	script := "Write-Output 'ordinary business task'"
 	for i := 0; i < 6; i++ {
 		if n := observeScript(t, w, scriptEvent(i*2+1, 1, 2, script[:12])); n != 0 {
@@ -257,6 +268,37 @@ func TestSimpleRiskFifthWholeScriptFiltersThroughRealEngine(t *testing.T) {
 	state, err := behaviorlearning.Inspect(options.StateDir, 64)
 	if err != nil || len(state.Entries) != 1 {
 		t.Fatalf("unexpected risk baseline: %+v %v", state, err)
+	}
+	// A real engine flush must supply doctor with live local status even though
+	// all aggregate callbacks now discard records instead of writing the risk log.
+	w.mu.Lock()
+	w.engine.Health(true, false)
+	err = w.engine.Tick()
+	w.mu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
+	status, err := ReadRiskLearningStatus(options, "", "", "test-device")
+	if err != nil || !status.FilteringActive || status.BaselineEntries != 1 {
+		t.Fatalf("local status lost active filtering: %+v %v", status, err)
+	}
+	latest, err := behaviorlearning.ReadLatestSummary(w.statusPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(w.statusPath); err != nil {
+		t.Fatal(err)
+	}
+	// Fresh-looking summaries left by older Agents must not substitute for the
+	// current runtime proof after the local status is missing.
+	legacyPath := filepath.Join(t.TempDir(), "old-risk.log")
+	legacy, _ := json.Marshal(latest)
+	if err := os.WriteFile(legacyPath, append(legacy, '\n'), 0600); err != nil {
+		t.Fatal(err)
+	}
+	status, err = ReadRiskLearningStatus(options, "", legacyPath, "test-device")
+	if err != nil || status.FilteringActive {
+		t.Fatalf("stale risk route supplied runtime proof: %+v %v", status, err)
 	}
 }
 
@@ -370,16 +412,85 @@ func TestRiskCheckpointFailureDoesNotAdvanceCursor(t *testing.T) {
 	}
 }
 
-func TestRiskSummaryContract(t *testing.T) {
+// Per-behavior aggregates can be numerous; neither aggregates nor periodic
+// status may add any bytes to the uploadable security log.
+func TestRiskSummariesStayOutOfRiskLog(t *testing.T) {
 	var out bytes.Buffer
 	w, _ := scriptFixture(&out, false)
-	err := w.emitSummary(behaviorlearning.Summary{Time: time.Now(), EventType: "behavior_summary", SourceEventType: "powershell_script_block", Suppressed: 3})
-	var record map[string]any
-	if err != nil || json.Unmarshal(out.Bytes(), &record) != nil {
-		t.Fatal("invalid summary JSON")
+	w.statusPath = filepath.Join(t.TempDir(), "runtime-status.json")
+	for i := 0; i < 100; i++ {
+		summary := behaviorlearning.Summary{Time: time.Now(), EventType: "behavior_summary", AssetType: "host_behavior_summary",
+			SourceEventType: "powershell_script_block", Fingerprint: fmt.Sprint(i), Suppressed: 3}
+		if err := w.emitSummary(summary); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if record["source_stream"] != "windows_risk" || record["count_unit"] != "script_blocks" || record["risk_level"] != "info" || record["timestamp"] == "" || record["suppressed_count"] != float64(3) {
-		t.Fatal("risk summary cannot be distinguished from native security evidence")
+	if _, err := os.Stat(w.statusPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("per-behavior counters created a local status file")
+	}
+	for _, mode := range []string{"learning", "degraded"} {
+		if err := w.emitSummary(behaviorlearning.Summary{Time: time.Now(), EventType: "behavior_learning_status",
+			AssetType: "host_behavior_summary", Mode: mode}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if out.Len() != 0 {
+		t.Fatal("summary bytes reached the risk log")
+	}
+	body, err := os.ReadFile(w.statusPath)
+	if err != nil || bytes.Count(body, []byte{'\n'}) != 1 {
+		t.Fatalf("local status must contain only one record: %q %v", body, err)
+	}
+	latest, err := behaviorlearning.ReadLatestSummary(w.statusPath)
+	if err != nil || latest.Mode != "degraded" {
+		t.Fatalf("old runtime status was not replaced: %+v %v", latest, err)
+	}
+}
+
+// An unavailable local status sink must surface the failure for the engine's
+// fail-open path rather than falling back to the uploadable risk log.
+func TestRiskStatusFailureDoesNotFallBackToRiskLog(t *testing.T) {
+	var out bytes.Buffer
+	options := RiskLearningOptions{Enabled: true, StateDir: filepath.Join(t.TempDir(), "risk")}
+	cfg, err := options.policy("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := &riskLearning{out: &out, statusPath: filepath.Join(cfg.StateDir, "missing", "runtime-status.json"),
+		started: time.Now(), pending: make(map[string]*scriptGroup)}
+	engine, err := behaviorlearning.New(cfg, "test-device", w.emitDecision, w.emitSummary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.engine = engine
+	t.Cleanup(func() {
+		w.statusPath = cfg.OutputLog
+		if err := engine.Close(); err != nil {
+			t.Error(err)
+		}
+	})
+	engine.Health(true, false)
+	for i := 1; i <= 5; i++ {
+		observeScript(t, w, scriptEvent(i, 1, 1, safeCDXML))
+	}
+	if w.suppressed != 1 {
+		t.Fatal("real whitelist never started filtering")
+	}
+	if err := engine.Tick(); err == nil {
+		t.Fatal("engine hid the local status write failure")
+	}
+	if n := observeScript(t, w, scriptEvent(6, 1, 1, safeCDXML)); n != 1 {
+		t.Fatal("status failure continued suppressing original evidence")
+	}
+	if strings.Contains(out.String(), "host_behavior_summary") {
+		t.Fatal("failed local status was redirected into the risk log")
+	}
+	if err := w.Sync(); err != nil {
+		t.Fatal(err)
+	}
+	status, err := ReadRiskLearningStatus(options, "", "", "test-device")
+	if err != nil || status.Mode != "degraded" || status.FilteringActive {
+		t.Fatalf("failed status did not report degradation: %+v %v", status, err)
 	}
 }
 

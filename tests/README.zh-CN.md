@@ -38,6 +38,7 @@ make test
 - `tests/test_dataasset_ui_credential_form.py`：执行真实 UI 保存与类型选择逻辑，覆盖分组与类型独立、首次打开表单后 AK/SK 到 YAML 的同步、非法引用校验，以及已有或用户输入凭证 ID 的保留。
 - `tests/test_public_onboarding_docs.py`：首次使用指南、案例路由、只读发现、SaaS/SLS/ES 查询预览、Attack Lab 中当前 Agent 日志路径、符合实际 Schema 的中英文 JSON 代码块、私有资产目录说明、客户端平台和输出限制，以及启用 TLS 校验的 Agent ES 模板。
 - `tests/test_agent_elasticsearch.py`：公开 ES 初始化、幂等、覆盖/重定向/TLS 保护、入库检查、日志路由和导出边界。
+- `tests/test_secweaver_agent_wrappers.py`：执行隔离的 Linux Bootstrap；未指定心跳周期时传入 `0`（保留已有值，新配置默认 300 秒），显式指定时原样传入。不安装真实服务或修改真实主机。
 - `tests/test_secweaver_cli.py`：`validate`、`list`、`discover-format`、`demo`、`skill`。
 - `tests/test_skill_catalog_and_output_contracts.py`：统一 Skill 目录、领域输出 Schema、全部 27 份清单内离线评估输入的 `_meta` 结论/规则/Join 校验、批量查询缺口、SSH 九次/十次临界对照、告警与溯源证据扰动、6 份格式发现原始样本及 WAF/主机执行归一化预览、仓库 Demo、两份提示词研判取证样例和严格的黄金报告契约校验。
 - `tests/test_report_markdown.py`：JSON 到 Markdown 渲染和 `report markdown` CLI。
@@ -53,5 +54,7 @@ Demo 预期结论字段维护在 `tests/fixtures/demo_expectations.json`。
 GitHub Actions 通过 [ci.yml](../.github/workflows/ci.yml) 的多个作业覆盖根目录 `make ci` 门禁，另外运行 Linux systemd 和 Windows SCM 服务升级作业；本地 `make ci` 不执行这两类服务升级。缺少 Docker 时，本地 Compose 校验会提示跳过，应记录为未运行，不能记作通过。
 
 `tests/run_tests.py` 发现并运行上述公开 Python 套件，不会自动发现私有 SLS Proxy 测试。私有服务测试在服务端代码库中维护和运行。测试入口会固定把仓库根目录加入 Python 导入路径，因此 `unittest` 切换发现目录时，公开测试仍可稳定使用 `src.dataasset` 等绝对导入。
+
+每个套件显式指定独立的测试发现导入根目录，兼容会在两次发现间保留旧根目录的 Python 3.10/3.11；没有 `__init__.py` 的目录不会误判为嵌套包。
 
 公开工作流校验发布卫生、文档链接、供应链元数据、开源 Agent、Attack Lab 脚本、DataAsset 配置、行为策略同步、单元测试和离线 demo。demo 生成后会再次运行发布扫描，防止重写后的公开报告在首次扫描之后引入本地路径或凭证。私有 Portable 构建和打包门禁只在包含相应源码的内部代码库运行。PostgreSQL migration 和 SLS Proxy 服务集成测试属于内部服务端代码库，不在公开工作流中引用。

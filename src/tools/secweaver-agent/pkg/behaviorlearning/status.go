@@ -84,6 +84,24 @@ func ReadLatestSummary(path string) (*Summary, error) {
 	return ReadBaselineSummary(path, "")
 }
 
+// WriteLatestSummary replaces one local runtime observation instead of appending
+// an uploadable log. The adapter must hold its learning-state directory lock;
+// the file inherits protected Windows ACLs and uses mode 0600 on Unix. Only the
+// bounded status record is allowed, never per-behavior aggregates or commands.
+func WriteLatestSummary(path string, summary Summary) error {
+	if summary.EventType != "behavior_learning_status" || summary.Fingerprint != "" {
+		return fmt.Errorf("latest learning summary must be a runtime status")
+	}
+	body, err := json.Marshal(summary)
+	if err != nil {
+		return err
+	}
+	if len(body) > 16<<10 {
+		return fmt.Errorf("latest learning status exceeds 16 KiB")
+	}
+	return writeStateFile(path, append(body, '\n'))
+}
+
 // ReadBaselineSummary selects one independent baseline from a shared rotating
 // summary log. An empty baseline preserves the legacy unfiltered status reader.
 func ReadBaselineSummary(path, baseline string) (*Summary, error) {
@@ -96,7 +114,7 @@ func ReadBaselineSummary(path, baseline string) (*Summary, error) {
 	if !info.Mode().IsRegular() {
 		return nil, fmt.Errorf("learning summary must be a regular file")
 	}
-	f, err := os.Open(path)
+	f, err := openSummaryFile(path)
 	if err != nil {
 		return nil, err
 	}

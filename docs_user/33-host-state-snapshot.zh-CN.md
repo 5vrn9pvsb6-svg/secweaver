@@ -11,7 +11,7 @@
 | 服务和计划任务变化 | `host_service` | 5 分钟 | 首次完整基线，随后输出服务、timer、cron/计划任务差异 |
 | 内核与容器上下文 | `host_kernel_context` | 10 分钟 | 首次完整基线，随后输出模块、驱动、容器上下文差异 |
 
-状态型采集每 24 小时重新输出一次完整基线。首次基线事件 `action=observed`；新增、修改、删除分别为 `created`、`modified`、`deleted`，修改和删除事件带 `previous`。登录会话还会产生 `login_session_started` 和 `login_session_ended`。
+状态型采集默认每 24 小时重新输出一次完整基线，周期可通过 `-full-snapshot-interval` 调整。首次基线事件 `action=observed`；新增、修改、删除分别为 `created`、`modified`、`deleted`，修改和删除事件带 `previous`。登录会话还会产生 `login_session_started` 和 `login_session_ended`。
 
 ## 平台采集内容
 
@@ -55,6 +55,13 @@ Windows 通过无 Profile 的 PowerShell/CIM 批量调用 `Get-NetTCPConnection`
 ```
 
 旧配置在安装/升级时会执行 `secweaver-agent config ensure-host-state-snapshot`。仅当模块缺失时补入默认配置，已有自定义配置或显式关闭不会被覆盖。可用 `SECWEAVER_ENTERPRISE_ID=YOUR_16_CHAR_ID secweaver-agent module host-state-snapshot -once -output - -state ''` 做一次性验证。
+
+Agent 0.3.90 起，SaaS 企业 Owner/Admin 可在“我的企业 → Agent 采集策略”分别设置四项检查间隔（1–1440 整数分钟，默认 5/5/5/10）。需要 Agent Server rc.76/schema35 和工作台 Server rc.116，下一次成功心跳后应用；不修改每日全量基线，不重置比较/学习状态。旧 Agent 保持本地 host-state 周期。字段、兼容及验证见[企业级运行策略](../src/tools/secweaver-agent/docs/runtime-collection-policy.zh-CN.md)；ES/离线主机仍通过本地参数设置。
+
+Agent0.3.91起可另设主机状态全量基线周期（默认24小时，整数1–168小时）。
+需要Agent Server rc.77/schema36和工作台Server rc.117；下次心跳更新
+`-full-snapshot-interval`，不重置比较状态或四项检查间隔，到期后在实际检查轮次输出。
+旧租户不回填，未设置或旧客户端继续使用本地值。
 
 ## SLS 与客户自有 ES
 

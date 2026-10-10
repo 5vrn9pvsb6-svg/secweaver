@@ -184,12 +184,26 @@ five fragments cannot supply five occurrences. Missing/conflicting/oversized
 groups emit all available originals before the cursor checkpoint. Existing
 classification runs again on the assembled script to catch split suspicious text.
 
-Risk summaries remain in windows-eventlog-risk-json.log and use the existing
-host-sys-messages/ES risk route: asset_type=host_behavior_summary,
-source_stream=windows_risk, source_event_type=powershell_script_block,
-count_unit=script_blocks, risk_level=info. Native event_id=4104 remains intact;
-script_block_sha256 describes the whole script, unlike each fragment's script_sha256.
-Exit suppression statistics count fragments. No new shipper route is required.
+Starting with Agent 0.3.89, windows-eventlog-risk-json.log no longer contains
+asset_type=host_behavior_summary counters or learning status. This prevents those
+records from entering host-sys-messages / tigersec-sys-messages or the ES risk
+route. Native risk records retain event_id=4104; script_block_sha256 describes
+the whole script, unlike each fragment's script_sha256. Exit suppression
+statistics still count fragments.
+
+Learning and whitelist filtering continue; upgrades preserve the baseline and
+progress. Only one runtime-status.json is retained in the independent risk state
+directory, atomically replaced every five minutes by default and at shutdown.
+Windows readers allow replacement while doctor retains its old complete snapshot.
+Windows access is restricted to SYSTEM/Administrators; Unix files use mode 0600.
+Doctor reads this local health proof with the existing device, baseline,
+freshness and clean-shutdown checks. Missing/stale status cannot prove
+filtering_active. Status-write failures use existing degradation and retain
+originals. Keep this file outside Logtail/Filebeat paths; no new upload route is
+needed. Existing clients must upgrade to 0.3.89+ to stop producing these risk
+summaries; historical SLS records are not deleted. Verify with secweaver-agent
+doctor and confirm newly generated risk JSONL has no
+asset_type=host_behavior_summary while real risk originals remain present.
 
 ## File Events (0.3.82)
 

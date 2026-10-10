@@ -40,7 +40,10 @@ def build_suite() -> unittest.TestSuite:
         start_dir = REPO_ROOT / relative_dir
         if not start_dir.is_dir():
             raise FileNotFoundError(f"test directory not found: {start_dir}")
-        discovered = loader.discover(str(start_dir), pattern=pattern)
+        # Each suite is an independent import root, including directories without
+        # __init__.py. Python 3.10/3.11 retain the previous discovery root, so an
+        # implicit root makes the second suite incorrectly require a package.
+        discovered = loader.discover(str(start_dir), pattern=pattern, top_level_dir=str(start_dir))
         suite.addTests(discovered)
     return suite
 

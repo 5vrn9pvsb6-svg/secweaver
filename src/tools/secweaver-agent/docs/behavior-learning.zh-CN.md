@@ -150,11 +150,22 @@ Sysmon 3 需要运维启用源采集。入站、方向不明、无效地址/协�
 一份完整脚本计一次，不能用五个片段凑五次。缺片、冲突、超预算保留所有可用原文，
 未完成片段在游标提交前刷盘。完整脚本再次进行已有风险分类以检测跨片危险内容。
 
-风险摘要仍写 windows-eventlog-risk-json.log，沿用 host-sys-messages/ES 风险日志路由：
-asset_type=host_behavior_summary、source_stream=windows_risk、
-source_event_type=powershell_script_block、count_unit=script_blocks、risk_level=info。
-保留原生 event_id=4104；script_block_sha256 为完整内容摘要，
-不同于每片 script_sha256。退出 suppressed 指标按片段计数。无需新增 shipper 路由。
+从 Agent 0.3.89 起，windows-eventlog-risk-json.log 不再记录
+asset_type=host_behavior_summary 的行为计数及学习状态，避免它们经
+host-sys-messages / tigersec-sys-messages 或 ES 风险日志路由上传。
+原生风险事件仍保留 event_id=4104；script_block_sha256 为完整内容摘要，
+不同于每片 script_sha256。退出 suppressed 指标仍按片段计数。
+
+自学习及白名单过滤照常运行，升级不重置名单或学习进度。仅在独立风险状态目录内
+保留一份 runtime-status.json（默认每五分钟更新，并在退出时更新），原子替换、不追加。
+Windows 状态读取允许并发替换，doctor 持有旧快照时不会阻止发布新状态。
+该目录在 Windows 仅允许 SYSTEM/Administrators 访问；Unix 文件权限为 0600。
+doctor 从本地状态读取运行健康证明，仍校验设备、基线、时间及正常退出状态；
+缺少/过期状态不能证明 filtering_active。状态写入失败走既有降级流程，保留原文。
+该文件不放在日志目录，不应加入 Logtail/Filebeat 采集路径；无需新增上传路由。
+已有客户端需升级到 0.3.89+ 才停止生成此类风险摘要，SLS 历史记录不会被删除。
+验证时运行 secweaver-agent doctor，检查新产生的风险 JSONL 中没有
+asset_type=host_behavior_summary，并确认真实风险原文仍输出。
 
 ## 文件事件（0.3.82）
 

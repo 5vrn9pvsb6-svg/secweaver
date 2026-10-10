@@ -179,14 +179,25 @@ type Response struct {
 	AgentRuntimePolicy *RuntimePolicy `json:"agent_runtime_policy,omitempty"`
 }
 
-// RuntimePolicy contains the two tenant-controlled cadence settings that can
-// safely be changed through the authenticated heartbeat. Values are expressed
-// in minutes on the wire so the workspace and Agent Server share the same
-// operator-facing contract.
+// RuntimePolicy contains the bounded tenant-controlled cadence settings that can
+// safely be changed through the authenticated heartbeat. Field names explicitly
+// identify minutes, seconds or hours to match the operator-facing contract.
 type RuntimePolicy struct {
-	HostProcessIntervalMinutes int   `json:"host_process_interval_minutes"`
-	HeartbeatIntervalMinutes   int   `json:"heartbeat_interval_minutes"`
-	Revision                   int64 `json:"revision,omitempty"`
+	HostProcessIntervalMinutes int `json:"host_process_interval_minutes"`
+	HeartbeatIntervalMinutes   int `json:"heartbeat_interval_minutes"`
+	// Omitted host-state fields retain local intervals when talking to an older
+	// server or a tenant whose host-state cadence has not been explicitly saved.
+	HostSocketIntervalMinutes        *int `json:"host_socket_interval_minutes,omitempty"`
+	HostIdentityIntervalMinutes      *int `json:"host_identity_interval_minutes,omitempty"`
+	HostServiceIntervalMinutes       *int `json:"host_service_interval_minutes,omitempty"`
+	HostKernelContextIntervalMinutes *int `json:"host_kernel_context_interval_minutes,omitempty"`
+	// Extended cadence is optional so omitted server settings preserve local
+	// timers. Units are explicit; these fields never change module enablement.
+	HealthReportIntervalMinutes    *int  `json:"health_report_interval_minutes,omitempty"`
+	HostPersistenceIntervalSeconds *int  `json:"host_persistence_interval_seconds,omitempty"`
+	HostProcessFullSnapshotHours   *int  `json:"host_process_full_snapshot_hours,omitempty"`
+	HostStateFullSnapshotHours     *int  `json:"host_state_full_snapshot_hours,omitempty"`
+	Revision                       int64 `json:"revision,omitempty"`
 }
 
 type RemoteConfigResponse struct {
@@ -446,7 +457,7 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 	}
 	req := buildRequest(enterpriseID, state, agentVersion, "online")
 	req.Modules = modules
-	req.RuntimePolicyCapabilities = []string{"agent-runtime-policy-v1"}
+	req.RuntimePolicyCapabilities = []string{"agent-runtime-policy-v1", "host-state-cadence-v1", "extended-collection-cadence-v1"}
 	req.HeartbeatIntervalSeconds = cfg.HeartbeatSeconds
 	req.UpdateCapabilities = supportedUpdateCapabilities()
 	req.UpdateStatus = updateStatus
@@ -455,7 +466,7 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 		state = withCurrentHardwareObservation(state)
 		req = buildRequest(state.EnterpriseID, state, agentVersion, "online")
 		req.Modules = modules
-		req.RuntimePolicyCapabilities = []string{"agent-runtime-policy-v1"}
+		req.RuntimePolicyCapabilities = []string{"agent-runtime-policy-v1", "host-state-cadence-v1", "extended-collection-cadence-v1"}
 		req.HeartbeatIntervalSeconds = cfg.HeartbeatSeconds
 		req.UpdateCapabilities = supportedUpdateCapabilities()
 		req.UpdateStatus = updateStatus

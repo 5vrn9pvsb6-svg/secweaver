@@ -446,7 +446,7 @@
         "pkg:pypi/psycopg",
         "pkg:pypi/pymysql"
       ],
-      "ref": "pkg:pypi/secweaver@0.3.25"
+      "ref": "pkg:pypi/secweaver@0.3.26"
     },
     {
       "dependsOn": [],
@@ -519,7 +519,7 @@
   ],
   "metadata": {
     "component": {
-      "bom-ref": "pkg:pypi/secweaver@0.3.25",
+      "bom-ref": "pkg:pypi/secweaver@0.3.26",
       "licenses": [
         {
           "license": {
@@ -529,7 +529,7 @@
       ],
       "name": "secweaver",
       "type": "application",
-      "version": "0.3.25"
+      "version": "0.3.26"
     },
     "properties": [
       {
