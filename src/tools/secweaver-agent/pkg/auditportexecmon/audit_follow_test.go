@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"strings"
 	"testing"
@@ -18,6 +19,12 @@ import (
 // These tests cover audit transport, event assembly, rotation, filtering, and self-maintenance suppression.
 
 func TestBoundedAuditFiltersUnrelatedProcessesAndTracksCloneChild(t *testing.T) {
+	stubAttributionStartTimes(t, func(pid int) uint64 {
+		if pid == 900001 {
+			return 1
+		}
+		return 0
+	})
 	listener := listenerInfo{PID: 900001, Process: "nginx", Port: 443}
 	monitor := &processTreeMonitor{
 		processBackend:    processTreeBackendAudit,
@@ -42,10 +49,12 @@ func TestBoundedAuditFiltersUnrelatedProcessesAndTracksCloneChild(t *testing.T) 
 	clone := map[string]string{
 		"type": "SYSCALL", "key": monitor.cloneKey, "pid": "900001", "ppid": "1", "exit": "900002", "success": "yes",
 	}
+	clone["msg"] = "audit(" + strconv.FormatInt(time.Now().Unix(), 10) + ".000:1):"
 	monitor.observeAuditFields(clone)
 	childExec := map[string]string{
 		"type": "SYSCALL", "key": monitor.execKey, "pid": "900002", "ppid": "900001", "exe": "/usr/bin/sh",
 	}
+	childExec["msg"] = clone["msg"]
 	if monitor.shouldDropBoundedAuditPrimary(childExec) {
 		t.Fatal("successful clone child must inherit listener ownership")
 	}
@@ -59,8 +68,11 @@ func TestBoundedAuditFiltersUnrelatedProcessesAndTracksCloneChild(t *testing.T) 
 	reusedPIDExec := map[string]string{
 		"type": "SYSCALL", "key": monitor.execKey, "pid": "900003", "ppid": "999999", "exe": "/usr/bin/id",
 	}
-	if !monitor.shouldDropBoundedAuditPrimary(reusedPIDExec) {
-		t.Fatal("unknown-starttime child must not survive a parent mismatch after PID reuse")
+	if monitor.shouldDropBoundedAuditPrimary(reusedPIDExec) || reusedPIDExec["attribution_status"] != "unknown" {
+		t.Fatal("parent mismatch must retain uncertain evidence without old ownership")
+	}
+	if _, ok := monitor.matchListener(reusedPIDExec); ok {
+		t.Fatal("parent mismatch retained the old service label")
 	}
 }
 

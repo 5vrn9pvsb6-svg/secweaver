@@ -99,15 +99,10 @@ func (m *processTreeMonitor) requestRescan() {
 }
 
 func (m *processTreeMonitor) enqueuePIDExpansion(pid int, listener listenerInfo) {
-	// P0-2: Enhanced PID reuse protection with atomic lock-held validation
-	//
-	// CRITICAL: This function must avoid TOCTOU (time-of-check-time-of-use) races
-	// where a PID is reused between reading startTime and acquiring the lock.
-	//
-	// Strategy: We use a three-phase validation with minimal lock release:
-	// 1. Quick pre-check without lock (optimization)
-	// 2. Lock-held validation and state check
-	// 3. Final validation before commit (after pressure check)
+	listener = bindListenerLifetime(listener)
+	// Re-read uncached identities around lock and pressure transitions. mu
+	// serializes our ledger, not the kernel's process lifecycle; the worker
+	// checks the captured identities again before and after installing rules.
 	if pid <= 1 || m.isSelfProcessTree(pid) {
 		return
 	}
@@ -122,8 +117,7 @@ func (m *processTreeMonitor) enqueuePIDExpansion(pid int, listener listenerInfo)
 	// Phase 2: Acquire lock and perform atomic validation
 	m.mu.Lock()
 
-	// CRITICAL: Re-read startTime while holding lock to ensure atomicity
-	// This eliminates the TOCTOU window between the initial read and lock acquisition
+	// Recheck after acquiring our ledger lock; the first read may be stale.
 	currentStartTime := readProcessStartTime(pid)
 	if currentStartTime != startTime || currentStartTime == 0 {
 		// PID was reused or process died between reads - abort safely
@@ -131,7 +125,7 @@ func (m *processTreeMonitor) enqueuePIDExpansion(pid int, listener listenerInfo)
 		return
 	}
 
-	// Now we have a consistent view: the PID's startTime is stable
+	// Compare with the last observed identity; later mutation revalidates it.
 	expectedStartTime := m.processStartTimes[pid]
 	monitored := m.monitored[pid]
 	replace := false
@@ -199,7 +193,7 @@ func (m *processTreeMonitor) enqueuePIDExpansion(pid int, listener listenerInfo)
 		if replace {
 			m.removePIDRules(pid)
 		}
-		_ = m.expandPID(pid, listener)
+		_ = m.expandPIDExpected(pid, startTime, listener)
 		return
 	}
 
@@ -232,6 +226,12 @@ func (m *processTreeMonitor) enqueuePIDExpansion(pid int, listener listenerInfo)
 func (m *processTreeMonitor) expandQueuedPID(job ruleExpansion) {
 	if job.Remove {
 		m.removePIDRules(job.PID)
+		m.finishQueuedExpansion(job.PID)
+		return
+	}
+	// Validate the root captured at enqueue time before any destructive replace
+	// or rule install. A restarted root cannot revive old queued ownership.
+	if job.Listener.RootStartTime == 0 || readProcessStartTime(job.Listener.PID) != job.Listener.RootStartTime {
 		m.finishQueuedExpansion(job.PID)
 		return
 	}

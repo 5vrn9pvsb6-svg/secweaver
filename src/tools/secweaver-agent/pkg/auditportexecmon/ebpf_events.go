@@ -74,7 +74,7 @@ func followProcessTracker(ctx context.Context, tracker processtracker.Tracker, m
 				return fmt.Errorf("eBPF process event stream closed unexpectedly")
 			}
 			listener, owned := monitor.observeEBPFEvent(event)
-			if event.Type != processtracker.EventExec || !owned || !monitor.shouldMonitorExec(listener) {
+			if event.Type != processtracker.EventExec || !owned || (!listener.AttributionUnknown && !monitor.shouldMonitorExec(listener)) {
 				continue
 			}
 			if err := emitEBPFExecEvent(event, listener, monitor.execKey, host, out); err != nil {
@@ -142,6 +142,13 @@ func emitEBPFExecEventWithContext(source processtracker.Event, listener listener
 		ListenerProcess:  listener.Process,
 		ListenerAddress:  listener.Address,
 		ListenerPort:     listener.Port,
+	}
+	if listener.AttributionUnknown {
+		// The kernel event is still in scope, but a root lifecycle mismatch
+		// cannot be expressed as a verified service relationship.
+		event.ListenerPID, event.ListenerPort = 0, 0
+		event.ListenerProcess, event.ListenerAddress = "", ""
+		event.AttributionStatus = "unknown"
 	}
 	// Identity enrichment remains best effort. Exact-command learning uses argv
 	// completeness independently; short-lived processes need no /proc identity.

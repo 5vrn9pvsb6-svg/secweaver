@@ -51,7 +51,11 @@ type ruleExpansionStats struct {
 }
 
 var isProcessAlive = procAlive
-var readProcessStartTime = readProcStartTime
+
+// Identity gates must bypass the enrichment cache: even a short TTL can outlive
+// runc and return an earlier process's starttime for a reused numeric PID.
+var readProcessStartTime = readProcStartTimeFresh
+var readProcessParentPID = readProcPPID
 
 // processTreeMonitor owns the complete in-memory model of audit coverage.
 //
@@ -78,10 +82,13 @@ type processTreeMonitor struct {
 	// Coverage ledger. monitored is a reservation as well as a state flag;
 	// processStartTimes prevents PID reuse, while rules/watchRules are the exact
 	// kernel objects this process remains responsible for deleting.
-	monitored             map[int]bool
-	processStartTimes     map[int]uint64
-	processParentPIDs     map[int]int
-	processObservedAt     map[int]time.Time
+	monitored         map[int]bool
+	processStartTimes map[int]uint64
+	processParentPIDs map[int]int
+	processObservedAt map[int]time.Time
+	// Clone evidence is bounded by the same PID ledger and short identity TTL.
+	// It is never refreshed by exec events or by an unverifiable ownership hit.
+	processCloneTimes     map[int]time.Time
 	pendingRuleExpansion  map[int]bool
 	pendingPIDRuleCleanup map[int]bool
 	pendingExeRuleCleanup map[string]bool
@@ -187,6 +194,12 @@ func (m *processTreeMonitor) usesDynamicPIDRules() bool {
 }
 
 func newProcessTreeMonitor(listeners []listenerInfo, portFilter int, whitelistPorts map[int]bool, execKey, connectKey, fileKey, sensitiveFileKey, cloneKey string, trackDescendants, monitorExec bool, execListenerPorts map[int]bool, monitorConnect bool, connectListenerPorts, skipConnectListenerPorts map[int]bool, skipConnectProcessNames map[string]bool, skipConnectExePatterns []*regexp.Regexp, monitorFileOps bool, fileListenerPorts map[int]bool, monitorSensitiveFileReads bool, sensitiveFilePaths []string, auditArches []string, javaMonitorMode string) *processTreeMonitor {
+	// Copy discovery results before binding lifetimes; callers may retain their
+	// original inventory slice while this monitor owns mutable reconciliation.
+	listeners = append([]listenerInfo(nil), listeners...)
+	for i := range listeners {
+		listeners[i] = bindListenerLifetime(listeners[i])
+	}
 	selfExe, _ := os.Executable()
 	selfPID := os.Getpid()
 	return &processTreeMonitor{

@@ -133,6 +133,11 @@ func emitNormalizedEvent(out io.Writer, event auditEvent) error {
 // Disabled file learning bypasses the queue; overflow faults both baselines and
 // writes the original immediately so backpressure cannot silently drop evidence.
 func (w *learningOutput) WriteEvent(event auditEvent) error {
+	// Identity uncertainty must never become a learnable empty-service tuple or
+	// be suppressed by an old baseline. Preserve the original evidence directly.
+	if event.AttributionStatus == "unknown" {
+		return emitNormalizedEvent(w.Writer, event)
+	}
 	if event.EventType != "exec" && (event.EventType != "file_op" || w.fileEngine == nil) {
 		return emitNormalizedEvent(w.Writer, event)
 	}

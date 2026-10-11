@@ -209,6 +209,7 @@ func TestParseProcStatTTYNumber(t *testing.T) {
 }
 
 func TestObserveEBPFForkAndExitMaintainsAttribution(t *testing.T) {
+	stubAttributionStartTimes(t, func(int) uint64 { return 100 })
 	listener := listenerInfo{PID: 100, Process: "nginx", Address: "0.0.0.0", Port: 443}
 	monitor := newProcessTreeMonitor([]listenerInfo{listener}, 0, nil, "exec", "connect", "file", "sensitive", "clone", true, true, nil, false, nil, nil, nil, nil, false, nil, false, nil, []string{"b64"}, javaMonitorModeHybrid)
 	monitor.pidListener[100] = listener

@@ -185,6 +185,7 @@ func TestSuccessfulCloneQueuesReturnedChildPID(t *testing.T) {
 }
 
 func TestExpandPIDSkipsWhenAuditRuleLimitReached(t *testing.T) {
+	stubAttributionStartTimes(t, func(int) uint64 { return 100 })
 	orig := runAuditctlCommand
 	origAlive := isProcessAlive
 	defer func() {
@@ -227,6 +228,7 @@ func TestExpandPIDSkipsWhenAuditRuleLimitReached(t *testing.T) {
 }
 
 func TestExpandPIDAllowsWithinAuditRuleLimit(t *testing.T) {
+	stubAttributionStartTimes(t, func(int) uint64 { return 100 })
 	orig := runAuditctlCommand
 	origAlive := isProcessAlive
 	defer func() {
@@ -528,10 +530,13 @@ func TestCompanionTrackingTargetClearsExeOnly(t *testing.T) {
 }
 
 func TestCompanionTargetForProcessWalksChain(t *testing.T) {
+	stubAttributionStartTimes(t, func(int) uint64 { return 100 })
 	nginx := listenerInfo{PID: 100, Process: "nginx", Port: 80, MonitorExe: "/usr/sbin/nginx", ExeOnly: true}
 	workerTarget := companionTrackingTarget(nginx)
 	monitor := &processTreeMonitor{
-		pidTargets: map[int]trackingTarget{23443: workerTarget},
+		pidTargets:        map[int]trackingTarget{23443: workerTarget},
+		pidListener:       map[int]listenerInfo{23443: workerTarget.Gateway},
+		processStartTimes: map[int]uint64{23443: 100, 100: 100},
 	}
 	if target, ok := monitor.companionTargetForProcess(50001, 50000); ok {
 		t.Fatalf("unrelated pids should not match, got %+v", target)

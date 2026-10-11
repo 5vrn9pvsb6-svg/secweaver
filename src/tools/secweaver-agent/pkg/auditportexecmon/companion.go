@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type companionBackend struct {
@@ -298,7 +299,25 @@ func (m *processTreeMonitor) registerCompanionPID(pid int, target trackingTarget
 	if pid <= 1 {
 		return
 	}
+	// Explicit companion membership is a policy association, but its cache
+	// still belongs to one PID lifetime. It must not promote runtime parents.
+	target.Gateway = bindListenerLifetime(target.Gateway)
+	start := readProcessStartTime(pid)
+	if start == 0 {
+		return
+	}
 	m.mu.Lock()
+	if m.monitored[pid] && m.processStartTimes[pid] != start {
+		// Discovery must not overwrite the old rule ledger's identity before
+		// the worker has removed those rules. Retry after normal reconciliation.
+		m.invalidateOwnerLocked(pid)
+		m.mu.Unlock()
+		return
+	}
+	if m.processStartTimes == nil {
+		m.processStartTimes = map[int]uint64{}
+	}
+	m.processStartTimes[pid] = start
 	m.pidTargets[pid] = target
 	m.pidListener[pid] = target.Gateway
 	m.mu.Unlock()
@@ -310,10 +329,10 @@ func (m *processTreeMonitor) companionTargetForProcess(pid, ppid int) (trackingT
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.processBackend == processTreeBackendAudit {
-		if target, ok := m.pidTargets[pid]; ok {
+		if target, ok := m.validCompanionTargetLocked(pid, ppid); ok {
 			return target, true
 		}
-		if target, ok := m.pidTargets[ppid]; ok {
+		if target, ok := m.validCompanionTargetLocked(ppid, 0); ok {
 			return target, true
 		}
 		return trackingTarget{}, false
@@ -323,12 +342,12 @@ func (m *processTreeMonitor) companionTargetForProcess(pid, ppid int) (trackingT
 		if start <= 1 || seen[start] {
 			continue
 		}
-		for p := start; p > 1; p = readProcPPID(p) {
+		for p, depth := start, 0; p > 1 && depth < 64; p, depth = readProcessParentPID(p), depth+1 {
 			if seen[p] {
 				break
 			}
 			seen[p] = true
-			if target, ok := m.pidTargets[p]; ok {
+			if target, ok := m.validCompanionTargetLocked(p, 0); ok {
 				return target, true
 			}
 		}
@@ -365,10 +384,14 @@ func (m *processTreeMonitor) gatewayForProcessChainLocked(pid, ppid int) (listen
 	if pid <= 1 && ppid <= 1 {
 		return listenerInfo{}, false
 	}
-	if listener, ok := m.pidListener[pid]; ok {
+	listener, state := m.cachedListenerLocked(pid, ppid, time.Time{})
+	if state == attributionVerified {
 		return listener, true
 	}
-	if listener, ok := m.pidListener[ppid]; ok {
+	if state == attributionRootUnknown {
+		return listenerInfo{}, false
+	}
+	if listener, state := m.cachedListenerLocked(ppid, 0, time.Time{}); state == attributionVerified {
 		return listener, true
 	}
 	seen := map[int]bool{}
@@ -376,12 +399,12 @@ func (m *processTreeMonitor) gatewayForProcessChainLocked(pid, ppid int) (listen
 		if start <= 1 || seen[start] {
 			continue
 		}
-		for p := start; p > 1; p = readProcPPID(p) {
+		for p, depth := start, 0; p > 1 && depth < 64; p, depth = readProcessParentPID(p), depth+1 {
 			if seen[p] {
 				break
 			}
 			seen[p] = true
-			if listener, ok := m.pidListener[p]; ok {
+			if listener, state := m.cachedListenerLocked(p, 0, time.Time{}); state == attributionVerified {
 				return listener, true
 			}
 			for _, backend := range webGatewayCompanionBackends {
@@ -395,7 +418,7 @@ func (m *processTreeMonitor) gatewayForProcessChainLocked(pid, ppid int) (listen
 				if root.ExeOnly {
 					continue
 				}
-				if root.PID > 1 && root.PID == p {
+				if root.PID > 1 && root.PID == p && m.listenerLifetimeLocked(root) == attributionVerified {
 					return root, true
 				}
 			}

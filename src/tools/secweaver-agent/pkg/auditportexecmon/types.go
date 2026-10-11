@@ -9,13 +9,17 @@ import (
 )
 
 type listenerInfo struct {
-	PID        int    `json:"pid"`
-	Process    string `json:"process"`
-	Address    string `json:"address"`
-	Port       int    `json:"port"`
-	MonitorExe string `json:"-"`
-	ExeOnly    bool   `json:"-"` // nginx/java/php-fpm 等：仅用 -F exe= 规则
-	Raw        string `json:"raw"`
+	// RootStartTime binds cached owners and queued work to this listener lifetime;
+	// it is internal metadata, not part of the public listener inventory.
+	RootStartTime      uint64 `json:"-"`
+	AttributionUnknown bool   `json:"-"` // kernel-scoped evidence whose root identity expired
+	PID                int    `json:"pid"`
+	Process            string `json:"process"`
+	Address            string `json:"address"`
+	Port               int    `json:"port"`
+	MonitorExe         string `json:"-"`
+	ExeOnly            bool   `json:"-"` // nginx/java/php-fpm 等：仅用 -F exe= 规则
+	Raw                string `json:"raw"`
 }
 
 // auditEvent is the normalized JSON contract emitted by this module. Fields
@@ -48,18 +52,21 @@ type auditEvent struct {
 	// HasTTY is tri-state: nil means the collector could not observe session TTY
 	// state. Unknown must be omitted because downstream analysis treats false as
 	// positive evidence of a non-interactive WebShell/RCE-style execution.
-	HasTTY          *bool             `json:"has_tty,omitempty"`
-	RawRecords      []string          `json:"raw_records,omitempty"`
-	ListenerPID     int               `json:"listener_pid,omitempty"`
-	ListenerProcess string            `json:"listener_process,omitempty"`
-	ListenerAddress string            `json:"listener_address,omitempty"`
-	ListenerPort    int               `json:"listener_port,omitempty"`
-	ConnectFamily   string            `json:"connect_family,omitempty"`
-	ConnectAddress  string            `json:"connect_address,omitempty"`
-	ConnectPort     int               `json:"connect_port,omitempty"`
-	FileAction      string            `json:"file_action,omitempty"`
-	FilePaths       []string          `json:"file_paths,omitempty"`
-	Fields          map[string]string `json:"-"`
+	HasTTY          *bool    `json:"has_tty,omitempty"`
+	RawRecords      []string `json:"raw_records,omitempty"`
+	ListenerPID     int      `json:"listener_pid,omitempty"`
+	ListenerProcess string   `json:"listener_process,omitempty"`
+	ListenerAddress string   `json:"listener_address,omitempty"`
+	ListenerPort    int      `json:"listener_port,omitempty"`
+	// AttributionStatus is emitted only when an in-scope event cannot be tied to
+	// a verified listener. Such evidence must not acquire a guessed service name.
+	AttributionStatus string            `json:"attribution_status,omitempty"`
+	ConnectFamily     string            `json:"connect_family,omitempty"`
+	ConnectAddress    string            `json:"connect_address,omitempty"`
+	ConnectPort       int               `json:"connect_port,omitempty"`
+	FileAction        string            `json:"file_action,omitempty"`
+	FilePaths         []string          `json:"file_paths,omitempty"`
+	Fields            map[string]string `json:"-"`
 }
 
 type hostIdentity struct {

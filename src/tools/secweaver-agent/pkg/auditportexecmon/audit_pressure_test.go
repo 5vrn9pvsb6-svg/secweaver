@@ -66,6 +66,7 @@ func TestMediumPressureSkipsCloneRulesForOrdinaryProcesses(t *testing.T) {
 }
 
 func TestMediumPressureKeepsCloneRulesForWebRoot(t *testing.T) {
+	stubAttributionStartTimes(t, func(int) uint64 { return 100 })
 	originalCommand := runAuditctlCommand
 	originalAlive := isProcessAlive
 	defer func() {
@@ -96,6 +97,7 @@ func TestMediumPressureKeepsCloneRulesForWebRoot(t *testing.T) {
 }
 
 func TestMediumPressureRestoresSuppressedCloneRulesAfterCooldown(t *testing.T) {
+	stubAttributionStartTimes(t, func(int) uint64 { return 100 })
 	originalCommand := runAuditctlCommand
 	originalAlive := isProcessAlive
 	defer func() {

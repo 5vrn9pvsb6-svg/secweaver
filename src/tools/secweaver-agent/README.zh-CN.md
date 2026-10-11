@@ -1,5 +1,7 @@
 # secweaver-agent
 
+Agent 0.3.92 的 Linux 进程归属修复及新增可选 `attribution_status` 字段，见 [进程归属与短命进程证据](docs/process-attribution.zh-CN.md)。升级后的灰度验收应同时检查归属准确性与真实子进程覆盖。
+
 源码 0.3.86 提供[Linux 学习恢复脚本](docs/learning-recovery.zh-CN.md)：默认仅检查，
 保留正常学习和已有名单；显式重学前备份，启动验证失败恢复。空名单不代表学习关闭。
 
@@ -900,7 +902,7 @@ Windows 注意事项：
 | `listeners.go` / `procfs.go` | 对外监听发现和 `/proc` 辅助函数 |
 | `monitor_state.go` / `monitor_worker.go` | 进程树状态、异步规则队列、背压和统计快照 |
 | `monitor_bootstrap.go` / `monitor_listener_reconcile.go` / `monitor_listener_roots.go` | 初始覆盖、监听对账和 Web/Java/SSH 特殊根进程策略 |
-| `monitor_pid.go` / `monitor_pid_rules.go` / `monitor_pid_cleanup.go` / `monitor_ebpf.go` | PID 归属、规则预算与扩展、死亡清理和 eBPF 生命周期归属 |
+| `attribution.go` / `monitor_pid.go` / `monitor_pid_rules.go` / `monitor_pid_cleanup.go` / `monitor_ebpf.go` | PID 归属、规则预算与扩展、死亡清理和 eBPF 生命周期归属 |
 | `monitor_self.go` / `companion.go` | Agent 自身进程排除和 Web 网关伴随进程发现 |
 | `audit_rules.go` | auditctl 规则添加、删除和清理 |
 | `audit_follow.go` / `audit_accumulator.go` | audit 日志/共享流跟随、轮转处理和多记录聚合 |

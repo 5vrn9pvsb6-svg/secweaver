@@ -14,11 +14,20 @@ func (m *processTreeMonitor) pruneDeadPIDs() {
 	// starttime from /proc/<pid>/stat identifies the original process lifetime.
 	m.mu.Lock()
 	pids := make(map[int]uint64, len(m.monitored))
+	owners := make(map[int]listenerInfo, len(m.monitored))
 	for pid := range m.monitored {
 		pids[pid] = m.processStartTimes[pid]
+		owners[pid] = m.pidListener[pid]
 	}
 	m.mu.Unlock()
 	for pid, expectedStartTime := range pids {
+		// Children may outlive a service root. Retire their old rules as well,
+		// otherwise a reused root PID could leave permanently stale ownership.
+		owner := owners[pid]
+		if owner.RootStartTime != 0 && readProcessStartTime(owner.PID) != owner.RootStartTime {
+			m.removePIDRules(pid)
+			continue
+		}
 		alive := isProcessAlive(pid)
 		if alive {
 			currentStartTime := readProcessStartTime(pid)
@@ -148,6 +157,7 @@ func (m *processTreeMonitor) removePIDRules(pid int) {
 		delete(m.processStartTimes, pid)
 		delete(m.processParentPIDs, pid)
 		delete(m.processObservedAt, pid)
+		delete(m.processCloneTimes, pid)
 		delete(m.pidListener, pid)
 		delete(m.pidTargets, pid)
 		delete(m.pendingRuleExpansion, pid)
@@ -170,6 +180,7 @@ func (m *processTreeMonitor) forgetTrackedPID(pid int) {
 	delete(m.processStartTimes, pid)
 	delete(m.processParentPIDs, pid)
 	delete(m.processObservedAt, pid)
+	delete(m.processCloneTimes, pid)
 	delete(m.pidListener, pid)
 	delete(m.pidTargets, pid)
 	delete(m.pendingRuleExpansion, pid)

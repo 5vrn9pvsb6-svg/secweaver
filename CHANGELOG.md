@@ -1,5 +1,12 @@
 # Changelog
 
+## Agent [0.3.92] - 2026-10-12
+
+- Stop listener ownership at the service root; runtime parents and sibling runc processes no longer inherit that service through upward expansion.
+- Validate uncached PID/root lifetimes on ownership hits and queued rule work; reject stale companion mappings and bind short-lived clone correlation to source ordering and a non-renewable time window.
+- Preserve in-scope uncertain evidence with optional `attribution_status=unknown`, omit guessed listener fields and bypass behavior learning. Keep unrelated bounded-audit traffic and host-wide sensitive-watch filtering scoped.
+- Add lifecycle/output/race regressions and bilingual attribution/upgrade guidance, included in release archives.
+
 ## [0.3.26] - 2026-10-10
 
 - Fix the Linux Bootstrap regression's obsolete 180-second heartbeat expectation:

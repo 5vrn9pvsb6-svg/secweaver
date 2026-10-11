@@ -164,14 +164,14 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 		return
 	}
 	listener, listenerMatched := monitor.matchListener(acc.fields)
-	if monitor.usesBoundedAudit() && !listenerMatched {
+	if monitor.usesBoundedAudit() && !listenerMatched && acc.fields["attribution_status"] != "unknown" {
 		delete(accs, id)
 		putAccumulator(acc)
 		recordAccumulatorCompleted()
 		return
 	}
 	if isSensitiveRead {
-		if !listenerMatched {
+		if !listenerMatched && acc.fields["attribution_status"] != "unknown" {
 			delete(accs, id)
 			putAccumulator(acc) // P1 Optimization: Return to pool
 			recordAccumulatorCompleted()
@@ -188,30 +188,31 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	pid, pidName := splitProcessFields(acc.fields["pid"], comm, acc.fields["exe"])
 	ppid, ppidName := splitProcessFields(acc.fields["ppid"], "", "")
 	event := auditEvent{
-		Time:        now,
-		HostName:    host.HostName,
-		HostIP:      host.HostIP,
-		EventType:   eventType,
-		AuditID:     id,
-		PID:         pid,
-		PIDName:     pidName,
-		PPID:        ppid,
-		PPIDName:    ppidName,
-		UID:         acc.fields["uid"],
-		UIDName:     resolveAccountName(acc.fields["uid"]),
-		AUID:        acc.fields["auid"],
-		AUIDName:    resolveAccountName(acc.fields["auid"]),
-		Comm:        comm,
-		Exe:         acc.fields["exe"],
-		CWD:         acc.cwd,
-		Command:     command,
-		CommandLine: strings.Join(command, " "),
-		Success:     acc.fields["success"],
-		Exit:        acc.fields["exit"],
-		Key:         acc.fields["key"],
-		TTY:         tty,
-		HasTTY:      hasTTY,
-		Fields:      acc.fields,
+		Time:              now,
+		HostName:          host.HostName,
+		HostIP:            host.HostIP,
+		EventType:         eventType,
+		AuditID:           id,
+		PID:               pid,
+		PIDName:           pidName,
+		PPID:              ppid,
+		PPIDName:          ppidName,
+		UID:               acc.fields["uid"],
+		UIDName:           resolveAccountName(acc.fields["uid"]),
+		AUID:              acc.fields["auid"],
+		AUIDName:          resolveAccountName(acc.fields["auid"]),
+		Comm:              comm,
+		Exe:               acc.fields["exe"],
+		CWD:               acc.cwd,
+		Command:           command,
+		CommandLine:       strings.Join(command, " "),
+		Success:           acc.fields["success"],
+		Exit:              acc.fields["exit"],
+		Key:               acc.fields["key"],
+		TTY:               tty,
+		HasTTY:            hasTTY,
+		Fields:            acc.fields,
+		AttributionStatus: acc.fields["attribution_status"],
 	}
 	if listenerMatched {
 		event.ListenerPID = listener.PID

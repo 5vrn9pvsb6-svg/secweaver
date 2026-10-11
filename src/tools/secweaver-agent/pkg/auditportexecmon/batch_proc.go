@@ -120,6 +120,7 @@ func (m *processTreeMonitor) batchExpandPIDs(pids []int, listener listenerInfo) 
 
 // enqueuePIDExpansionWithStartTime is an optimized version that uses pre-read startTime
 func (m *processTreeMonitor) enqueuePIDExpansionWithStartTime(pid int, startTime uint64, listener listenerInfo) {
+	listener = bindListenerLifetime(listener)
 	if pid <= 1 || m.isSelfProcessTree(pid) || startTime == 0 {
 		return
 	}
@@ -179,7 +180,7 @@ func (m *processTreeMonitor) enqueuePIDExpansionWithStartTime(pid int, startTime
 		if replace {
 			m.removePIDRules(pid)
 		}
-		_ = m.expandPID(pid, listener)
+		_ = m.expandPIDExpected(pid, startTime, listener)
 		return
 	}
 

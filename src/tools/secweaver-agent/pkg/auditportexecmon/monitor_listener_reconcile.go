@@ -28,6 +28,9 @@ func (m *processTreeMonitor) rescanNewListeners() {
 		return
 	}
 	listeners, _ = filterSelfListeners(listeners, m.selfPID, m.selfExe, m.selfBranch)
+	for i := range listeners {
+		listeners[i] = bindListenerLifetime(listeners[i])
+	}
 	m.mu.Lock()
 	previous := append([]listenerInfo(nil), m.listeners...)
 	refreshed, newIndexes, removed := reconcileListeners(previous, listeners)
@@ -285,6 +288,9 @@ func reconcileListeners(existing, active []listenerInfo) ([]listenerInfo, []int,
 		previous, found := byIdentity[identity]
 		if !found {
 			previous, found = bySocket[listenerSocketIdentity(listener)]
+		}
+		if found && previous.RootStartTime != 0 && listener.RootStartTime != 0 && previous.RootStartTime != listener.RootStartTime {
+			found = false
 		}
 		if found {
 			matchedExisting[listenerIdentity(previous)] = true

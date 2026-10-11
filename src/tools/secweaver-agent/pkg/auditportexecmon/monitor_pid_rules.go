@@ -113,6 +113,7 @@ func (m *processTreeMonitor) expandPIDExpected(pid int, expectedStartTime uint64
 	// Validate identity before reserving budget and again after installation.
 	// A process can exit and its PID can be reused while auditctl commands are in
 	// flight; the second check removes rules installed for the wrong lifetime.
+	listener = bindListenerLifetime(listener)
 	if pid <= 1 || !isProcessAlive(pid) || m.isSelfProcessTree(pid) {
 		return nil
 	}
@@ -121,7 +122,10 @@ func (m *processTreeMonitor) expandPIDExpected(pid int, expectedStartTime uint64
 		return nil
 	}
 	startTime := readProcessStartTime(pid)
-	if expectedStartTime != 0 && startTime != 0 && startTime != expectedStartTime {
+	if listener.RootStartTime == 0 || readProcessStartTime(listener.PID) != listener.RootStartTime {
+		return nil
+	}
+	if startTime == 0 || (expectedStartTime != 0 && startTime != expectedStartTime) {
 		return nil
 	}
 	if m.usesBoundedAudit() {
@@ -195,8 +199,12 @@ func (m *processTreeMonitor) expandPIDExpected(pid int, expectedStartTime uint64
 		}
 		m.appendRules(fileRules)
 	}
+	if readProcessStartTime(listener.PID) != listener.RootStartTime {
+		m.removePIDRules(pid)
+		return nil
+	}
 	if startTime != 0 {
-		if current := readProcessStartTime(pid); current != 0 && current != startTime {
+		if current := readProcessStartTime(pid); current != startTime {
 			m.removePIDRules(pid)
 			return nil
 		}
@@ -263,6 +271,10 @@ func (m *processTreeMonitor) reservePIDExpansion(pid int, startTime uint64, list
 		m.processStartTimes = map[int]uint64{}
 	}
 	m.processStartTimes[pid] = startTime
+	if m.processParentPIDs == nil {
+		m.processParentPIDs = map[int]int{}
+	}
+	m.processParentPIDs[pid] = readProcessParentPID(pid)
 	m.pidListener[pid] = listener
 	if estimatedRules > 0 {
 		m.reservedAuditRules += estimatedRules
@@ -327,6 +339,7 @@ func (m *processTreeMonitor) forgetPID(pid int) {
 	delete(m.processStartTimes, pid)
 	delete(m.processParentPIDs, pid)
 	delete(m.processObservedAt, pid)
+	delete(m.processCloneTimes, pid)
 	delete(m.pidListener, pid)
 	delete(m.pendingRuleExpansion, pid)
 	delete(m.pendingPIDRuleCleanup, pid)

@@ -554,16 +554,23 @@ func readProcPPID(pid int) int {
 	return parseProcStatPPID(string(stat))
 }
 
+// readProcStartTimeFresh is the identity authority for attribution and rule
+// lifecycle checks. Cached /proc enrichment is never sufficient for that gate.
+func readProcStartTimeFresh(pid int) uint64 {
+	stat, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
+	if err != nil {
+		return 0
+	}
+	return parseProcStatStartTime(string(stat))
+}
+
 func readProcStartTime(pid int) uint64 {
 	// P0 Optimization: Check cache first to avoid repeated /proc reads
 	// stat field 22 is monotonic since boot and identifies a process lifetime;
 	// unlike PID it cannot be reused until reboot. Zero means unverified.
 	//
-	// This function is called multiple times during PID verification:
-	// - Initial read before lock
-	// - Verification after lock acquisition
-	// - Final verification after pressure check
-	// Without caching, this causes 3x /proc reads per PID expansion.
+	// This cache is for best-effort enrichment only. Attribution and queued
+	// rule mutations use readProcStartTimeFresh, including repeated checks.
 
 	now := time.Now()
 	procCacheMu.Lock()

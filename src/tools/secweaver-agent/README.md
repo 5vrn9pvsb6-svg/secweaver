@@ -1,5 +1,7 @@
 # secweaver-agent
 
+For the Linux attribution fixes and optional `attribution_status` field in Agent 0.3.92, see [Process attribution and short-lived evidence](docs/process-attribution.md). Canary verification must check both attribution accuracy and real descendant coverage.
+
 Source 0.3.86 adds [Linux learning recovery](docs/learning-recovery.md): inspect by
 default, preserve healthy learning/baselines, back up before explicit relearning
 and restore on startup failure. An empty baseline does not mean learning is off.
@@ -1002,7 +1004,7 @@ The implementation source of truth lives under `src/tools/secweaver-agent/pkg/`.
 | `listeners.go` / `procfs.go` | External listener discovery and `/proc` helpers |
 | `monitor_state.go` / `monitor_worker.go` | Process-tree state, asynchronous rule queue, backpressure, and statistics snapshots |
 | `monitor_bootstrap.go` / `monitor_listener_reconcile.go` / `monitor_listener_roots.go` | Initial coverage, listener reconciliation, and Web/Java/SSH root policies |
-| `monitor_pid.go` / `monitor_pid_rules.go` / `monitor_pid_cleanup.go` / `monitor_ebpf.go` | PID attribution, rule budget/expansion, dead-process cleanup, and eBPF lifecycle attribution |
+| `attribution.go` / `monitor_pid.go` / `monitor_pid_rules.go` / `monitor_pid_cleanup.go` / `monitor_ebpf.go` | PID attribution, rule budget/expansion, dead-process cleanup, and eBPF lifecycle attribution |
 | `monitor_self.go` / `companion.go` | Agent self-process exclusion and web-gateway companion discovery |
 | `audit_rules.go` | auditctl rule add/delete/cleanup helpers |
 | `audit_follow.go` / `audit_accumulator.go` | Audit log/shared-stream following, rotation handling, and multi-record accumulation |

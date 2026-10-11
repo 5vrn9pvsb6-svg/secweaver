@@ -303,6 +303,7 @@ func TestBoundedAuditBootstrapRuleCountDoesNotDependOnListeners(t *testing.T) {
 }
 
 func TestBoundedAuditCloneChurnDoesNotAddRules(t *testing.T) {
+	stubAttributionStartTimes(t, func(int) uint64 { return 1 })
 	original := runAuditctlCommand
 	defer func() { runAuditctlCommand = original }()
 	var calls [][]string
