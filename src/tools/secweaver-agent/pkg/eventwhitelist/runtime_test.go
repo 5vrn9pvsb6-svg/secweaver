@@ -177,7 +177,8 @@ func TestPrivateAtomicFileAndBoundedSymlinkRead(t *testing.T) {
 // checkpointed a redacted, tenant-bound alert; it does not prove cloud delivery.
 func TestAlertSinkWritesBoundIdentityAndRiskFields(t *testing.T) {
 	env, pub, _ := signedFixture(t, 1, "alert")
-	t.Setenv("SECWEAVER_ENTERPRISE_ID", env.EnterpriseID)
+	// The supervisor has config identity but does not inherit child-only env.
+	t.Setenv("SECWEAVER_ENTERPRISE_ID", "")
 	t.Setenv("SECWEAVER_HOST_NAME", "fixture-host")
 	t.Setenv("SECWEAVER_HOST_IP", "192.0.2.91")
 	dir := t.TempDir()

@@ -713,6 +713,17 @@ func OpenEventAppend(opts AppendOptions) (io.Writer, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	return OpenEnterpriseEventAppend(opts, enterpriseID)
+}
+
+// OpenEnterpriseEventAppend binds output to an already authenticated enterprise.
+// The supervisor owns this identity in configuration, whereas collector child
+// processes receive it through environment variables. Do not mutate the parent
+// environment just to initialize a shared writer.
+func OpenEnterpriseEventAppend(opts AppendOptions, enterpriseID string) (io.Writer, func(), error) {
+	if _, err := NormalizeEnterpriseID(enterpriseID); err != nil {
+		return nil, nil, fmt.Errorf("enterprise_id: %w", err)
+	}
 	destination, closeDestination, err := OpenAppend(opts)
 	if err != nil {
 		return nil, nil, err

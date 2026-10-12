@@ -1,5 +1,10 @@
 # Changelog
 
+## Agent [0.3.98] - 2026-10-13
+
+- Bind the supervised custom-alert writer to the authenticated configuration identity instead of requiring child-only environment variables in the parent process.
+- Preserve original events on sink failure, report its local cause, and add a regression test with no enterprise environment variable.
+
 ## Agent [0.3.97] - 2026-10-13
 
 - Add signed enterprise collection rules before learning: alert and retain, count only, force retention, or continue learning; support typed field combinations and bounded RE2/CIDR matching.

@@ -37,7 +37,7 @@ func runSupervisor(ctx context.Context, modules []runtimeModule, updater *schedu
 			root := filepath.Dir(filepath.Dir(configPath))
 			controller, closeRules, ruleErr := eventwhitelist.Start(cfg.CollectionRules, filepath.Dir(licenseCfg.Normalize().StatePath), filepath.Join(root, "logs"), enterpriseID, state.DeviceID)
 			if ruleErr != nil {
-				fmt.Fprintln(os.Stderr, "collection alert sink unavailable; originals retained")
+				fmt.Fprintf(os.Stderr, "collection alert sink unavailable; originals retained: %v\n", ruleErr)
 			}
 			collectionController.Store(controller)
 			defer func() { collectionController.Store(nil); closeRules() }()

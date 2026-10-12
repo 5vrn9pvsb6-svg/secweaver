@@ -1,6 +1,6 @@
 # Enterprise Custom Collection Rules
 
-Requires Agent0.3.97, Agent Server rc.84 and Server rc.135/schema41. Workspace uses approved option A under Custom collection rules. Owner/Admin can publish; members read; local subadministrators do not gain rule-write permission.
+Requires Agent0.3.98, Agent Server rc.84 and Server rc.135/schema41. Workspace uses approved option A under Custom collection rules. Owner/Admin can publish; members read; local subadministrators do not gain rule-write permission. Version0.3.98 fixes parent-writer initialization when enterprise identity exists only in configuration; version0.3.97 is superseded for deployment.
 
 Choose platform, module and actual event types. ALL/ANY/NOT support typed values, field combinations, RE2, CIDR, numeric ranges and arrays. Missing/incomplete/wrongly typed inputs remain unknown, even under NOT. Actions precede learning: alert and retain; count only without learning; retain and bypass learning; pass to learning. Ordering is alert > keep > pass > suppress, then numeric priority within an action. New rules are disabled/observe. Both policy and rule must enforce. Observe counts the first predicted winner before existing learning. High/critical and persistence changes resist suppression; exceptions require policy/rule permission, reason and expiry within seven days.
 

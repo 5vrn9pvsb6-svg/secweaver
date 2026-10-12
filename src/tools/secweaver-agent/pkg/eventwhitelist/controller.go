@@ -56,7 +56,8 @@ func Start(cfg Config, stateDir, logsDir, eid, device string) (*Controller, func
 		return nil, func() {}, fmt.Errorf("collection paths must be absolute")
 	}
 	c := &Controller{config: cfg, eid: eid, device: device}
-	out, closeOut, err := agentoutput.OpenEventAppend(agentoutput.AppendOptions{Path: cfg.AlertOutput, Perm: 0600, MaxSizeBytes: 100 << 20, MaxBackups: 5})
+	// Parent identity comes from verified configuration, not child-only env.
+	out, closeOut, err := agentoutput.OpenEnterpriseEventAppend(agentoutput.AppendOptions{Path: cfg.AlertOutput, Perm: 0600, MaxSizeBytes: 100 << 20, MaxBackups: 5}, eid)
 	if err != nil {
 		return c, func() {}, err
 	}
