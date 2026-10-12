@@ -129,6 +129,9 @@ func Classify(event windowseventlog.Event, includeRaw bool) []Event {
 func Write(enc *json.Encoder, event windowseventlog.Event, includeRaw bool) (int, error) {
 	written := 0
 	for _, item := range Classify(event, includeRaw) {
+		if customDecision(item).Action == "suppress" {
+			continue
+		}
 		if err := enc.Encode(item); err != nil {
 			return written, err
 		}

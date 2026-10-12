@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"secweaver-agent/pkg/behaviorlearning"
+	"secweaver-agent/pkg/eventwhitelist/core"
 	"secweaver-agent/pkg/layout"
 )
 
@@ -87,10 +88,12 @@ type Request struct {
 	// against newer Agent Servers without being rejected for an unknown field.
 	UpdateCapabilities []string `json:"update_capabilities,omitempty"`
 	// Runtime capability gates additive response fields for older clients.
-	RuntimePolicyCapabilities []string                         `json:"runtime_policy_capabilities,omitempty"`
-	HeartbeatIntervalSeconds  int                              `json:"heartbeat_interval_seconds,omitempty"`
-	UpdateStatus              *UpdateReport                    `json:"update_status,omitempty"`
-	BehaviorLearning          *behaviorlearning.StatusSnapshot `json:"behavior_learning,omitempty"`
+	RuntimePolicyCapabilities  []string                         `json:"runtime_policy_capabilities,omitempty"`
+	HeartbeatIntervalSeconds   int                              `json:"heartbeat_interval_seconds,omitempty"`
+	UpdateStatus               *UpdateReport                    `json:"update_status,omitempty"`
+	BehaviorLearning           *behaviorlearning.StatusSnapshot `json:"behavior_learning,omitempty"`
+	CollectionRuleCapabilities []string                         `json:"collection_rule_capabilities,omitempty"`
+	CollectionRules            *core.Status                     `json:"collection_rules,omitempty"`
 }
 
 type UpdateReport struct {
@@ -176,7 +179,8 @@ type Response struct {
 	// AgentRuntimePolicy is an optional server-owned runtime envelope. Older
 	// Agents ignore the additive response field; newer Agents apply it only
 	// after validating the bounded values locally.
-	AgentRuntimePolicy *RuntimePolicy `json:"agent_runtime_policy,omitempty"`
+	AgentRuntimePolicy      *RuntimePolicy `json:"agent_runtime_policy,omitempty"`
+	CollectionRulesEnvelope *core.Envelope `json:"collection_rules_envelope,omitempty"`
 }
 
 // RuntimePolicy contains the bounded tenant-controlled cadence settings that can
@@ -444,6 +448,12 @@ func (c Client) HeartbeatWithUpdate(ctx context.Context, cfg Config, enterpriseI
 // HeartbeatWithUpdateAndLearning keeps the learning field optional for older
 // callers while allowing the managed inventory to display current progress.
 func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, enterpriseID, agentVersion string, modules map[string]ModuleHealth, updateStatus *UpdateReport, learning *behaviorlearning.StatusSnapshot) (Response, error) {
+	return c.HeartbeatWithCollectionRules(ctx, cfg, enterpriseID, agentVersion, modules, updateStatus, learning, nil, nil)
+}
+
+// HeartbeatWithCollectionRules keeps the older API and wire clients unchanged.
+// Only device-authenticated capable Agents receive signed optional policies.
+func (c Client) HeartbeatWithCollectionRules(ctx context.Context, cfg Config, enterpriseID, agentVersion string, modules map[string]ModuleHealth, updateStatus *UpdateReport, learning *behaviorlearning.StatusSnapshot, capabilities []string, rules *core.Status) (Response, error) {
 	cfg = cfg.Normalize()
 	if err := cfg.Validate(); err != nil {
 		return Response{}, err
@@ -462,6 +472,8 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 	req.UpdateCapabilities = supportedUpdateCapabilities()
 	req.UpdateStatus = updateStatus
 	req.BehaviorLearning = learning
+	req.CollectionRuleCapabilities = capabilities
+	req.CollectionRules = rules
 	if cfg.DeviceAuthEnabled() {
 		state = withCurrentHardwareObservation(state)
 		req = buildRequest(state.EnterpriseID, state, agentVersion, "online")
@@ -471,6 +483,8 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 		req.UpdateCapabilities = supportedUpdateCapabilities()
 		req.UpdateStatus = updateStatus
 		req.BehaviorLearning = learning
+		req.CollectionRuleCapabilities = capabilities
+		req.CollectionRules = rules
 		req.EnterpriseID = state.EnterpriseID
 		return c.postSigned(ctx, cfg, heartbeatV2Path, req, state)
 	}

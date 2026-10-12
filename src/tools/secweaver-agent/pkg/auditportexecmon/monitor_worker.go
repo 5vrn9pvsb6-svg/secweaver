@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"secweaver-agent/pkg/eventwhitelist"
 	"sync/atomic"
 )
 
@@ -48,6 +49,10 @@ func (m *processTreeMonitor) startRuleExpansionWorker() {
 				m.pumpDeferredRecovery()
 			case <-rescanQueue:
 				m.rescanDescendants()
+			case <-eventwhitelist.Changes():
+				// Policy changes prune roots even during pressure degradation. Expansion
+				// still uses the existing queue limits and rule-rate controls.
+				m.rescanNewListeners()
 			case <-stop:
 				return
 			}

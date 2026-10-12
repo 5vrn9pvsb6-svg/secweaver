@@ -1,5 +1,7 @@
 # Agent 专题文档
 
+[企业自定义采集规则](custom-collection-rules.zh-CN.md)：A 方案、四种动作、设备回执与紧急禁用。
+
 **语言：** [English](README.md) | 简体中文（本文）
 
 首次安装和构建先读 [Agent 工程手册](../README.zh-CN.md)。按任务选择下列专题；托管安装与发布章节只适用于使用相应服务的部署，自建 ES 路径不要求部署私有服务端。
@@ -8,6 +10,7 @@
 |---|---|
 | 监听发现、多实例隔离、短命进程及归属输出限制 | [process-attribution](process-attribution.zh-CN.md) |
 | 行为学习、名单与日志减量 | [behavior-learning](behavior-learning.zh-CN.md) |
+| 企业采集规则：告警/不记录/强制记录/继续处理、字段组合、正则与 whitelist_ports（设计草案，尚未实现） | [custom-whitelist-design](custom-whitelist-design.zh-CN.md) |
 | 发布包接入自建 ES | [self-managed-es](self-managed-es.zh-CN.md) |
 | 指标、健康端点与配置重启 | [metrics-and-hot-reload](metrics-and-hot-reload.zh-CN.md) |
 | 运维健康日志与上传边界 | [operations-health-report](operations-health-report.zh-CN.md) |

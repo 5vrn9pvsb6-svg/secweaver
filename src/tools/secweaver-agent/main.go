@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"secweaver-agent/pkg/agentupdate"
+	"secweaver-agent/pkg/eventwhitelist"
 	"secweaver-agent/pkg/layout"
 	"secweaver-agent/pkg/metrics"
 	agentoutput "secweaver-agent/pkg/output"
@@ -50,6 +51,8 @@ func run(args []string) int {
 		return runPreflightCommand(args[1:])
 	case "doctor":
 		return runDoctorCommand(args[1:])
+	case "whitelist":
+		return runWhitelistCommand(args[1:])
 	case "logtail-check":
 		return runLogtailCheckCommand(args[1:])
 	case "collect-existing-logs":
@@ -435,6 +438,13 @@ func runModuleCommand(args []string) int {
 		printModules(os.Stderr)
 		return 2
 	}
+	// Optional policy workers belong to the module process and are joined after
+	// its collector releases cursors and writers. Rule failures preserve capture.
+	closeRules, ruleErr := eventwhitelist.InitFromEnv(context.Background())
+	if ruleErr != nil {
+		fmt.Fprintln(os.Stderr, "collection rules unavailable; originals retained")
+	}
+	defer closeRules()
 	return spec.Run(args[1:])
 }
 
@@ -453,6 +463,7 @@ Usage:
   secweaver-agent module <module-name> [module flags...]
   secweaver-agent <module-name> [module flags...]
   secweaver-agent update <check|install|rollback> [flags...]
+  secweaver-agent whitelist <validate|test|status|disable|enable> [flags...]
   secweaver-agent modules
   secweaver-agent version
 

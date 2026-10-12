@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"secweaver-agent/internal/modulecontract"
 	"secweaver-agent/pkg/agentlicense"
+	"secweaver-agent/pkg/eventwhitelist"
 	"secweaver-agent/pkg/metrics"
 	agentoutput "secweaver-agent/pkg/output"
 )
@@ -24,6 +28,35 @@ const auditMetricsInterval = 5 * time.Second
 func runSupervisor(ctx context.Context, modules []runtimeModule, updater *scheduledUpdateConfig, remoteCfg *scheduledRemoteConfig, configPath string, licenseCfg agentlicense.Config, enterpriseID string, tracker *statusTracker, metricsExporter *metrics.Exporter, operations *operationsReportRuntime) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// One parent owns alert rotation; modules only receive immutable environment
+	// bindings. Defer order keeps this sink alive until all module queues drain.
+	if licenseCfg.DeviceAuthEnabled() {
+		cfg, configErr := loadConfig(configPath)
+		state, stateErr := agentlicense.LoadState(licenseCfg.Normalize().StatePath)
+		if configErr == nil && stateErr == nil && state.DeviceID != "" {
+			root := filepath.Dir(filepath.Dir(configPath))
+			controller, closeRules, ruleErr := eventwhitelist.Start(cfg.CollectionRules, filepath.Dir(licenseCfg.Normalize().StatePath), filepath.Join(root, "logs"), enterpriseID, state.DeviceID)
+			if ruleErr != nil {
+				fmt.Fprintln(os.Stderr, "collection alert sink unavailable; originals retained")
+			}
+			collectionController.Store(controller)
+			defer func() { collectionController.Store(nil); closeRules() }()
+			for i := range modules {
+				if controller != nil && modules[i].Spec.Name == "audit-port-execmon" {
+					path, _ := modulecontract.StringFlag(modules[i].Config.Args, "config")
+					if raw, e := eventwhitelist.ReadBounded(path, 1<<20); e == nil {
+						var local struct {
+							Ports []int `json:"whitelist_ports"`
+						}
+						if json.Unmarshal(raw, &local) == nil {
+							controller.SetLegacyPorts(local.Ports)
+						}
+					}
+				}
+				modules[i].CollectionEnv = controller.Env(modules[i].Spec.Name)
+			}
+		}
+	}
 	identity, err := agentoutput.HostIdentityFromEnv()
 	if err != nil {
 		return fmt.Errorf("resolve host event identity: %w", err)
@@ -357,6 +390,7 @@ func runModuleProcess(ctx context.Context, module runtimeModule, auditDemuxes *a
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = withEnvValue(os.Environ(), agentoutput.EnterpriseIDEnv, module.EnterpriseID)
+	cmd.Env = append(cmd.Env, module.CollectionEnv...)
 	cmd.Env = withEnvValue(cmd.Env, agentoutput.DiskPriorityEnv, moduleDiskPriority(module.Spec.Name))
 	// Bind local learning baselines to the enrolled device rather than its IP.
 	if tracker != nil {

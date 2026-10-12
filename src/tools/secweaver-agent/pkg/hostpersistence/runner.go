@@ -13,6 +13,8 @@ import (
 
 	"time"
 
+	"secweaver-agent/pkg/eventwhitelist"
+	"secweaver-agent/pkg/eventwhitelist/core"
 	agentoutput "secweaver-agent/pkg/output"
 )
 
@@ -50,6 +52,15 @@ func run(ctx context.Context, cfg runtimeConfig, out io.Writer, st *stats) error
 				events = diffStates(previous, current, !stateExists && cfg.EmitBaseline, host, cfg.HostIP, now, cfg, auditTracker)
 			}
 			for _, event := range events {
+				// Filtering output never rolls back a complete scan's source state.
+				fields := eventwhitelist.SemanticFields(map[string]any{"/path": event.Path, "/category": event.Category, "/persistence_type": event.PersistenceType, "/action": event.Action, "/size": event.Size})
+				d := eventwhitelist.Decide(core.Event{EventType: event.EventType, AssetType: event.AssetType, Fields: fields, Protected: event.Action != "baseline"})
+				if d.Action == "suppress" {
+					continue
+				}
+				if d.Action == "alert" {
+					eventwhitelist.Alert(d, event.EvidenceID, event.Timestamp, fields)
+				}
 				if err := enc.Encode(event); err != nil {
 					return err
 				}

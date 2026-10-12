@@ -40,7 +40,7 @@ func TestAgentConfigSchemaTopLevelPropertiesMatchRuntime(t *testing.T) {
 	}
 	// Keep this list next to the runtime contract. A new top-level field must be
 	// added to both the strict Go decoder and the published JSON Schema.
-	want := []string{"deployment_mode", "disk_budget", "enterprise_id", "license", "metrics", "modules", "operations_report", "remote_config", "status_path", "update"}
+ want := []string{"collection_rules", "deployment_mode", "disk_budget", "enterprise_id", "license", "metrics", "modules", "operations_report", "remote_config", "status_path", "update"}
 	if len(schema.Properties) != len(want) {
 		t.Fatalf("schema top-level properties=%v want=%v", schema.Properties, want)
 	}

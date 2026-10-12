@@ -16,6 +16,15 @@
     "disk_budget": {"$ref": "#/$defs/diskBudget"},
     "license": {"$ref": "#/$defs/license"},
     "remote_config": {"$ref": "#/$defs/remoteConfig"},
+    "collection_rules": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "policy_file": {"type": "string"},
+        "public_key": {"type": "string"},
+        "alert_output": {"type": "string"}
+      }
+    },
     "update": {"$ref": "#/$defs/update"},
     "metrics": {"$ref": "#/$defs/metrics"},
     "modules": {

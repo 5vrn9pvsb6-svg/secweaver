@@ -1,0 +1,15 @@
+{
+  "asset_id": "asset-secweaver-custom-risk-alert",
+  "name": "SecWeaver 企业自定义风险告警",
+  "asset_type": "syslog_risk_alert",
+  "domain": "D2", "owner_team": "security-ops", "environment": "production", "status": "active",
+  "connector_id": "conn-sls-secweaver-custom-risk-alert",
+  "trace_profile_id": "secweaver-syslog-risk-alert",
+  "description": "企业自定义规则告警复用风险资产契约；event_type=custom_risk_alert。source_evidence_id 关联保留的原始日志，告警命中不是独立入侵证明。先配置实际 SLS/Proxy 路由与只读授权。",
+  "field_aliases": { "__source__": "host_ip" },
+  "coverage": { "hosts": [] },
+  "schema": { "fields": ["enterprise_id", "timestamp", "generated_at", "host_ip", "host_name", "device_id", "event_type", "evidence_id", "source_evidence_id", "rule_id", "rule_name", "policy_revision", "module", "severity", "risk_level", "message", "source_fields"], "time_field": "timestamp", "retention_days": 30 },
+  "query_template_ids": ["syslog_risk_by_host_ip_time", "syslog_risk_by_time"],
+  "sensitivity": "internal", "masking": { "message": "truncate_500" },
+  "tags": ["secweaver", "custom-risk-alert", "sls", "linux", "windows"]
+}

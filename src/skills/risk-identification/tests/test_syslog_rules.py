@@ -21,6 +21,19 @@ from syslog_rules import (  # noqa: E402
 
 
 class TestSyslogRules(unittest.TestCase):
+    def test_custom_alert_preserves_declared_risk_level(self) -> None:
+        """Custom hits reuse the risk bundle without deriving SSH authentication."""
+        for level, expected in [("critical", "P0"), ("high", "P1"), ("medium", "P2")]:
+            with self.subTest(level=level):
+                items = assess_syslog_events([{
+                    "event_type": "custom_risk_alert", "host": "192.0.2.91",
+                    "timestamp": "2026-10-13T01:00:00Z", "risk_level": level,
+                    "evidence_id": "custom:fixture", "rule_id": "tenant-fixture",
+                    "source_evidence_id": "audit:fixture", "rule_name": "Fixture",
+                }], ceiling=1.0, severity_floor="P2", warnings=[])
+                self.assertEqual(len(items), 1)
+                self.assertEqual(items[0]["severity"], expected)
+
     def test_excludes_ssh_auth_raw(self) -> None:
         engine = get_syslog_rules_engine()
         ev = {"event_type": "auth_failure", "message": "Failed password"}

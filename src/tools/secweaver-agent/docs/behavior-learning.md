@@ -2,6 +2,8 @@
 
 **Language:** English (this page) | [简体中文](behavior-learning.zh-CN.md)
 
+For manual field combinations, RE2 and alert/suppress/keep/pass in Agent0.3.97, see [custom collection rules](custom-collection-rules.md). Custom decisions precede learned filtering; pass and unmatched continue existing learning/output. Publication and upgrades preserve the learning baseline.
+
 ## Current Rule (0.3.85)
 
 Every integrated whitelist stream uses one rule: **during learning, five distinct

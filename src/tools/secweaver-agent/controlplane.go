@@ -207,7 +207,12 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 			if tracker != nil {
 				moduleHealth = tracker.moduleSnapshot()
 			}
-			resp, err := (agentlicense.Client{}).HeartbeatWithUpdateAndLearning(
+			controller := collectionController.Load()
+			pids := map[string]int{}
+			for name, h := range moduleHealth {
+				pids[name] = h.PID
+			}
+			resp, err := (agentlicense.Client{}).HeartbeatWithCollectionRules(
 				checkCtx,
 				cfg,
 				enterpriseID,
@@ -215,6 +220,7 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 				moduleHealth,
 				updateHeartbeatReport(updater),
 				behaviorLearningStatus(runtimeModules, moduleHealth, cfg, enterpriseID),
+				controller.Capabilities(), controller.Status(pids),
 			)
 			cancel()
 			if metricsExporter != nil {
@@ -231,6 +237,9 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 				fmt.Fprintf(os.Stderr, "license heartbeat unavailable; Agent remains active and will reconnect: %v\n", err)
 				nextWait = heartbeatBackoff(nextWait, interval)
 			} else {
+				if policyErr := controller.Apply(resp.CollectionRulesEnvelope); policyErr != nil {
+					fmt.Fprintln(os.Stderr, "collection policy apply failed; last valid policy retained")
+				}
 				if tracker != nil {
 					tracker.heartbeat(nil)
 				}

@@ -15,6 +15,7 @@ import (
 
 	"secweaver-agent/internal/modulecontrol"
 	"secweaver-agent/pkg/auditstream"
+	"secweaver-agent/pkg/eventwhitelist"
 )
 
 // Release builds replace this value from the root VERSION file. Keeping the
@@ -134,9 +135,12 @@ func Main(args []string) int {
 		fatalf("定位对外监听端口进程失败：%v", err)
 	}
 	listeners, skippedSelfListeners := filterSelfListeners(listeners, selfPID, selfExe, selfBranch)
-	if len(listeners) == 0 {
+	if len(listeners) == 0 && eventwhitelist.ListenerRevision() == 0 {
 		if skippedSelfListeners > 0 {
 			fatalf("定位对外监听端口进程失败：只发现 secweaver-agent 自身监听，已排除；没有其他需要监控的对外监听端口")
+		}
+		if len(listeners) == 0 {
+			fmt.Fprintln(os.Stderr, "listener scope empty; waiting for policy/listener changes")
 		}
 		fatalf("定位对外监听端口进程失败：没有找到需要监控的对外监听端口")
 	}

@@ -1,5 +1,12 @@
 # Changelog
 
+## Agent [0.3.97] - 2026-10-13
+
+- Add signed enterprise collection rules before learning: alert and retain, count only, force retention, or continue learning; support typed field combinations and bounded RE2/CIDR matching.
+- Preserve learning/cursors on publication, retain last-good rules during failures and originals after expiry, and report actual live-module receipts.
+- Add Linux TCP listener scope, per-device legacy port migration, whitelist validation/testing/emergency disable, Doctor trust checks and rotating custom-risk-alert output.
+- Integrate Linux audit/syslog/persistence and Windows evidence/risk paths; keep snapshots/control telemetry outside filtering and document cloud prerequisites.
+
 ## Agent [0.3.96] - 2026-10-12
 
 - Freeze verified audit listener ownership at primary admission so process exit or reuse during assembly cannot erase or transfer the event’s service attribution.

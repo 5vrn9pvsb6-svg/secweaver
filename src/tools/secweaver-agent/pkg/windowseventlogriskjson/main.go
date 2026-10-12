@@ -16,6 +16,8 @@ import (
 	"secweaver-agent/internal/agentactivity"
 	"secweaver-agent/internal/modulecontrol"
 	"secweaver-agent/internal/windowsevidence"
+	"secweaver-agent/pkg/eventwhitelist"
+	"secweaver-agent/pkg/eventwhitelist/core"
 	"secweaver-agent/pkg/layout"
 	agentoutput "secweaver-agent/pkg/output"
 	"secweaver-agent/pkg/windowseventlog"
@@ -360,7 +362,16 @@ func collectOnce(ctx context.Context, cfg runConfig, out, evidenceOut io.Writer,
 						st.Suppressed++
 						continue
 					}
-					if riskEnabled && item.EventType == "powershell_script_block" {
+					fields := eventwhitelist.SemanticFields(map[string]any{"/provider": item.Provider, "/channel": item.Channel, "/event_id": item.EventID, "/user": item.User, "/user_sid": item.UserSID, "/command": item.Command, "/script_sha256": item.ScriptSHA256, "/severity": item.Severity, "/message": item.Message})
+					d := eventwhitelist.Decide(core.Event{EventType: item.EventType, AssetType: item.AssetType, Fields: fields, Protected: item.Severity == "high" || item.Severity == "critical", Backfill: cfg.Once && cfg.Lookback > 24*time.Hour})
+					if d.Action == "suppress" {
+						st.Suppressed++
+						continue
+					}
+					if d.Action == "alert" {
+						eventwhitelist.Alert(d, item.EvidenceID, item.Timestamp, fields)
+					}
+					if riskEnabled && item.EventType == "powershell_script_block" && d.Action != "keep" && d.Action != "alert" {
 						n, err := w.observe(event, item)
 						st.EventsWritten += n
 						if err != nil {

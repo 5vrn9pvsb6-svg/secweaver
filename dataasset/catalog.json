@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated": "2026-09-23",
+  "updated": "2026-10-13",
   "description": "SecWeaver 数据资产目录索引；由 catalog_sync.py 自动扫描生成",
   "connectors": [
     "connectors/conn-agent-web-01-exec.json",
@@ -17,6 +17,7 @@
     "connectors/conn-sls-host-behavior-summary.json",
     "connectors/conn-sls-proxy-demo.json",
     "connectors/conn-sls-proxy-host-behavior-summary.json",
+    "connectors/conn-sls-secweaver-custom-risk-alert.json",
     "connectors/conn-sls-secweaver-gateway-access.json",
     "connectors/conn-sls-secweaver-host-events.json",
     "connectors/conn-sls-secweaver-host-persistence.json",
@@ -46,6 +47,7 @@
     "assets/asset-mysql-ssh-auth.json",
     "assets/asset-network-nta-prod.json",
     "assets/asset-pg-cmdb-hosts.json",
+    "assets/asset-secweaver-custom-risk-alert.json",
     "assets/asset-secweaver-gateway-access.json",
     "assets/asset-secweaver-host-connect.json",
     "assets/asset-secweaver-host-exec.json",

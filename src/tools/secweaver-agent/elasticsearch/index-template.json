@@ -20,6 +20,12 @@
         "@timestamp": {
           "type": "date"
         },
+        "generated_at": { "type": "date" },
+        "policy_revision": { "type": "long" },
+        "policy_id": { "type": "keyword" },
+        "source_evidence_id": { "type": "keyword" },
+        "source_module": { "type": "keyword" },
+        "source_fields": { "type": "object", "enabled": false },
         "time": {
           "type": "date"
         },

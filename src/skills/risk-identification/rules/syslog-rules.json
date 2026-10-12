@@ -19,6 +19,21 @@
   "when_extensions": {},
   "rules": [
     {
+      "id": "custom_alert_critical", "severity": "P0", "enabled": true,
+      "note": "企业自定义规则的严重告警；需结合 source_evidence_id 复核原始证据，不直接认定入侵",
+      "when": { "event_type": "custom_risk_alert", "risk_level_in": ["critical"] }
+    },
+    {
+      "id": "custom_alert_high", "severity": "P1", "enabled": true,
+      "note": "企业自定义高危告警，关联原始事件复核",
+      "when": { "event_type": "custom_risk_alert", "risk_level_in": ["high"] }
+    },
+    {
+      "id": "custom_alert_medium", "severity": "P2", "enabled": true,
+      "note": "企业自定义中危告警，关联原始事件复核",
+      "when": { "event_type": "custom_risk_alert", "risk_level_in": ["medium"] }
+    },
+    {
       "id": "account_created",
       "severity": "P0",
       "enabled": true,

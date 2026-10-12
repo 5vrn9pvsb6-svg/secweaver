@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"secweaver-agent/pkg/eventwhitelist"
 	"time"
 )
 
@@ -23,6 +24,7 @@ func (m *processTreeMonitor) rescanNewListeners() {
 	// Listener discovery is a reconciliation source, not the real-time source.
 	// Clone events cover the interval between scans; this pass repairs socket
 	// ownership changes, daemon restarts, and processes missed by audit races.
+	revision := eventwhitelist.ListenerRevision()
 	listeners, err := findExternalListeners(m.portFilter, m.whitelistPorts)
 	if err != nil {
 		return
@@ -44,6 +46,7 @@ func (m *processTreeMonitor) rescanNewListeners() {
 		fmt.Fprintf(os.Stderr, "pruned stale external listeners: count=%d active=%d\n", removed, len(refreshed))
 		m.cleanupRemovedListenerRules(previous, refreshed)
 	}
+	failed := false
 	for _, index := range newIndexes {
 		m.mu.Lock()
 		l := m.listeners[index]
@@ -54,9 +57,17 @@ func (m *processTreeMonitor) rescanNewListeners() {
 			fmt.Fprintf(os.Stderr, "new external listener: pid=%d process=%s address=%s port=%d\n", l.PID, l.Process, l.Address, l.Port)
 		}
 		if err := m.bootstrapListenerAt(index); err != nil {
+			failed = true
+			eventwhitelist.ListenerApplied(revision, false)
 			fmt.Fprintf(os.Stderr, "bootstrap new listener failed: pid=%d process=%s port=%d err=%v\n", l.PID, l.Process, l.Port, err)
 		}
 	}
+	// Pending cleanup/expansion cannot be called applied merely because the
+	// policy was downloaded. The next bounded reconcile completes the receipt.
+	m.mu.Lock()
+	complete := !failed && len(m.pendingRuleExpansion) == 0 && len(m.pendingPIDRuleCleanup) == 0 && len(m.pendingExeRuleCleanup) == 0
+	m.mu.Unlock()
+	eventwhitelist.ListenerApplied(revision, complete)
 }
 
 // cleanupRemovedListenerRules removes all PID descendants and executable rules

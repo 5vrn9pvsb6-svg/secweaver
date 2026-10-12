@@ -97,6 +97,7 @@ func collectDoctorReport(configPath string, checkLicense bool) doctorReport {
 			mode = "unspecified (legacy/standalone)"
 		}
 		add(doctorOK, "deployment_mode", "Agent installation channel", mode)
+		doctorCheckCollectionRules(cfg, add)
 		preflight := collectPreflightReport(configPath, modules, updater)
 		for _, check := range preflight.Checks {
 			add(doctorLevel(check.Level), "preflight/"+check.Component, check.Message, check.Detail)

@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"secweaver-agent/pkg/eventwhitelist"
+	"secweaver-agent/pkg/eventwhitelist/core"
 	"strconv"
 	"strings"
 	"time"
@@ -17,11 +19,28 @@ import (
 const listenerCommandTimeout = 5 * time.Second
 
 func findExternalListeners(portFilter int, whitelistPorts map[int]bool) ([]listenerInfo, error) {
-	return findExternalListenersWithSources(portFilter, whitelistPorts, listenerDiscoverySources{
+	// An explicitly consented digest replaces the effective legacy exclusion;
+	// retaining its file bytes makes rollback restore the original local policy.
+	effective := whitelistPorts
+	if eventwhitelist.LegacyPortsMigrated(whitelistPorts) {
+		effective = nil
+	}
+	listeners, err := findExternalListenersWithSources(portFilter, effective, listenerDiscoverySources{
 		netstatCandidates: readNetstatListenerCandidates,
 		socketOwners:      buildSocketInodeMapWithStats,
 		procListeners:     findListenersFromProc,
 	})
+	if err != nil {
+		return nil, err
+	}
+	kept := listeners[:0]
+	for _, l := range listeners {
+		fields := eventwhitelist.SemanticFields(map[string]any{"/listener_port": l.Port, "/listener_address": l.Address, "/listener_process": l.Process, "/listener_exe": l.MonitorExe})
+		if eventwhitelist.Decide(core.Event{EventType: "__listener", Fields: fields}).Action != "exclude_listener" {
+			kept = append(kept, l)
+		}
+	}
+	return kept, nil
 }
 
 type listenerDiscoverySources struct {
@@ -93,6 +112,9 @@ func findExternalListenersWithSources(portFilter int, whitelistPorts map[int]boo
 	if needsProcFallback {
 		inodeToPID, stats := sources.socketOwners()
 		if stats.BudgetExhausted {
+			if eventwhitelist.ListenerRevision() > 0 {
+				return nil, fmt.Errorf("listener discovery incomplete; previous scope retained")
+			}
 			// A bounded scan protects the host from a very large FD table. Missing
 			// owners remain eligible for repair on the next reconciliation round.
 			fmt.Fprintf(os.Stderr, "listener /proc fd scan reached budget: scanned=%d budget=%d\n", stats.FDsScanned, stats.FDBudget)

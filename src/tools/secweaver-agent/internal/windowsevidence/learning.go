@@ -273,7 +273,16 @@ func (w *Learning) writeSource(event windowseventlog.Event, includeRaw bool) (in
 			engine = w.networkEngine
 		}
 		var err error
-		if engine == nil {
+		// The creation cache advanced above even if this output is suppressed.
+		customEvent := e
+		if e.EventType == "file_op" && o.Context.File != nil {
+			customEvent.CommandLine = o.Context.File.CommandLine
+		}
+		d := customDecision(customEvent)
+		if d.Action == "suppress" {
+			continue
+		}
+		if engine == nil || d.Action == "keep" || d.Action == "alert" {
 			err = w.writeOriginal(o.Raw)
 		} else {
 			err = engine.Process(o)

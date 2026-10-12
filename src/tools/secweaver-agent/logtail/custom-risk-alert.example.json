@@ -1,0 +1,11 @@
+{
+  "description": "Map into your Logtail version; server-side binding is required. Credentials stay on the operator server.",
+  "logstore": "host-custom-risk-alert",
+  "log_path": "/opt/secweaver-agent/logs",
+  "windows_log_path": "C:\\ProgramData\\SecWeaver\\Agent\\logs",
+  "file_pattern": "custom-risk-alert.log*",
+  "exclude_pattern": "*.gz",
+  "parse_mode": "json",
+  "time_field": "generated_at",
+  "machine_group": "YOUR_USER_DEFINED_MACHINE_GROUP"
+}

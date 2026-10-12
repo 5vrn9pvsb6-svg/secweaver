@@ -181,7 +181,13 @@ func (c Client) postSigned(ctx context.Context, cfg Config, path string, payload
 	if err != nil {
 		return Response{}, err
 	}
-	responseBody, status, err := c.doSigned(ctx, cfg, path, body, state, 1<<20)
+	// A capable heartbeat can include a 1 MiB signed policy plus license metadata.
+	// Enrollment and all older operations retain their existing response bound.
+	limit := int64(1 << 20)
+	if path == heartbeatV2Path && len(payload.CollectionRuleCapabilities) > 0 {
+		limit = 2 << 20
+	}
+	responseBody, status, err := c.doSigned(ctx, cfg, path, body, state, limit)
 	if err != nil {
 		return Response{}, err
 	}

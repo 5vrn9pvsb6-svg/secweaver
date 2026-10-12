@@ -21,6 +21,8 @@ import (
 	"time"
 
 	"secweaver-agent/internal/modulecontrol"
+	"secweaver-agent/pkg/eventwhitelist"
+	"secweaver-agent/pkg/eventwhitelist/core"
 	"secweaver-agent/pkg/layout"
 	agentoutput "secweaver-agent/pkg/output"
 )
@@ -475,6 +477,15 @@ func processRawLineSince(raw, path, kind string, cfg config, enc *json.Encoder, 
 		}
 		if !cfg.IncludeRaw {
 			event.RawLine = ""
+		}
+		fields := eventwhitelist.SemanticFields(map[string]any{"/program": event.Program, "/user": event.User, "/src_ip": event.SrcIP, "/severity": event.Severity, "/message": event.Message, "/event_type": event.EventType})
+		d := eventwhitelist.Decide(core.Event{EventType: event.EventType, Fields: fields, Protected: event.Severity == "high" || event.Severity == "critical", Backfill: !since.IsZero()})
+		if d.Action == "suppress" {
+			st.Suppressed++
+			continue
+		}
+		if d.Action == "alert" {
+			eventwhitelist.Alert(d, event.EventID, event.Timestamp, fields)
 		}
 		if err := enc.Encode(event); err != nil {
 			return err

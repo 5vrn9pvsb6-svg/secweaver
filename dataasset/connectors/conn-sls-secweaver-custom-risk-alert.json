@@ -1,0 +1,9 @@
+{
+  "connector_id": "conn-sls-secweaver-custom-risk-alert",
+  "name": "SecWeaver 企业自定义告警 SLS 示例",
+  "connector_type": "sls", "status": "draft",
+  "credentials_ref": "vault://sls/sls-readonly",
+  "description": "将 Project 替换为实际授权项目；SLS SaaS 可改为 sls_proxy 并按用户接入指南配置。不得向 Agent 分发查询 AK/SK。",
+  "config": { "endpoint": "cn-hangzhou.log.aliyuncs.com", "region": "cn-hangzhou", "project": "YOUR_SLS_PROJECT", "logstore": "host-custom-risk-alert", "source_log_path": "/opt/secweaver-agent/logs/custom-risk-alert.log" },
+  "constraints": { "max_rows": 2000, "max_time_span_hours": 72, "query_language": "sls_sql" }
+}

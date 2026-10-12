@@ -1,5 +1,6 @@
 {
   "filebeat.inputs": [
+    {"type":"filestream","id":"secweaver-public-custom-risk-alert","enabled":true,"paths":["/opt/secweaver-agent/logs/custom-risk-alert.log","/opt/secweaver-agent/logs/custom-risk-alert.log.*"],"prospector.scanner.exclude_files":["\\.gz$"],"fields_under_root":true,"fields":{"secweaver_dataset":"custom-risk-alert"}},
     {
       "type": "filestream",
       "id": "secweaver-public-audit-port-execmon",

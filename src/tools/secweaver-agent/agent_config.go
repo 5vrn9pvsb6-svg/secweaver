@@ -13,6 +13,7 @@ import (
 	"secweaver-agent/internal/modulecontract"
 	"secweaver-agent/pkg/agentlicense"
 	"secweaver-agent/pkg/agentupdate"
+	"secweaver-agent/pkg/eventwhitelist"
 	"secweaver-agent/pkg/metrics"
 	agentoutput "secweaver-agent/pkg/output"
 )
@@ -22,16 +23,17 @@ type moduleDescriptor = modulecontract.Descriptor
 type moduleSpec = moduleDescriptor
 
 type agentConfig struct {
-	DeploymentMode string                       `json:"deployment_mode,omitempty"`
-	EnterpriseID   string                       `json:"enterprise_id"`
-	StatusPath     string                       `json:"status_path,omitempty"`
-	Operations     operationsReportConfig       `json:"operations_report,omitempty"`
-	License        agentlicense.Config          `json:"license,omitempty"`
-	RemoteConfig   remoteConfigConfig           `json:"remote_config,omitempty"`
-	Modules        map[string]moduleConfig      `json:"modules"`
-	Update         updateConfig                 `json:"update,omitempty"`
-	Metrics        metricsConfig                `json:"metrics,omitempty"`
-	DiskBudget     agentoutput.DiskBudgetConfig `json:"disk_budget,omitempty"`
+	DeploymentMode  string                       `json:"deployment_mode,omitempty"`
+	EnterpriseID    string                       `json:"enterprise_id"`
+	StatusPath      string                       `json:"status_path,omitempty"`
+	Operations      operationsReportConfig       `json:"operations_report,omitempty"`
+	License         agentlicense.Config          `json:"license,omitempty"`
+	RemoteConfig    remoteConfigConfig           `json:"remote_config,omitempty"`
+	CollectionRules eventwhitelist.Config        `json:"collection_rules,omitempty"`
+	Modules         map[string]moduleConfig      `json:"modules"`
+	Update          updateConfig                 `json:"update,omitempty"`
+	Metrics         metricsConfig                `json:"metrics,omitempty"`
+	DiskBudget      agentoutput.DiskBudgetConfig `json:"disk_budget,omitempty"`
 }
 
 type operationsReportConfig struct {
@@ -115,11 +117,12 @@ type updateConfig struct {
 }
 
 type runtimeModule struct {
-	Spec         moduleDescriptor
-	Config       moduleConfig
-	EnterpriseID string
-	HostName     string
-	HostIP       string
+	CollectionEnv []string // immutable per supervised run; no secrets are written to logs
+	Spec          moduleDescriptor
+	Config        moduleConfig
+	EnterpriseID  string
+	HostName      string
+	HostIP        string
 }
 
 type scheduledUpdateConfig struct {

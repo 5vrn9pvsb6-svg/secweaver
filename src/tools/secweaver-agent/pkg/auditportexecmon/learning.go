@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"secweaver-agent/pkg/behaviorlearning"
+	"secweaver-agent/pkg/eventwhitelist"
+	"secweaver-agent/pkg/eventwhitelist/core"
 	"secweaver-agent/pkg/layout"
 )
 
@@ -130,9 +132,30 @@ func emitNormalizedEvent(out io.Writer, event auditEvent) error {
 	if !hasOutputListener(event) {
 		return nil
 	}
+	// Attribution already completed; filtering never changes tree membership.
+	fields := eventwhitelist.SemanticFields(map[string]any{"/listener_process": event.ListenerProcess, "/listener_port": event.ListenerPort, "/listener_address": event.ListenerAddress, "/pid_name": event.PIDName, "/exe": event.Exe, "/command_line": event.CommandLine, "/uid": event.UID, "/uid_name": event.UIDName, "/file_paths": event.FilePaths, "/connect_ip": event.ConnectAddress, "/connect_port": event.ConnectPort})
+	incomplete := map[string]bool{"/command_line": event.CommandTruncated || event.Fields["learning_argv_complete"] == "false"}
+	d := eventwhitelist.Decide(core.Event{EventType: event.EventType, AssetType: "host_exec", Fields: fields, Incomplete: incomplete})
+	switch d.Action {
+	case "suppress":
+		return nil
+	case "alert":
+		eventwhitelist.Alert(d, event.AuditID, event.Time.UTC().Format(time.RFC3339Nano), fields)
+		fallthrough
+	case "keep":
+		if w, ok := out.(*learningOutput); ok {
+			out = w.Writer
+		}
+		return emitOriginalEvent(out, event)
+	}
 	if sink, ok := out.(interface{ WriteEvent(auditEvent) error }); ok {
 		return sink.WriteEvent(event)
 	}
+	return emitOriginalEvent(out, event)
+}
+
+// emitOriginalEvent is policy-free so fallbacks do not match/count twice.
+func emitOriginalEvent(out io.Writer, event auditEvent) error {
 	b, err := json.Marshal(event)
 	if err != nil {
 		return err
@@ -151,7 +174,7 @@ func (w *learningOutput) WriteEvent(event auditEvent) error {
 		return nil
 	}
 	if event.EventType != "exec" && (event.EventType != "file_op" || w.fileEngine == nil) {
-		return emitNormalizedEvent(w.Writer, event)
+		return emitOriginalEvent(w.Writer, event)
 	}
 	raw, err := json.Marshal(event)
 	if err != nil {
@@ -159,7 +182,7 @@ func (w *learningOutput) WriteEvent(event auditEvent) error {
 	}
 	if len(raw) > 65536 {
 		w.fault("oversized_event")
-		return emitNormalizedEvent(w.Writer, event)
+		return emitOriginalEvent(w.Writer, event)
 	}
 	// audit accumulators return to a pool immediately after this call.
 	event.Command = append([]string(nil), event.Command...)
@@ -173,14 +196,14 @@ func (w *learningOutput) WriteEvent(event auditEvent) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.closed {
-		return emitNormalizedEvent(w.Writer, event)
+		return emitOriginalEvent(w.Writer, event)
 	}
 	select {
 	case w.queue <- event:
 		return nil
 	default:
 		w.fault("learning_queue_overflow")
-		return emitNormalizedEvent(w.Writer, event)
+		return emitOriginalEvent(w.Writer, event)
 	}
 }
 

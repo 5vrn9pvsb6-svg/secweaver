@@ -1,5 +1,7 @@
 # Agent Topic Guides
 
+[Enterprise custom collection rules](custom-collection-rules.md): option A, actions, receipts and local emergency disable.
+
 **Languages:** English (this page) | [简体中文](README.zh-CN.md)
 
 Start with the [Agent engineering manual](../README.md) for installation and builds. Choose a topic below. Managed installation and publication apply only to deployments using those services; the self-managed ES path does not require private server deployment.
@@ -8,6 +10,7 @@ Start with the [Agent engineering manual](../README.md) for installation and bui
 |---|---|
 | Listener discovery, instance isolation, short-lived processes and output scope | [process-attribution](process-attribution.md) |
 | Behavior learning, baselines, and log reduction | [behavior-learning](behavior-learning.md) |
+| Enterprise collection rules: alert/suppress/keep/pass, field combinations, regex, and whitelist_ports (design draft, not implemented) | [custom-whitelist-design](custom-whitelist-design.md) |
 | Self-managed ES from a release package | [self-managed-es](self-managed-es.md) |
 | Metrics, health endpoints, and configuration restarts | [metrics-and-hot-reload](metrics-and-hot-reload.md) |
 | Operations-health logs and shipping boundaries | [operations-health-report](operations-health-report.md) |
