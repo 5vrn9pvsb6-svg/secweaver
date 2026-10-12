@@ -78,6 +78,7 @@ func followAuditLog(ctx context.Context, path, execKey, connectKey, fileKey stri
 	}()
 
 	flushPending := func(now time.Time) {
+		monitor.logAttributionStats(false)
 		emitReady(accs, execKey, connectKey, fileKey, monitor, host, printRaw, out, 0)
 		pruneOld(accs, 10*time.Second)
 		nextFlush = now.Add(auditLogFlushInterval)
@@ -99,16 +100,7 @@ func followAuditLog(ctx context.Context, path, execKey, connectKey, fileKey stri
 			return
 		}
 		fields := parseFields(line)
-		monitor.observeAuditFields(fields)
-		if monitor.shouldDropBoundedAuditPrimary(fields) {
-			return
-		}
-		// Clone records drive process-tree expansion but are not user-facing exec
-		// events. Skipping their accumulator avoids allocation on a high-rate path.
-		if fields["key"] == monitor.cloneKey {
-			return
-		}
-		id, _ := consumeAuditLineParsed(accs, line, fields, printRaw)
+		id := monitor.consumeAttributedAuditLine(accs, line, fields, printRaw)
 		if id != "" {
 			emitOneReady(accs, id, execKey, connectKey, fileKey, monitor, host, printRaw, out)
 		}
@@ -175,6 +167,7 @@ func followAuditStream(ctx context.Context, r io.Reader, execKey, connectKey, fi
 	go readAuditStreamLines(ctx, r, lines, errCh)
 
 	flushPending := func(now time.Time) {
+		monitor.logAttributionStats(false)
 		emitReady(accs, execKey, connectKey, fileKey, monitor, host, printRaw, out, 0)
 		pruneOld(accs, 10*time.Second)
 		nextFlush = now.Add(auditLogFlushInterval)
@@ -195,14 +188,7 @@ func followAuditStream(ctx context.Context, r io.Reader, execKey, connectKey, fi
 			return
 		}
 		fields := parseFields(line)
-		monitor.observeAuditFields(fields)
-		if monitor.shouldDropBoundedAuditPrimary(fields) {
-			return
-		}
-		if fields["key"] == monitor.cloneKey {
-			return
-		}
-		id, _ := consumeAuditLineParsed(accs, line, fields, printRaw)
+		id := monitor.consumeAttributedAuditLine(accs, line, fields, printRaw)
 		if id != "" {
 			emitOneReady(accs, id, execKey, connectKey, fileKey, monitor, host, printRaw, out)
 		}

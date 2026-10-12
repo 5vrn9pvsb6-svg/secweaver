@@ -328,6 +328,7 @@ func (m *processTreeMonitor) ruleExpansionStatsSnapshot() ruleExpansionStats {
 }
 
 func (m *processTreeMonitor) logRuleExpansionStats() {
+	m.logAttributionStats(true)
 	stats := m.ruleExpansionStatsSnapshot()
 	parser := auditParserMetricsSnapshotNow()
 	if stats.Enqueued == 0 && stats.Deduped == 0 && stats.QueueFull == 0 && stats.Expanded == 0 && stats.Failed == 0 && stats.RuleLimitSkips == 0 && stats.PressurePaused == 0 && stats.PressureEvents == 0 && parser.AccumulatorsCreated == 0 {

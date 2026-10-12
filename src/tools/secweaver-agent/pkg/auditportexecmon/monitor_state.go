@@ -78,6 +78,14 @@ type processTreeMonitor struct {
 	pidListener    map[int]listenerInfo
 	processTracker processtracker.Tracker
 	processBackend string
+	// History is bounded independently of active rules. mu protects these maps;
+	// event snapshots copied into reader-owned accumulators need no monitor lock.
+	attributionHistory  attributionHistory
+	activeListenerRoots map[rootIdentity]bool // discovery membership; exit removes without mutating listener slices
+	attributionCounts   map[string]uint64
+	attributionChanges  uint64
+	attributionLogged   uint64
+	attributionLogAt    time.Time
 
 	// Coverage ledger. monitored is a reservation as well as a state flag;
 	// processStartTimes prevents PID reuse, while rules/watchRules are the exact
@@ -203,13 +211,14 @@ func newProcessTreeMonitor(listeners []listenerInfo, portFilter int, whitelistPo
 	}
 	selfExe, _ := os.Executable()
 	selfPID := os.Getpid()
-	return &processTreeMonitor{
+	m := &processTreeMonitor{
 		selfPID:                   selfPID,
 		selfExe:                   selfExe,
 		selfBranch:                collectSelfBranchPIDs(selfPID, selfExe),
 		portFilter:                portFilter,
 		whitelistPorts:            whitelistPorts,
 		listeners:                 listeners,
+		activeListenerRoots:       make(map[rootIdentity]bool),
 		pidListener:               map[int]listenerInfo{},
 		monitored:                 map[int]bool{},
 		processStartTimes:         map[int]uint64{},
@@ -248,6 +257,13 @@ func newProcessTreeMonitor(listeners []listenerInfo, portFilter int, whitelistPo
 		deferredRuleExpansion:     map[int]ruleExpansion{},
 		suppressedCloneRules:      map[int]ruleExpansion{},
 	}
+	for _, listener := range listeners {
+		m.activeListenerRoots[rootIdentity{listener.PID, listener.RootStartTime}] = true
+		if listener.RootStartTime != 0 && readProcessStartTime(listener.PID) == listener.RootStartTime {
+			m.rememberRootHistoryLocked(listener)
+		}
+	}
+	return m
 }
 
 // startRuleExpansionWorker creates the only dynamic rule mutation worker. Clone

@@ -116,6 +116,9 @@ func (m *processTreeMonitor) observeAuditFields(fields map[string]string) {
 // as the child PID. This closes much of the race where a short-lived child can
 // exec and exit before it appears in a later /proc snapshot.
 func (m *processTreeMonitor) trackSuccessfulCloneChild(fields map[string]string, parentPID int, listener listenerInfo) {
+	if listener.Historical {
+		return
+	}
 	if fields["key"] != m.cloneKey || strings.EqualFold(fields["success"], "no") {
 		return
 	}
@@ -169,7 +172,7 @@ func (m *processTreeMonitor) trackProcessChain(pid, ppid int, listener listenerI
 	// Ownership flows downward only. A service root's parent may be a runtime
 	// shared with sibling processes; promoting it would attribute those siblings
 	// to the service. Missed intermediate descendants are repaired by rescans.
-	if listener.ExeOnly {
+	if listener.ExeOnly || listener.Historical {
 		return
 	}
 	// A delayed record may describe an earlier occupant of this PID. Its event
@@ -207,7 +210,7 @@ const unknownProcessIdentityTTL = 5 * time.Second
 // briefly so its queued exec evidence can still be attributed, then periodic
 // pruning removes it.
 func (m *processTreeMonitor) rememberBoundedAuditPID(pid, ppid int, listener listenerInfo) {
-	if pid <= 1 {
+	if pid <= 1 || listener.Historical {
 		return
 	}
 	listener = bindListenerLifetime(listener)
@@ -216,6 +219,12 @@ func (m *processTreeMonitor) rememberBoundedAuditPID(pid, ppid int, listener lis
 		startTime = unknownProcessStartTime
 	}
 	m.mu.Lock()
+	// Historical matches and roots retired between admission and observation may
+	// preserve an event, but cannot establish active tracking for today's PID.
+	if m.listenerLifetimeLocked(listener) != attributionVerified {
+		m.mu.Unlock()
+		return
+	}
 	if m.processParentPIDs == nil {
 		m.processParentPIDs = map[int]int{}
 	}
@@ -230,6 +239,10 @@ func (m *processTreeMonitor) rememberBoundedAuditPID(pid, ppid int, listener lis
 		// Bounded audit needs no rule installation; adopt its ledger membership
 		// without renewing the proof, so live children survive proof expiration.
 		m.monitored[pid] = true
+		if startTime != unknownProcessStartTime && m.listenerLifetimeLocked(listener) == attributionVerified {
+			m.rememberRootHistoryLocked(listener)
+			m.rememberProcessHistoryLocked(pid, ppid, startTime, listener, time.Now())
+		}
 		m.mu.Unlock()
 		return
 	}
@@ -239,6 +252,10 @@ func (m *processTreeMonitor) rememberBoundedAuditPID(pid, ppid int, listener lis
 	m.processParentPIDs[pid] = ppid
 	m.processObservedAt[pid] = time.Now()
 	m.pidListener[pid] = listener
+	if startTime != unknownProcessStartTime && m.listenerLifetimeLocked(listener) == attributionVerified {
+		m.rememberRootHistoryLocked(listener)
+		m.rememberProcessHistoryLocked(pid, ppid, startTime, listener, time.Now())
+	}
 	m.mu.Unlock()
 }
 

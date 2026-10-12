@@ -31,6 +31,7 @@ func getAccumulator(id string) *auditAccumulator {
 		}
 	}
 	acc.id = id
+	acc.attribution = auditAttributionSnapshot{}
 	acc.firstSeen = time.Now()
 	acc.lastRecordAt = time.Now()
 	acc.seenSyscall = false
@@ -47,6 +48,7 @@ func putAccumulator(acc *auditAccumulator) {
 	if acc == nil {
 		return
 	}
+	acc.attribution = auditAttributionSnapshot{}
 	// Clear maps but retain capacity
 	for k := range acc.fields {
 		delete(acc.fields, k)

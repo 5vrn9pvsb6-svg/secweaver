@@ -31,6 +31,12 @@ func bindListenerLifetime(listener listenerInfo) listenerInfo {
 // external commands or an ancestry scan. Legacy in-memory callers without a
 // bound root use the existing root ledger; an unreadable root is not proof.
 func (m *processTreeMonitor) listenerLifetimeLocked(listener listenerInfo) attributionState {
+	if m.processBackend == processTreeBackendEBPF && m.activeListenerRoots != nil && !m.knownEBPFRootLocked(listener) {
+		return attributionUnknown
+	}
+	if m.rootHistoryClosedLocked(listener) {
+		return attributionUnknown
+	}
 	expected := listener.RootStartTime
 	if expected == 0 {
 		expected = m.processStartTimes[listener.PID]
@@ -49,6 +55,8 @@ func (m *processTreeMonitor) listenerLifetimeLocked(listener listenerInfo) attri
 // ledger for the rule worker to remove/retry. Deleting monitored here would
 // allow duplicate kernel rule installation while old rules still exist.
 func (m *processTreeMonitor) invalidateOwnerLocked(pid int) {
+	m.invalidateProcessHistoryLocked(pid)
+	m.recordAttributionLocked("identity_conflict")
 	delete(m.pidListener, pid)
 	delete(m.pidTargets, pid)
 	delete(m.processCloneTimes, pid)
@@ -61,13 +69,15 @@ func (m *processTreeMonitor) invalidateOwnerLocked(pid int) {
 }
 
 // cachedListenerLocked is shared by audit backends, ancestors and companions.
-// Unknown preserves uncertainty internally so a later lookup cannot invent a
-// service label; output rejects it. Unrelated means contradictory identity or no owner.
-// eventTime is required for the short-lived clone exception. It cannot be
-// replaced by receipt time, which would renew trust when old logs are replayed.
+// Event lookups may recover bounded historical proof; zero-time active lookups
+// cannot. Unknown still rejects output, and unrelated means contradictory
+// identity or no owner. Source time must never be replaced by receipt time.
 func (m *processTreeMonitor) cachedListenerLocked(pid, eventPPID int, eventTime time.Time) (listenerInfo, attributionState) {
 	listener, ok := m.pidListener[pid]
 	if !ok || pid <= 1 {
+		if historical, verified := m.historicalAuditListenerLocked(pid, eventPPID, eventTime); verified {
+			return historical, attributionVerified
+		}
 		return listenerInfo{}, attributionUnrelated
 	}
 	expected, current := m.processStartTimes[pid], readProcessStartTime(pid)
@@ -75,21 +85,30 @@ func (m *processTreeMonitor) cachedListenerLocked(pid, eventPPID int, eventTime 
 		m.invalidateOwnerLocked(pid)
 		return listenerInfo{}, attributionUnrelated
 	}
-	if listener.AttributionUnknown {
-		return listenerInfo{}, attributionRootUnknown
-	}
 	parent := m.processParentPIDs[pid]
 	if eventPPID > 0 && parent > 0 && eventPPID != parent {
-		m.invalidateOwnerLocked(pid)
-		// Once the process is gone we cannot decide whether this was PID reuse
-		// or a reparented/delayed tracked event. Keep uncertainty, never the old label.
-		if current == 0 {
-			return listenerInfo{}, attributionUnknown
+		if expected != 0 && expected != unknownProcessStartTime && current == expected {
+			// Reparenting changes the topology, not this verified process instance.
+			// Keep its origin while replacing only the current parent metadata.
+			parent = eventPPID
+			m.processParentPIDs[pid] = parent
+			m.recordAttributionLocked("reparented")
+		} else {
+			m.invalidateOwnerLocked(pid)
+			// Once the process is gone we cannot decide whether this was PID reuse
+			// or a reparented/delayed tracked event. Keep uncertainty, never the old label.
+			if current == 0 {
+				return listenerInfo{}, attributionUnknown
+			}
+			return listenerInfo{}, attributionUnrelated
 		}
-		return listenerInfo{}, attributionUnrelated
 	}
 	rootState := m.listenerLifetimeLocked(listener)
 	if rootState != attributionVerified {
+		m.retireRootHistoryLocked(listener, 0)
+		if historical, verified := m.historicalAuditListenerLocked(pid, eventPPID, eventTime); verified {
+			return historical, attributionVerified
+		}
 		if rootState == attributionUnrelated {
 			// Quarantine the old generation until cleanup. Removing it outright
 			// would let the next event fall through to a reused root's new owner.
@@ -99,8 +118,23 @@ func (m *processTreeMonitor) cachedListenerLocked(pid, eventPPID int, eventTime 
 		}
 		return listenerInfo{}, attributionRootUnknown
 	}
+	if listener.AttributionUnknown {
+		// Recovery requires the same positively verified child AND root lifetime.
+		// Root liveness alone must not rehabilitate a reused or unreadable child.
+		if expected == 0 || expected == unknownProcessStartTime || current != expected {
+			return listenerInfo{}, attributionRootUnknown
+		}
+		listener.AttributionUnknown = false
+		m.pidListener[pid] = listener
+		m.recordAttributionLocked("identity_recovered")
+	}
+	m.rememberRootHistoryLocked(listener)
 	if expected != 0 && expected != unknownProcessStartTime && current == expected {
+		m.rememberProcessHistoryLocked(pid, parent, expected, listener, time.Now())
 		return listener, attributionVerified
+	}
+	if historical, verified := m.historicalAuditListenerLocked(pid, eventPPID, eventTime); verified {
+		return historical, attributionVerified
 	}
 	// An observed clone can bridge a short /proc race, but never establish the
 	// identity of a newly readable PID: a scan must verify that new lifetime.

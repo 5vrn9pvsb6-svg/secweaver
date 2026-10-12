@@ -13,6 +13,7 @@ type listenerInfo struct {
 	// it is internal metadata, not part of the public listener inventory.
 	RootStartTime      uint64 `json:"-"`
 	AttributionUnknown bool   `json:"-"` // expired root identity: retain lifecycle state, reject event output
+	Historical         bool   `json:"-"` // output-only evidence; never authorize new tracking/rules
 	PID                int    `json:"pid"`
 	Process            string `json:"process"`
 	Address            string `json:"address"`
@@ -58,8 +59,8 @@ type auditEvent struct {
 	ListenerProcess string   `json:"listener_process,omitempty"`
 	ListenerAddress string   `json:"listener_address,omitempty"`
 	ListenerPort    int      `json:"listener_port,omitempty"`
-	// AttributionStatus is emitted only when an in-scope event cannot be tied to
-	// a verified listener. Such evidence must not acquire a guessed service name.
+	// AttributionStatus retains decoder compatibility. Unknown events are rejected
+	// before serialization; historical verified snapshots do not emit unknown.
 	AttributionStatus string            `json:"attribution_status,omitempty"`
 	ConnectFamily     string            `json:"connect_family,omitempty"`
 	ConnectAddress    string            `json:"connect_address,omitempty"`
@@ -78,6 +79,9 @@ type hostIdentity struct {
 // syscall. The audit ID is the transaction key: SYSCALL contributes identity,
 // EXECVE contributes argv, and PATH/CWD/PROCTITLE contribute context.
 type auditAccumulator struct {
+	// attribution belongs to this audit transaction, not to a reusable PID.
+	// Only the trusted reader may populate it; auxiliary text cannot override it.
+	attribution   auditAttributionSnapshot
 	id            string
 	firstSeen     time.Time
 	lastRecordAt  time.Time

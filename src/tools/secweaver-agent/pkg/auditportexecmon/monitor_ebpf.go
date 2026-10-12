@@ -47,11 +47,34 @@ func (m *processTreeMonitor) observeEBPFEvent(event processtracker.Event) (liste
 			}
 		}
 	}
-	// Kernel tracking proves scope even if the service root exits before the
-	// reader runs. Keep unknown lifecycle state for cleanup; output rejects it,
-	// and it cannot seed verified ownership or auxiliary rules.
+	if event.Type == processtracker.EventExit && pid == rootPID {
+		m.closeRootHistoryLocked(listenerInfo{PID: rootPID, RootStartTime: event.RootStartTime}, event.TimestampNS)
+	}
+	liveRoot := ok && m.knownEBPFRootLocked(listener) && m.listenerLifetimeLocked(listener) == attributionVerified
+	if !liveRoot {
+		m.retireRootHistoryLocked(listenerInfo{PID: rootPID, RootStartTime: event.RootStartTime}, 0)
+		// A buffered exec may outlive all active PID entries. Generation-bound
+		// history can restore its label, but must not mutate today's tracking map,
+		// schedule new rules, or delete a replacement PID on a delayed exit.
+		if event.Type == processtracker.EventExec {
+			if historical, verified := m.historicalEBPFListenerLocked(event); verified {
+				m.mu.Unlock()
+				return historical, true
+			}
+			m.recordAttributionLocked("ebpf_rejected")
+		}
+		m.recordAttributionLocked("root_unavailable")
+	}
 	if ok {
-		listener.AttributionUnknown = listener.AttributionUnknown || m.listenerLifetimeLocked(listener) != attributionVerified
+		if liveRoot {
+			if listener.AttributionUnknown {
+				m.recordAttributionLocked("identity_recovered")
+			}
+			listener.AttributionUnknown = false
+			m.rememberRootHistoryLocked(listener)
+		} else {
+			listener.AttributionUnknown = true
+		}
 	} else {
 		// A kernel-tracked event can outlive both userspace root and parent
 		// entries. Mark it unknown internally; no named listener means no output.

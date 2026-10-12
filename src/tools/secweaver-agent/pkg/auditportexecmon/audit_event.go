@@ -176,11 +176,11 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	if eventType == "file_op" && fileRecordPending(acc, now, maxAge) {
 		return
 	}
-	listener, listenerMatched := monitor.matchListener(acc.fields)
-	// All audit backends require a confirmed named listener at emission. A key
-	// or earlier admission does not authorize unknown events to reach disk when
-	// identity expires while auxiliary records assemble (including final flush).
-	if !listenerMatched || strings.TrimSpace(listener.Process) == "" || acc.fields["attribution_status"] == "unknown" {
+	listener, listenerMatched := monitor.assembledListener(acc)
+	// A verified snapshot describes this syscall even after its processes exit.
+	// Unknown admission remains rejected; never invent a name at final flush.
+	if !listenerMatched || strings.TrimSpace(listener.Process) == "" || listener.AttributionUnknown {
+		monitor.recordAttribution("audit_rejected")
 		delete(accs, id)
 		putAccumulator(acc)
 		recordAccumulatorCompleted()
@@ -198,31 +198,30 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	pid, pidName := splitProcessFields(acc.fields["pid"], comm, acc.fields["exe"])
 	ppid, ppidName := splitProcessFields(acc.fields["ppid"], "", "")
 	event := auditEvent{
-		Time:              now,
-		HostName:          host.HostName,
-		HostIP:            host.HostIP,
-		EventType:         eventType,
-		AuditID:           id,
-		PID:               pid,
-		PIDName:           pidName,
-		PPID:              ppid,
-		PPIDName:          ppidName,
-		UID:               acc.fields["uid"],
-		UIDName:           resolveAccountName(acc.fields["uid"]),
-		AUID:              acc.fields["auid"],
-		AUIDName:          resolveAccountName(acc.fields["auid"]),
-		Comm:              comm,
-		Exe:               acc.fields["exe"],
-		CWD:               acc.cwd,
-		Command:           command,
-		CommandLine:       strings.Join(command, " "),
-		Success:           acc.fields["success"],
-		Exit:              acc.fields["exit"],
-		Key:               acc.fields["key"],
-		TTY:               tty,
-		HasTTY:            hasTTY,
-		Fields:            acc.fields,
-		AttributionStatus: acc.fields["attribution_status"],
+		Time:        now,
+		HostName:    host.HostName,
+		HostIP:      host.HostIP,
+		EventType:   eventType,
+		AuditID:     id,
+		PID:         pid,
+		PIDName:     pidName,
+		PPID:        ppid,
+		PPIDName:    ppidName,
+		UID:         acc.fields["uid"],
+		UIDName:     resolveAccountName(acc.fields["uid"]),
+		AUID:        acc.fields["auid"],
+		AUIDName:    resolveAccountName(acc.fields["auid"]),
+		Comm:        comm,
+		Exe:         acc.fields["exe"],
+		CWD:         acc.cwd,
+		Command:     command,
+		CommandLine: strings.Join(command, " "),
+		Success:     acc.fields["success"],
+		Exit:        acc.fields["exit"],
+		Key:         acc.fields["key"],
+		TTY:         tty,
+		HasTTY:      hasTTY,
+		Fields:      acc.fields,
 	}
 	if listenerMatched {
 		event.ListenerPID = listener.PID

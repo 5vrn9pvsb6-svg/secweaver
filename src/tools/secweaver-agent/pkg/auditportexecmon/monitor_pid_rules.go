@@ -3,6 +3,7 @@ package auditportexecmon
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"sync/atomic"
 )
@@ -110,6 +111,9 @@ func (m *processTreeMonitor) expandPID(pid int, listener listenerInfo) error {
 }
 
 func (m *processTreeMonitor) expandPIDExpected(pid int, expectedStartTime uint64, listener listenerInfo) error {
+	if listener.Historical {
+		return nil
+	}
 	// Validate identity before reserving budget and again after installation.
 	// A process can exit and its PID can be reused while auditctl commands are in
 	// flight; the second check removes rules installed for the wrong lifetime.
@@ -123,6 +127,12 @@ func (m *processTreeMonitor) expandPIDExpected(pid int, expectedStartTime uint64
 	}
 	startTime := readProcessStartTime(pid)
 	if listener.RootStartTime == 0 || readProcessStartTime(listener.PID) != listener.RootStartTime {
+		return nil
+	}
+	m.mu.Lock()
+	rootLive := m.listenerLifetimeLocked(listener) == attributionVerified
+	m.mu.Unlock()
+	if !rootLive {
 		return nil
 	}
 	if startTime == 0 || (expectedStartTime != 0 && startTime != expectedStartTime) {
@@ -241,6 +251,14 @@ func (m *processTreeMonitor) reservePIDExpansion(pid int, startTime uint64, list
 	// rules, so they cannot collectively oversubscribe the configured budget.
 	m.mu.Lock()
 	if m.monitored[pid] {
+		owner := m.pidListener[pid]
+		if m.processStartTimes[pid] == startTime && owner.PID == listener.PID && owner.RootStartTime == listener.RootStartTime && m.listenerLifetimeLocked(listener) == attributionVerified {
+			// A reservation is not a permanent uncertainty marker. Fresh discovery
+			// may repair the same instance without reserving/installing rules twice.
+			m.pidListener[pid] = listener
+			m.rememberRootHistoryLocked(listener)
+			m.rememberProcessHistoryLocked(pid, m.processParentPIDs[pid], startTime, listener, time.Now())
+		}
 		m.mu.Unlock()
 		return true, false
 	}
@@ -276,6 +294,8 @@ func (m *processTreeMonitor) reservePIDExpansion(pid int, startTime uint64, list
 	}
 	m.processParentPIDs[pid] = readProcessParentPID(pid)
 	m.pidListener[pid] = listener
+	m.rememberRootHistoryLocked(listener)
+	m.rememberProcessHistoryLocked(pid, m.processParentPIDs[pid], startTime, listener, time.Now())
 	if estimatedRules > 0 {
 		m.reservedAuditRules += estimatedRules
 	}

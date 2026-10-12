@@ -148,6 +148,9 @@ func TestEBPFGenerationRejectsStaleEventsWithoutMutatingReplacement(t *testing.T
 			current.RootStartTime = 300
 			current.Process = "replacement"
 			m.listeners[0] = current
+			// Mirror a fresh discovery's membership/history update as well as the
+			// PID ledger; an old event alone cannot activate a replacement root.
+			m.reopenDiscoveredRootLocked(current)
 			m.pidListener[900001] = current
 			m.processStartTimes[900001] = 300
 			m.pidListener[910001] = current

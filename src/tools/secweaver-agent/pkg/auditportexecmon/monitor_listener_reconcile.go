@@ -35,6 +35,10 @@ func (m *processTreeMonitor) rescanNewListeners() {
 	previous := append([]listenerInfo(nil), m.listeners...)
 	refreshed, newIndexes, removed := reconcileListeners(previous, listeners)
 	m.listeners = refreshed
+	m.activeListenerRoots = make(map[rootIdentity]bool, len(refreshed))
+	for _, listener := range refreshed {
+		m.activeListenerRoots[rootIdentity{listener.PID, listener.RootStartTime}] = true
+	}
 	m.mu.Unlock()
 	if removed > 0 {
 		fmt.Fprintf(os.Stderr, "pruned stale external listeners: count=%d active=%d\n", removed, len(refreshed))
@@ -59,11 +63,13 @@ func (m *processTreeMonitor) rescanNewListeners() {
 // whose owning listener disappeared. Companion executable targets are detached
 // with their gateway so a future same-path process is not misattributed.
 func (m *processTreeMonitor) cleanupRemovedListenerRules(previous, active []listenerInfo) {
+	activeRoots := map[rootIdentity]bool{}
 	activePIDs := map[int]bool{}
 	activeExes := map[string]bool{}
 	for _, listener := range active {
 		if listener.PID > 1 {
 			activePIDs[listener.PID] = true
+			activeRoots[rootIdentity{listener.PID, listener.RootStartTime}] = true
 		}
 		if listener.MonitorExe != "" {
 			activeExes[cleanDeletedSuffix(listener.MonitorExe)] = true
@@ -81,6 +87,11 @@ func (m *processTreeMonitor) cleanupRemovedListenerRules(previous, active []list
 		}
 	}
 	m.mu.Lock()
+	for _, listener := range previous {
+		if !activeRoots[rootIdentity{listener.PID, listener.RootStartTime}] {
+			m.closeRootHistoryLocked(listener, 0)
+		}
+	}
 	var stalePIDs []int
 	for pid, owner := range m.pidListener {
 		if staleRoots[owner.PID] {

@@ -14,6 +14,7 @@ func (m *processTreeMonitor) pruneDeadPIDs() {
 	// starttime from /proc/<pid>/stat identifies the original process lifetime.
 	m.mu.Lock()
 	m.pruneAuditForksLocked(time.Now())
+	m.pruneAttributionHistoryLocked(time.Now())
 	pids := make(map[int]uint64, len(m.monitored))
 	owners := make(map[int]listenerInfo, len(m.monitored))
 	for pid := range m.monitored {
@@ -25,7 +26,15 @@ func (m *processTreeMonitor) pruneDeadPIDs() {
 		// Children may outlive a service root. Retire their old rules as well,
 		// otherwise a reused root PID could leave permanently stale ownership.
 		owner := owners[pid]
-		if owner.RootStartTime != 0 && readProcessStartTime(owner.PID) != owner.RootStartTime {
+		m.mu.Lock()
+		retired := m.rootHistoryClosedLocked(owner) || (m.processBackend == processTreeBackendEBPF && m.activeListenerRoots != nil && !m.knownEBPFRootLocked(owner))
+		m.mu.Unlock()
+		// An observed exit/removal retires active rules even while a zombie's
+		// proc entry still exposes its old starttime. History is cleaned separately.
+		if retired || (owner.RootStartTime != 0 && readProcessStartTime(owner.PID) != owner.RootStartTime) {
+			m.mu.Lock()
+			m.retireRootHistoryLocked(owner, 0)
+			m.mu.Unlock()
 			m.removePIDRules(pid)
 			continue
 		}

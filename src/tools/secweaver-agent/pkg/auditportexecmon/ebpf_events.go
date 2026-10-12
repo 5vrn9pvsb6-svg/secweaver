@@ -81,6 +81,7 @@ func followProcessTracker(ctx context.Context, tracker processtracker.Tracker, m
 				return err
 			}
 		case <-lostTicker.C:
+			monitor.logAttributionStats(false)
 			lost := tracker.LostSamples()
 			if lost > lastLost {
 				fmt.Fprintf(os.Stderr, "eBPF process event buffer lost samples: delta=%d total=%d; scheduling process-tree reconciliation\n", lost-lastLost, lost)
@@ -98,8 +99,8 @@ func emitEBPFExecEvent(source processtracker.Event, listener listenerInfo, key s
 // emitEBPFExecEventWithContext keeps kernel lifecycle evidence separate from
 // best-effort /proc enrichment. Short-lived processes may disappear before the
 // reader runs; empty context therefore means unknown and must not synthesize a
-// negative TTY assertion. A missing/expired listener itself rejects output even
-// when the kernel previously tracked the event within a service tree.
+// negative TTY assertion. The owner must be verified live or restored from a
+// bounded, generation/time-checked historical root; otherwise output is rejected.
 func emitEBPFExecEventWithContext(source processtracker.Event, listener listenerInfo, key string, host hostIdentity, out io.Writer, processContext processExecutionContext) error {
 	if listener.AttributionUnknown || strings.TrimSpace(listener.Process) == "" {
 		return nil

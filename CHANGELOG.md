@@ -1,5 +1,13 @@
 # Changelog
 
+## Agent [0.3.96] - 2026-10-12
+
+- Freeze verified audit listener ownership at primary admission so process exit or reuse during assembly cannot erase or transfer the event’s service attribution.
+- Restore buffered eBPF exec through generation/time-bound root history; retain audit events inside positively verified process intervals without extending bare-PID trust.
+- Preserve same-instance reparenting and recover from transient identity reads; keep historical owners separate from active rule installation and replacement lifetimes.
+- Bound root/process history to 4,096/16,384 entries and 30-second recovery limits, preserve the original short-fork checks, and add diagnostic decision counters.
+- Add regression coverage for lifecycle changes, conflicting transactions, history limits and output boundaries; synchronize bilingual attribution/upgrade guides. The embedded eBPF layout and server protocol remain unchanged.
+
 ## Agent [0.3.95] - 2026-10-12
 
 - Correct procfs socket inode parsing and preserve distinct listener PIDs when executables/bind addresses match; seed only the actual listener root.

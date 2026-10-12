@@ -123,6 +123,13 @@ func (m *processTreeMonitor) bootstrapListenerAt(index int) error {
 	if m.isSelfListener(listener) {
 		return nil
 	}
+	// Only a fresh socket discovery may reopen a deliberately closed collection
+	// interval. Reader-side /proc liveness cannot undo an observed exit/removal.
+	m.mu.Lock()
+	if listener.RootStartTime != 0 && readProcessStartTime(listener.PID) == listener.RootStartTime {
+		m.reopenDiscoveredRootLocked(listener)
+	}
+	m.mu.Unlock()
 	if m.usesEBPF() {
 		return m.bootstrapEBPFListener(listener)
 	}
