@@ -152,7 +152,7 @@ func (m *processTreeMonitor) expandPIDExpected(pid int, expectedStartTime uint64
 		m.mu.Lock()
 		tracker := m.processTracker
 		m.mu.Unlock()
-		if err := tracker.Track(uint32(pid), uint32(readProcPPID(pid)), uint32(listener.PID), m.trackDescendants); err != nil {
+		if err := tracker.Track(uint32(pid), uint32(readProcPPID(pid)), uint32(listener.PID), listener.RootStartTime, m.trackDescendants); err != nil {
 			m.forgetTrackedPID(pid)
 			return err
 		}

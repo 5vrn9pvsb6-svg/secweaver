@@ -6,7 +6,7 @@
 
 | 任务 | 文档 |
 |---|---|
-| 进程归属、PID 复用与未知证据 | [process-attribution](process-attribution.zh-CN.md) |
+| 监听发现、多实例隔离、短命进程及归属输出限制 | [process-attribution](process-attribution.zh-CN.md) |
 | 行为学习、名单与日志减量 | [behavior-learning](behavior-learning.zh-CN.md) |
 | 发布包接入自建 ES | [self-managed-es](self-managed-es.zh-CN.md) |
 | 指标、健康端点与配置重启 | [metrics-and-hot-reload](metrics-and-hot-reload.zh-CN.md) |

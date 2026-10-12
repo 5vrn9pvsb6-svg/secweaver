@@ -64,33 +64,14 @@ func (m *processTreeMonitor) rescanDescendants() {
 	}
 }
 
+// findMonitorSeedPIDs starts from the actual socket owner only. Executable
+// equality is a collection optimization, never proof that two service instances
+// share a root; descendants are expanded by the existing tree bootstrap.
 func findMonitorSeedPIDs(listener listenerInfo) []int {
-	if listener.MonitorExe == "" {
-		if listener.PID > 1 {
-			return []int{listener.PID}
-		}
-		return nil
+	if listener.PID > 1 {
+		return []int{listener.PID}
 	}
-	if listener.MonitorExe == "/usr/sbin/sshd" || strings.HasSuffix(listener.MonitorExe, "/sshd") {
-		return findSSHDMonitorPIDs()
-	}
-	return findRootPIDsByExe(listener.MonitorExe)
-}
-
-func findRootPIDsByExe(exe string) []int {
-	all := findPIDsByExe(exe)
-	exeSet := map[int]bool{}
-	for _, pid := range all {
-		exeSet[pid] = true
-	}
-	var roots []int
-	for _, pid := range all {
-		ppid := readProcPPID(pid)
-		if !exeSet[ppid] {
-			roots = append(roots, pid)
-		}
-	}
-	return roots
+	return nil
 }
 
 func (m *processTreeMonitor) observeAuditFields(fields map[string]string) {
@@ -145,40 +126,14 @@ func (m *processTreeMonitor) trackSuccessfulCloneChild(fields map[string]string,
 	if liveParent := readProcessParentPID(childPID); liveParent > 0 && liveParent != parentPID {
 		return
 	}
-	if m.usesBoundedAudit() {
-		m.mu.Lock()
-		previousBirth := m.processCloneTimes[childPID]
-		m.mu.Unlock()
-		birth := auditSourceTime(fields)
-		if !previousBirth.IsZero() && (birth.IsZero() || !birth.After(previousBirth)) {
-			return
-		}
+	// Record source-time evidence before async rule work. A process can already
+	// be gone when the record is read; historical attribution must not depend
+	// on whether installing a rule for that PID is still possible.
+	birth := auditSourceTime(fields)
+	if !birth.IsZero() && !m.rememberAuditFork(childPID, parentPID, listener, birth) {
+		return
 	}
 	m.trackProcessChain(childPID, parentPID, listener)
-	if m.usesBoundedAudit() {
-		// The successful kernel clone is independent evidence for a child that
-		// exits before /proc can be read. Do not let delayed older clones renew it.
-		birth := auditSourceTime(fields)
-		if birth.IsZero() {
-			return
-		}
-		m.mu.Lock()
-		// A rejected tracking attempt must not create an orphan clone entry
-		// outside the monitored PID ledger and its cleanup lifecycle.
-		owner, tracked := m.pidListener[childPID]
-		if !tracked || owner.PID != listener.PID || m.processParentPIDs[childPID] != parentPID {
-			m.mu.Unlock()
-			return
-		}
-		if m.processCloneTimes == nil {
-			m.processCloneTimes = map[int]time.Time{}
-		}
-		if old := m.processCloneTimes[childPID]; old.IsZero() || birth.After(old) {
-			m.processCloneTimes[childPID] = birth
-			m.processObservedAt[childPID] = time.Now()
-		}
-		m.mu.Unlock()
-	}
 }
 
 func (m *processTreeMonitor) findListenerForProcess(pid, ppid int, exe string) (listenerInfo, bool) {
@@ -190,8 +145,7 @@ func (m *processTreeMonitor) findListenerForProcess(pid, ppid int, exe string) (
 	return m.findListenerLocked(pid, ppid, exe)
 }
 
-func (m *processTreeMonitor) findListenerLocked(pid, ppid int, exe string) (listenerInfo, bool) {
-	exe = cleanDeletedSuffix(exe)
+func (m *processTreeMonitor) findListenerLocked(pid, ppid int, _ string) (listenerInfo, bool) {
 	if m.processBackend == processTreeBackendAudit {
 		listener, state := m.cachedListenerLocked(pid, ppid, time.Time{})
 		if state == attributionVerified {
@@ -205,23 +159,9 @@ func (m *processTreeMonitor) findListenerLocked(pid, ppid int, exe string) (list
 		}
 		return listenerInfo{}, false
 	}
-	for _, listener := range m.listeners {
-		if !listener.ExeOnly || listener.MonitorExe == "" || exe != listener.MonitorExe {
-			continue
-		}
-		if isJavaListener("", listener.MonitorExe) {
-			if m.listenerLifetimeLocked(listener) == attributionVerified && (pid == listener.PID || isDescendantOf(listener.PID, pid)) {
-				return listener, true
-			}
-			continue
-		}
-		return listener, true
-	}
-	if exe != "" {
-		if target, ok := m.exeTargets[exe]; ok {
-			return target.Gateway, true
-		}
-	}
+	// Executable rules can collect unrelated instances of the same binary.
+	// Resolve their actual ancestry through the same lifetime gate as every
+	// other event; neither ExeOnly nor exeTargets establishes ownership.
 	return m.gatewayForProcessChainLocked(pid, ppid)
 }
 
@@ -286,6 +226,10 @@ func (m *processTreeMonitor) rememberBoundedAuditPID(pid, ppid int, listener lis
 	// lifetime when /proc has disappeared so it cannot become a fresh unknown.
 	if old, ok := m.pidListener[pid]; ok && old.PID == listener.PID && old.RootStartTime == listener.RootStartTime && m.processParentPIDs[pid] == ppid &&
 		(startTime == unknownProcessStartTime || m.processStartTimes[pid] == startTime) {
+		// A fork proof may have created this identity before normal tracking.
+		// Bounded audit needs no rule installation; adopt its ledger membership
+		// without renewing the proof, so live children survive proof expiration.
+		m.monitored[pid] = true
 		m.mu.Unlock()
 		return
 	}

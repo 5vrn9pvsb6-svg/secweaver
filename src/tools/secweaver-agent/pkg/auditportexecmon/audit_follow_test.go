@@ -123,6 +123,23 @@ func TestBoundedAuditRejectsReusedListenerRootPID(t *testing.T) {
 	}
 }
 
+// seedAuditOutputListener gives transport/classification fixtures a verified
+// synthetic parent. These tests exercise output mechanics, not live /proc or
+// rule installation; ExeOnly prevents unrelated descendant expansion.
+func seedAuditOutputListener(t *testing.T, m *processTreeMonitor, parent int) {
+	t.Helper()
+	stubAttributionStartTimes(t, func(pid int) uint64 {
+		if pid == parent {
+			return 1
+		}
+		return 0
+	})
+	listener := listenerInfo{PID: parent, RootStartTime: 1, Process: "nginx", Port: 443, ExeOnly: true}
+	m.listeners = []listenerInfo{listener}
+	m.pidListener[parent] = listener
+	m.processStartTimes = map[int]uint64{parent: 1}
+}
+
 func TestFollowAuditLogReadsFromCapturedStartOffset(t *testing.T) {
 	logFile, err := os.CreateTemp(t.TempDir(), "audit.log")
 	if err != nil {
@@ -152,6 +169,7 @@ func TestFollowAuditLogReadsFromCapturedStartOffset(t *testing.T) {
 		selfBranch:       map[int]bool{},
 		trackDescendants: true,
 	}
+	seedAuditOutputListener(t, monitor, 125609)
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
 	var out bytes.Buffer
@@ -185,6 +203,7 @@ func TestFollowAuditLogContinuesAfterRotation(t *testing.T) {
 		selfBranch:       map[int]bool{},
 		trackDescendants: true,
 	}
+	seedAuditOutputListener(t, monitor, 125609)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var out testutil.SyncBuffer
@@ -245,6 +264,7 @@ func TestFollowAuditLogReplaysRawAuditRecords(t *testing.T) {
 		selfBranch:       map[int]bool{},
 		trackDescendants: true,
 	}
+	seedAuditOutputListener(t, monitor, 125609)
 	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
 	var out bytes.Buffer
@@ -276,6 +296,7 @@ func TestEmitExecEventFromRawAuditRecords(t *testing.T) {
 		selfBranch:       map[int]bool{},
 		trackDescendants: true,
 	}
+	seedAuditOutputListener(t, monitor, 125609)
 	accs := map[string]*auditAccumulator{}
 	lines := []string{
 		`type=SYSCALL msg=audit(1782320671.957:88920): arch=c000003e syscall=59 success=yes exit=0 a0=5d9634fde0f0 a1=5d9634fcc780 a2=5d963535fd50 a3=5d9634fcc780 items=2 ppid=125609 pid=126350 auid=1000 uid=1000 gid=1000 euid=1000 suid=1000 fsuid=1000 egid=1000 sgid=1000 fsgid=1000 tty=pts0 ses=316 comm="ps" exe="/usr/bin/ps" subj=unconfined key="tb_external_listener_exec" ARCH=x86_64 SYSCALL=execve AUID="ks" UID="ks" GID="ks" EUID="ks" SUID="ks" FSUID="ks" EGID="ks" SGID="ks" FSGID="ks"`,
@@ -389,6 +410,7 @@ func TestEmitActiveConnectFiltersLoopbackAddress(t *testing.T) {
 		selfBranch:       map[int]bool{},
 		trackDescendants: true,
 	}
+	seedAuditOutputListener(t, monitor, 100)
 	accs := map[string]*auditAccumulator{}
 	lines := []string{
 		`type=SYSCALL msg=audit(1782320671.957:88930): arch=c000003e syscall=42 success=yes exit=0 ppid=100 pid=200 auid=1000 uid=1000 comm="curl" exe="/usr/bin/curl" key="tb_external_listener_connect"`,
@@ -416,6 +438,7 @@ func TestEmitActiveConnectKeepsNonLoopbackAddress(t *testing.T) {
 		selfBranch:       map[int]bool{},
 		trackDescendants: true,
 	}
+	seedAuditOutputListener(t, monitor, 100)
 	accs := map[string]*auditAccumulator{}
 	lines := []string{
 		`type=SYSCALL msg=audit(1782320671.957:88931): arch=c000003e syscall=42 success=yes exit=0 ppid=100 pid=200 auid=1000 uid=1000 comm="curl" exe="/usr/bin/curl" key="tb_external_listener_connect"`,
@@ -450,6 +473,7 @@ func TestEmitActiveConnectFiltersNonIPFamily(t *testing.T) {
 		selfBranch:       map[int]bool{},
 		trackDescendants: true,
 	}
+	seedAuditOutputListener(t, monitor, 100)
 	accs := map[string]*auditAccumulator{}
 	lines := []string{
 		`type=SYSCALL msg=audit(1782320671.957:88932): arch=c000003e syscall=42 success=yes exit=0 ppid=100 pid=200 auid=1000 uid=1000 comm="nscd" exe="/usr/sbin/nscd" key="tb_external_listener_connect"`,
@@ -591,7 +615,14 @@ func TestCommandReferencesSecweaverAuditKeyFromFieldSyntax(t *testing.T) {
 }
 
 func TestEmitSensitiveFileReadRequiresListenerMatch(t *testing.T) {
-	gateway := listenerInfo{PID: 1234, Process: "nginx", Address: "0.0.0.0", Port: 443, MonitorExe: "/usr/sbin/nginx", ExeOnly: true}
+	// A real root identity is required even when the executable matches.
+	stubAttributionStartTimes(t, func(pid int) uint64 {
+		if pid == 1234 {
+			return 100
+		}
+		return 0
+	})
+	gateway := listenerInfo{PID: 1234, RootStartTime: 100, Process: "nginx", Address: "0.0.0.0", Port: 443, MonitorExe: "/usr/sbin/nginx", ExeOnly: true}
 	monitor := &processTreeMonitor{
 		listeners:                 []listenerInfo{gateway},
 		pidListener:               map[int]listenerInfo{},

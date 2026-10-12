@@ -1,5 +1,18 @@
 # Changelog
 
+## Agent [0.3.95] - 2026-10-12
+
+- Correct procfs socket inode parsing and preserve distinct listener PIDs when executables/bind addresses match; seed only the actual listener root.
+- Require lifetime-checked ancestry instead of executable equality, port-name guesses, or automatic first-gateway/backend association; reject unknown placeholder names.
+- Preserve successful short-lived fork evidence across audit backends independently of rule installation, with a five-second window and 16,384-proof cap.
+- Carry the root start-time token through the embedded eBPF owner map and events; reject stale/missing generations without mutating replacement ownership.
+- Add attribution, resource-bound and embedded-object contract regressions; document independent-backend and network-namespace coverage limits.
+
+## Agent [0.3.94] - 2026-10-12
+
+- Require a confirmed, nonblank `listener_process` before Linux exec, connect, or file events reach original output, behavior learning, or upload.
+- Drop unresolved listener attribution after retaining only internal lifecycle state; add regression coverage for audit, audit_pid, and eBPF output paths.
+
 ## Agent [0.3.93] - 2026-10-12
 
 - Assemble complete Linux file PATH/command evidence before emission, with bounded partial-evidence fallback and specific missing-field reasons.

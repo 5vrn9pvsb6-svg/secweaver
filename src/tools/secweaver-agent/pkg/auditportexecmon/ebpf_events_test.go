@@ -34,10 +34,11 @@ type fakeProcessTracker struct {
 }
 
 type fakeTrackedProcess struct {
-	pid         uint32
-	ppid        uint32
-	rootPID     uint32
-	descendants bool
+	pid           uint32
+	ppid          uint32
+	rootPID       uint32
+	rootStartTime uint64
+	descendants   bool
 }
 
 func newFakeProcessTracker() *fakeProcessTracker {
@@ -47,10 +48,10 @@ func newFakeProcessTracker() *fakeProcessTracker {
 	}
 }
 
-func (tracker *fakeProcessTracker) Track(pid, ppid, rootPID uint32, descendants bool) error {
+func (tracker *fakeProcessTracker) Track(pid, ppid, rootPID uint32, rootStartTime uint64, descendants bool) error {
 	tracker.mu.Lock()
 	defer tracker.mu.Unlock()
-	tracker.tracked = append(tracker.tracked, fakeTrackedProcess{pid: pid, ppid: ppid, rootPID: rootPID, descendants: descendants})
+	tracker.tracked = append(tracker.tracked, fakeTrackedProcess{pid: pid, ppid: ppid, rootPID: rootPID, rootStartTime: rootStartTime, descendants: descendants})
 	return nil
 }
 
@@ -214,11 +215,11 @@ func TestObserveEBPFForkAndExitMaintainsAttribution(t *testing.T) {
 	monitor := newProcessTreeMonitor([]listenerInfo{listener}, 0, nil, "exec", "connect", "file", "sensitive", "clone", true, true, nil, false, nil, nil, nil, nil, false, nil, false, nil, []string{"b64"}, javaMonitorModeHybrid)
 	monitor.pidListener[100] = listener
 
-	owned, ok := monitor.observeEBPFEvent(processtracker.Event{Type: processtracker.EventFork, RootPID: 100, PID: 102, PPID: 100})
+	owned, ok := monitor.observeEBPFEvent(processtracker.Event{Type: processtracker.EventFork, RootPID: 100, RootStartTime: 100, PID: 102, PPID: 100})
 	if !ok || owned.PID != 100 || !monitor.monitored[102] {
 		t.Fatalf("fork attribution missing: listener=%#v ok=%v monitored=%v", owned, ok, monitor.monitored)
 	}
-	monitor.observeEBPFEvent(processtracker.Event{Type: processtracker.EventExit, RootPID: 100, PID: 102, PPID: 100})
+	monitor.observeEBPFEvent(processtracker.Event{Type: processtracker.EventExit, RootPID: 100, RootStartTime: 100, PID: 102, PPID: 100})
 	if monitor.monitored[102] {
 		t.Fatalf("exit did not remove pid: %v", monitor.monitored)
 	}
@@ -241,7 +242,7 @@ func TestObserveEBPFChildQueuesOptionalAuditRules(t *testing.T) {
 	monitor.processTracker = newFakeProcessTracker()
 	monitor.ruleExpansionQueue = make(chan ruleExpansion, 1)
 
-	_, ok := monitor.observeEBPFEvent(processtracker.Event{Type: processtracker.EventFork, RootPID: 100, PID: 102, PPID: 100})
+	_, ok := monitor.observeEBPFEvent(processtracker.Event{Type: processtracker.EventFork, RootPID: 100, RootStartTime: 100, PID: 102, PPID: 100})
 	if !ok {
 		t.Fatal("fork event lost listener attribution")
 	}

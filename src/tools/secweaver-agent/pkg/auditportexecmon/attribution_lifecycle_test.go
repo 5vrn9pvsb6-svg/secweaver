@@ -2,7 +2,6 @@ package auditportexecmon
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"testing"
@@ -24,7 +23,7 @@ func newAttributionMonitor(backend string) *processTreeMonitor {
 	return m
 }
 
-func TestAttributionUnknownSurvivesAssemblyAndLearning(t *testing.T) {
+func TestAttributionUnknownDroppedAfterAssembly(t *testing.T) {
 	for _, backend := range []string{processTreeBackendAudit, processTreeBackendAuditPID} {
 		t.Run(backend, func(t *testing.T) {
 			stubAttributionStartTimes(t, func(pid int) uint64 {
@@ -48,16 +47,12 @@ func TestAttributionUnknownSurvivesAssemblyAndLearning(t *testing.T) {
 			consumeAuditLine(accs, `type=EXECVE msg=audit(1791733161.591:123): argc=2 a0="runc" a1="exec"`)
 			consumeAuditLine(accs, `type=PROCTITLE msg=audit(1791733161.591:123): proctitle=72756e630065786563`)
 			var out bytes.Buffer
-			// A learning writer would filter/defer incorrectly if
-			// uncertainty failed to take the direct-original output branch.
+			// Admission may retain lifecycle uncertainty in memory, but neither
+			// original output nor learning may receive an unconfirmed listener.
 			sink := &learningOutput{Writer: &out, queue: make(chan auditEvent, 1)}
 			emitReady(accs, m.execKey, m.connectKey, m.fileKey, m, hostIdentity{}, false, sink, 0)
-			var event auditEvent
-			if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &event); err != nil {
-				t.Fatalf("evidence missing from original output: %v: %s", err, out.String())
-			}
-			if event.AttributionStatus != "unknown" || event.ListenerPID != 0 || event.ListenerProcess != "" || event.CommandLine != "runc exec" || len(sink.queue) != 0 {
-				t.Fatalf("uncertain evidence was labeled or queued for learning: %+v", event)
+			if out.Len() != 0 || len(sink.queue) != 0 || len(accs) != 0 {
+				t.Fatalf("uncertain event escaped or accumulator leaked: output=%s queued=%d pending=%d", out.String(), len(sink.queue), len(accs))
 			}
 		})
 	}
@@ -179,7 +174,7 @@ func TestAttributionCloneReplayDoesNotRefreshTrust(t *testing.T) {
 	}
 }
 
-func TestAttributionExpiredEBPFRootKeepsUnlabeledEvidence(t *testing.T) {
+func TestAttributionExpiredEBPFRootDropsOutput(t *testing.T) {
 	stubAttributionStartTimes(t, func(pid int) uint64 {
 		if pid == 900001 {
 			return 300
@@ -187,7 +182,7 @@ func TestAttributionExpiredEBPFRootKeepsUnlabeledEvidence(t *testing.T) {
 		return 200
 	})
 	m := newAttributionMonitor(processTreeBackendEBPF)
-	source := processtracker.Event{Type: processtracker.EventExec, RootPID: 900001, PID: 910001, PPID: 930001, Args: []string{"runc", "exec"}}
+	source := processtracker.Event{Type: processtracker.EventExec, RootPID: 900001, RootStartTime: 100, PID: 910001, PPID: 930001, Args: []string{"runc", "exec"}}
 	owner, ok := m.observeEBPFEvent(source)
 	if !ok || !owner.AttributionUnknown || len(m.rules) != 0 || m.pidListener[910001].AttributionUnknown != true {
 		t.Fatalf("expired root created ownership: %+v %v", owner, ok)
@@ -196,12 +191,8 @@ func TestAttributionExpiredEBPFRootKeepsUnlabeledEvidence(t *testing.T) {
 	if err := emitEBPFExecEventWithContext(source, owner, "exec", hostIdentity{}, &out, processExecutionContext{}); err != nil {
 		t.Fatal(err)
 	}
-	var event auditEvent
-	if err := json.Unmarshal(bytes.TrimSpace(out.Bytes()), &event); err != nil {
-		t.Fatal(err)
-	}
-	if event.AttributionStatus != "unknown" || event.ListenerPID != 0 || event.ListenerProcess != "" {
-		t.Fatalf("wrong service in kernel-scoped evidence: %+v", event)
+	if out.Len() != 0 {
+		t.Fatalf("expired listener reached event output: %s", out.String())
 	}
 }
 
@@ -297,12 +288,12 @@ func TestAttributionEBPFOldDescendantsDoNotInheritReseededRoot(t *testing.T) {
 	m.processStartTimes[900001] = 300
 	// A child from the old service generation forks after the numeric root PID
 	// was reused. RootPID alone must not relabel either generation's descendants.
-	owner, _ := m.observeEBPFEvent(processtracker.Event{Type: processtracker.EventFork, RootPID: 900001, PID: 910002, PPID: 910001})
+	owner, _ := m.observeEBPFEvent(processtracker.Event{Type: processtracker.EventFork, RootPID: 900001, RootStartTime: 100, PID: 910002, PPID: 910001})
 	if !owner.AttributionUnknown {
 		t.Fatal("old parent's child inherited the new root")
 	}
-	m.observeEBPFEvent(processtracker.Event{Type: processtracker.EventExit, RootPID: 900001, PID: 910001, PPID: 1})
-	owner, _ = m.observeEBPFEvent(processtracker.Event{Type: processtracker.EventExec, RootPID: 900001, PID: 910002, PPID: 1})
+	m.observeEBPFEvent(processtracker.Event{Type: processtracker.EventExit, RootPID: 900001, RootStartTime: 100, PID: 910001, PPID: 1})
+	owner, _ = m.observeEBPFEvent(processtracker.Event{Type: processtracker.EventExec, RootPID: 900001, RootStartTime: 100, PID: 910002, PPID: 1})
 	if !owner.AttributionUnknown {
 		t.Fatal("parent exit erased the child's uncertain generation")
 	}

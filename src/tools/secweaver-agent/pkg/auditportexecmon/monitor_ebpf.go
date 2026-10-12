@@ -23,6 +23,11 @@ func (m *processTreeMonitor) observeEBPFEvent(event processtracker.Event) (liste
 		return listenerInfo{}, false
 	}
 
+	// Legacy/partial event layouts cannot prove a root generation. Reject them
+	// without mutating today's PID ledger, including on delayed exit records.
+	if event.RootStartTime == 0 {
+		return listenerInfo{AttributionUnknown: true}, true
+	}
 	startTime := uint64(0)
 	if event.Type != processtracker.EventExit {
 		startTime = readProcessStartTime(pid)
@@ -31,10 +36,10 @@ func (m *processTreeMonitor) observeEBPFEvent(event processtracker.Event) (liste
 	// A root PID can be reseeded while its older descendants are still alive.
 	// Prefer the generation captured on the child or parent over the root's
 	// current entry, or a delayed event would inherit the replacement service.
-	listener, ok := m.ebpfEventOwnerLocked(pid, int(event.PPID), rootPID, startTime)
+	listener, ok := m.ebpfEventOwnerLocked(pid, int(event.PPID), rootPID, event.RootStartTime, startTime)
 	if !ok {
 		for _, candidate := range m.listeners {
-			if candidate.PID == rootPID {
+			if candidate.PID == rootPID && candidate.RootStartTime == event.RootStartTime {
 				listener = candidate
 				listener.ExeOnly = false
 				ok = true
@@ -43,23 +48,20 @@ func (m *processTreeMonitor) observeEBPFEvent(event processtracker.Event) (liste
 		}
 	}
 	// Kernel tracking proves scope even if the service root exits before the
-	// reader runs. Preserve exec evidence as unknown, but do not seed userspace
-	// verified ownership or auxiliary rules from an expired/reused root identity.
+	// reader runs. Keep unknown lifecycle state for cleanup; output rejects it,
+	// and it cannot seed verified ownership or auxiliary rules.
 	if ok {
-		if listener.RootStartTime == 0 {
-			for _, candidate := range m.listeners {
-				if candidate.PID == listener.PID {
-					listener.RootStartTime = candidate.RootStartTime
-					break
-				}
-			}
-		}
 		listener.AttributionUnknown = listener.AttributionUnknown || m.listenerLifetimeLocked(listener) != attributionVerified
 	} else {
 		// A kernel-tracked event can outlive both userspace root and parent
-		// entries. Its raw evidence remains in scope without a guessed owner.
-		listener.AttributionUnknown = true
-		ok = true
+		// entries. Mark it unknown internally; no named listener means no output.
+		m.mu.Unlock()
+		return listenerInfo{AttributionUnknown: true}, true
+	}
+	// A stale event must not overwrite or remove a newly seeded root/child.
+	if currentOwner, exists := m.pidListener[pid]; exists && currentOwner.RootStartTime != event.RootStartTime {
+		m.mu.Unlock()
+		return listenerInfo{AttributionUnknown: true}, true
 	}
 	// Optional connect/file collection still relies on per-PID audit rules. Do
 	// not mark a newly observed eBPF child complete until the existing async rule
@@ -103,11 +105,12 @@ func (m *processTreeMonitor) observeEBPFEvent(event processtracker.Event) (liste
 }
 
 // ebpfEventOwnerLocked checks existing child/parent lifetimes before using the
-// current root entry. mu is held; these are bounded, uncached procfs reads.
-func (m *processTreeMonitor) ebpfEventOwnerLocked(pid, ppid, rootPID int, current uint64) (listenerInfo, bool) {
+// current root entry. Every path requires the event's original generation;
+// current liveness alone cannot validate history. mu is held during reads.
+func (m *processTreeMonitor) ebpfEventOwnerLocked(pid, ppid, rootPID int, generation, current uint64) (listenerInfo, bool) {
 	for _, candidate := range []int{pid, ppid} {
 		owner, ok := m.pidListener[candidate]
-		if !ok || (owner.PID != rootPID && !owner.AttributionUnknown) {
+		if !ok || owner.PID != rootPID || owner.RootStartTime != generation {
 			continue
 		}
 		observed := current
@@ -121,5 +124,5 @@ func (m *processTreeMonitor) ebpfEventOwnerLocked(pid, ppid, rootPID int, curren
 		return owner, true
 	}
 	owner, ok := m.pidListener[rootPID]
-	return owner, ok
+	return owner, ok && owner.RootStartTime == generation
 }

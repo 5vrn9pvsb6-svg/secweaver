@@ -9,6 +9,11 @@
 前 4 次保留原文。入名单后持续精确匹配，不要求每小时重新累计 5 次。
 默认从安装后首次成功启动采集开始累计 24 个健康小时，结束后只冻结新增名单。
 
+自 0.3.94 起，下文学习规则及原始输出降级均以通过 Linux 监听事件范围校验为前提：
+`listener_process` 缺失/空白或归属为 unknown 时，在学习和本地输出前丢弃，
+shadow/关闭学习也不例外。该限制不适用于原生 Windows 采集器。
+边界与升级验证见[进程归属](process-attribution.zh-CN.md)。
+
 | 事件 | 精确匹配字段 | 前提 |
 | --- | --- | --- |
 | Linux exec | listener_process、pid_name、exe、command_line | 四字段非空且有效；按实际采集字符串匹配，不要求完整 argv |
@@ -279,7 +284,9 @@ Linux audit 文件事件等待 SYSCALL.items 对应的完整 PATH 组及有效�
 敏感路径尚未收齐时不能用“当前未命中”丢弃整条事件。超过窗口才到达的尾记录不能补写已输出事件。
 新的 decision_reason 包括 incomplete_file_paths、missing_file_command、
 invalid_file_command、capped_file_command。128 字节封顶的 PROCTITLE 不能证明命令完整。
-原有精确匹配、五次准入、归属不明绕过学习策略不变。
+原有精确匹配和五次准入策略不变。自 0.3.94 起，Linux 监听事件缺少已确认且非空的
+`listener_process` 时，在学习和原始事件输出之前丢弃，不再绕过学习写原始日志；
+此类丢弃不计入引擎范围统计。见[进程归属](process-attribution.zh-CN.md)。
 
 心跳 behavior_learning 顶层保持 exec 语义，streams 分别上报 exec/file/network/risk。
 Linux 当前为 exec/file，Windows 按各读者实际启用范围上报；缺失旧遥测不能推断成关闭。

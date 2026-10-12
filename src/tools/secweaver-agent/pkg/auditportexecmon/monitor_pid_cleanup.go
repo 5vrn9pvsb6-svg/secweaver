@@ -13,6 +13,7 @@ func (m *processTreeMonitor) pruneDeadPIDs() {
 	// kill(pid, 0) alone is insufficient because Linux can reuse a numeric PID.
 	// starttime from /proc/<pid>/stat identifies the original process lifetime.
 	m.mu.Lock()
+	m.pruneAuditForksLocked(time.Now())
 	pids := make(map[int]uint64, len(m.monitored))
 	owners := make(map[int]listenerInfo, len(m.monitored))
 	for pid := range m.monitored {
@@ -26,6 +27,15 @@ func (m *processTreeMonitor) pruneDeadPIDs() {
 		owner := owners[pid]
 		if owner.RootStartTime != 0 && readProcessStartTime(owner.PID) != owner.RootStartTime {
 			m.removePIDRules(pid)
+			continue
+		}
+		// Keep a recently observed dead child long enough to consume its exec
+		// record. This preserves history only; no new audit rule is installed.
+		m.mu.Lock()
+		birth := m.processCloneTimes[pid]
+		withinForkWindow := !birth.IsZero() && time.Since(birth) >= 0 && time.Since(birth) <= unknownProcessIdentityTTL
+		m.mu.Unlock()
+		if readProcessStartTime(pid) == 0 && withinForkWindow {
 			continue
 		}
 		alive := isProcessAlive(pid)

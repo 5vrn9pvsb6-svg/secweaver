@@ -72,7 +72,7 @@ func TestInvalidLearningPolicyDoesNotBreakCollectorConfig(t *testing.T) {
 	if sink, err := newLearningOutput(cfg, "/tmp/original.log", "audit", &out, nil); err == nil || sink != nil {
 		t.Fatal("invalid learning policy accepted")
 	}
-	event := auditEvent{Time: time.Now(), EventType: "exec", Command: []string{"example"}}
+	event := auditEvent{Time: time.Now(), EventType: "exec", ListenerProcess: "nginx", Command: []string{"example"}}
 	if err := emitNormalizedEvent(&out, event); err != nil {
 		t.Fatal(err)
 	}

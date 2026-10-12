@@ -19,9 +19,12 @@ var ErrUnsupported = errors.New("process tracker is unsupported on this platform
 // Event is the compact, backend-neutral process lifecycle record consumed by
 // audit-port-execmon. RootPID identifies the listener tree that owns the event.
 type Event struct {
-	Type          uint32
-	TimestampNS   uint64
-	RootPID       uint32
+	Type        uint32
+	TimestampNS uint64
+	RootPID     uint32
+	// RootStartTime is an opaque /proc start-time token supplied at Track.
+	// The kernel inherits it unchanged; it is not an event timestamp in ns.
+	RootStartTime uint64
 	PID           uint32
 	PPID          uint32
 	UID           uint32
@@ -39,9 +42,9 @@ type Event struct {
 }
 
 // Tracker owns one kernel process-lifecycle data source. Track seeds an
-// existing process; future forks inherit RootPID inside the kernel backend.
+// existing process; future forks inherit RootPID and RootStartTime inside the kernel backend.
 type Tracker interface {
-	Track(pid, ppid, rootPID uint32, descendants bool) error
+	Track(pid, ppid, rootPID uint32, rootStartTime uint64, descendants bool) error
 	Untrack(pid uint32) error
 	Events() <-chan Event
 	Errors() <-chan error

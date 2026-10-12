@@ -12,6 +12,12 @@ The first four originals remain. An admitted behavior does not need another five
 hits every hour. Learning starts with the first successful collection after
 installation, accumulates 24 healthy hours by default, then freezes new admissions.
 
+Since 0.3.94, these learning rules and original-output fallbacks apply only after
+Linux listener-event scope validation: missing/blank `listener_process` or unknown
+attribution is dropped before learning and local output, even in shadow/disabled
+mode. This does not apply to native Windows collectors. See
+[process attribution](process-attribution.md) for the boundary and upgrade checks.
+
 | Event | Exact Fields | Prerequisites |
 | --- | --- | --- |
 | Linux exec | listener_process, pid_name, exe, command_line | Four nonempty valid fields; match collected strings without requiring complete argv |
@@ -348,8 +354,11 @@ without file admission. A partial sensitive-path group cannot prove absence and
 must not discard the event. Tail records beyond the deadline cannot amend an
 already emitted event. New decision_reason values are incomplete_file_paths,
 missing_file_command, invalid_file_command and capped_file_command. A 128-byte
-PROCTITLE cannot prove completeness. Exact matching, five-event admission and
-unknown-attribution bypass remain unchanged.
+PROCTITLE cannot prove completeness. Exact matching and five-event admission
+remain unchanged. Since 0.3.94, Linux listener events without a confirmed
+nonblank `listener_process` are dropped before learning and original output, rather
+than bypassing learning into the original log. Such drops do not contribute to
+engine-local coverage. See [process attribution](process-attribution.md).
 
 Heartbeat behavior_learning keeps top-level exec semantics and adds separate
 exec/file/network/risk streams. Linux currently reports exec/file; Windows follows

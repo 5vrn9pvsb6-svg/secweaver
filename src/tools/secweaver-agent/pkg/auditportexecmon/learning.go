@@ -115,9 +115,21 @@ func newLearningOutput(cfg config, eventPath, backend string, out io.Writer, tra
 	return w, nil
 }
 
-// emitNormalizedEvent preserves direct writers in tests and disabled installs.
-// It is called only after normal tracking and attribution have completed.
+// hasOutputListener enforces the Linux listener-scoped output contract. Unknown
+// identity cannot be rescued by a stale label; rejected events never reach raw
+// output, learning state/summaries, or the shipper's watched files.
+func hasOutputListener(event auditEvent) bool {
+	// Discovery's placeholder is not a confirmed service name either.
+	name := strings.TrimSpace(event.ListenerProcess)
+	return name != "" && !strings.EqualFold(name, "unknown") && event.AttributionStatus != "unknown"
+}
+
+// emitNormalizedEvent applies scope before either serialization or semantic
+// writer dispatch, including installations where learning is disabled/faulted.
 func emitNormalizedEvent(out io.Writer, event auditEvent) error {
+	if !hasOutputListener(event) {
+		return nil
+	}
 	if sink, ok := out.(interface{ WriteEvent(auditEvent) error }); ok {
 		return sink.WriteEvent(event)
 	}
@@ -133,10 +145,10 @@ func emitNormalizedEvent(out io.Writer, event auditEvent) error {
 // Disabled file learning bypasses the queue; overflow faults both baselines and
 // writes the original immediately so backpressure cannot silently drop evidence.
 func (w *learningOutput) WriteEvent(event auditEvent) error {
-	// Identity uncertainty must never become a learnable empty-service tuple or
-	// be suppressed by an old baseline. Preserve the original evidence directly.
-	if event.AttributionStatus == "unknown" {
-		return emitNormalizedEvent(w.Writer, event)
+	// Guard direct callers before queueing and every fallback: missing or
+	// uncertain listener ownership is a scope rejection, not a learning miss.
+	if !hasOutputListener(event) {
+		return nil
 	}
 	if event.EventType != "exec" && (event.EventType != "file_op" || w.fileEngine == nil) {
 		return emitNormalizedEvent(w.Writer, event)

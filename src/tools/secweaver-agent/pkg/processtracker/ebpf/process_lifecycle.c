@@ -94,7 +94,10 @@ struct syscall_exit_ctx {
 	long ret;
 };
 
+// The userspace root-lifetime token is copied through forks and buffered
+// events. A delayed event must never inherit a replacement root's identity.
 struct process_owner {
+    __u64 root_start_time;
 	__u32 root_pid;
 	__u32 parent_pid;
 	__u32 flags;
@@ -110,6 +113,7 @@ struct process_event {
 	__u32 argc;
 	__u32 flags;
 	__u64 timestamp_ns;
+    __u64 root_start_time;
 	// Successful exec identity is captured in-kernel, not guessed from a later
 	// /proc snapshot. identity_valid marks all required reads as successful.
 	__u64 start_boottime_ns;
@@ -168,6 +172,7 @@ static __always_inline struct process_event *new_event(__u32 type, const struct 
 		return 0;
 	event->type = type;
 	event->root_pid = owner->root_pid;
+    event->root_start_time = owner->root_start_time;
 	event->pid = pid;
 	event->ppid = ppid;
 	event->argc = 0;
@@ -183,7 +188,7 @@ int handle_process_fork(struct bpf_raw_tracepoint_args *ctx)
 {
 	struct task_struct *parent = (void *)ctx->args[0];
 	struct task_struct *child = (void *)ctx->args[1];
-	struct process_owner child_owner;
+	struct process_owner child_owner = {};
 	struct process_owner *owner;
 	struct process_event *event;
 	__u32 parent_tgid = 0;
@@ -199,6 +204,7 @@ int handle_process_fork(struct bpf_raw_tracepoint_args *ctx)
 	if (!owner || !(owner->flags & OWNER_TRACK_DESCENDANTS))
 		return 0;
 	child_owner.root_pid = owner->root_pid;
+    child_owner.root_start_time = owner->root_start_time;
 	child_owner.parent_pid = parent_tgid;
 	child_owner.flags = owner->flags;
 	if (bpf_map_update_elem(&tracked_processes, &child_tgid, &child_owner, BPF_ANY))

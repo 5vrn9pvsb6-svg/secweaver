@@ -385,9 +385,10 @@ func TestQueueFullSkipsPIDExpansion(t *testing.T) {
 }
 
 func TestNginxAndPhpFPMHybridMonitorDefaults(t *testing.T) {
-	nginx := listenerInfo{PID: 100, Process: "nginx", MonitorExe: "/usr/sbin/nginx", Port: 443, ExeOnly: true}
+	stubAttributionStartTimes(t, func(int) uint64 { return 100 })
+	nginx := listenerInfo{PID: 100, RootStartTime: 100, Process: "nginx", MonitorExe: "/usr/sbin/nginx", Port: 443, ExeOnly: true}
 	if !nginx.ExeOnly {
-		t.Fatal("nginx should keep exe-path attribution in hybrid mode")
+		t.Fatal("nginx should keep executable collection in hybrid mode")
 	}
 	phpBackend := webGatewayCompanionBackends[0]
 	if !phpBackend.PathMonitor {
@@ -400,8 +401,8 @@ func TestNginxAndPhpFPMHybridMonitorDefaults(t *testing.T) {
 		pidTargets:  map[int]trackingTarget{},
 	}
 	monitor.mu.Lock()
-	if gw, ok := monitor.findListenerLocked(999, 23443, "/usr/sbin/php-fpm"); !ok || gw.Port != 443 {
-		t.Fatalf("php-fpm exe event should map to gateway listener, got ok=%v gw=%+v", ok, gw)
+	if gw, ok := monitor.findListenerLocked(999, 23443, "/usr/sbin/php-fpm"); ok {
+		t.Fatalf("unrelated php-fpm executable must not establish gateway ownership, got ok=%v gw=%+v", ok, gw)
 	}
 	if gw, ok := monitor.findListenerLocked(500, 100, "/usr/sbin/nginx"); !ok || gw.Process != "nginx" {
 		t.Fatalf("nginx exe event should map to nginx listener, got ok=%v gw=%+v", ok, gw)
@@ -482,11 +483,11 @@ func TestReconcileListenersPrunesStaleAndRefreshesRestartedProcess(t *testing.T)
 	if len(refreshed) != 2 || refreshed[0].PID != 201 || refreshed[1].PID != 300 {
 		t.Fatalf("unexpected refreshed listeners: %#v", refreshed)
 	}
-	if len(newIndexes) != 1 || newIndexes[0] != 1 {
-		t.Fatalf("new indexes = %#v, want [1]", newIndexes)
+	if len(newIndexes) != 2 || newIndexes[0] != 0 || newIndexes[1] != 1 {
+		t.Fatalf("new indexes = %#v, want both restarted roots [0, 1]", newIndexes)
 	}
-	if removed != 1 {
-		t.Fatalf("removed = %d, want 1 stale sshd listener", removed)
+	if removed != 2 {
+		t.Fatalf("removed = %d, want both old root identities", removed)
 	}
 }
 

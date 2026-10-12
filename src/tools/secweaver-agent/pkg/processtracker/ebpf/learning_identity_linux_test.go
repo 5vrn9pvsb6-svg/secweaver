@@ -11,7 +11,7 @@ import (
 // The generated event layout and decoder must agree after adding kernel
 // identity fields. Empty argv elements are meaningful and cannot be dropped.
 func TestDecodeLearningIdentity(t *testing.T) {
-	raw := processLifecycleProcessEvent{Type: 2, Pid: 42, Uid: 1001, Gid: 1002, Euid: 1001, Egid: 1002, Auid: 4294967295, IdentityValid: 1, StartBoottimeNs: 123000000, ExecutableInode: 1234, ExecutableDev: 0x801, Argc: 3}
+	raw := processLifecycleProcessEvent{Type: 2, RootPid: 10, RootStartTime: 9876, Pid: 42, Uid: 1001, Gid: 1002, Euid: 1001, Egid: 1002, Auid: 4294967295, IdentityValid: 1, StartBoottimeNs: 123000000, ExecutableInode: 1234, ExecutableDev: 0x801, Argc: 3}
 	raw.Args[0][0] = 'x'
 	raw.Args[2][0] = 'z'
 	var buffer bytes.Buffer
@@ -23,7 +23,7 @@ func TestDecodeLearningIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	event := decodeEvent(decoded)
-	if !event.IdentityValid || event.EUID != 1001 || event.EGID != 1002 || event.AUID != 4294967295 || event.StartBootNS != 123000000 || event.ExecutableInode != 1234 {
+	if event.RootPID != 10 || event.RootStartTime != 9876 || !event.IdentityValid || event.EUID != 1001 || event.EGID != 1002 || event.AUID != 4294967295 || event.StartBootNS != 123000000 || event.ExecutableInode != 1234 {
 		t.Fatalf("identity: %+v", event)
 	}
 	if len(event.Args) != 3 || event.Args[1] != "" {
@@ -39,6 +39,9 @@ func TestLearningIdentityObjectLoads(t *testing.T) {
 	spec, err := loadProcessLifecycle()
 	if err != nil {
 		t.Fatal(err)
+	}
+	if got := spec.Maps["tracked_processes"].ValueSize; got != uint32(binary.Size(processLifecycleProcessOwner{})) {
+		t.Fatalf("kernel owner size %d != Go %d", got, binary.Size(processLifecycleProcessOwner{}))
 	}
 	if spec.Programs["handle_process_exec"] == nil {
 		t.Fatal("missing exec program")

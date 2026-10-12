@@ -3,64 +3,68 @@ package auditportexecmon
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 )
 
 type companionBackend struct {
-	Label             string
-	CommNames         []string
-	CmdlineSubstrings []string
-	ExeSuffixes       []string
-	CommonPaths       []string
-	PathMonitor       bool // 默认按 -F exe= 路径监控（当前用于 php-fpm）
+	Label       string
+	CommNames   []string
+	ExeSuffixes []string
+	CommonPaths []string
+	PathMonitor bool // 默认按 -F exe= 路径监控（当前用于 php-fpm）
 }
 
 var webGatewayCompanionBackends = []companionBackend{
 	{
-		Label:             "php-fpm",
-		CommNames:         []string{"php-fpm"},
-		CmdlineSubstrings: []string{"php-fpm"},
-		ExeSuffixes:       []string{"/php-fpm"},
-		CommonPaths:       []string{"/usr/sbin/php-fpm", "/usr/bin/php-fpm", "/usr/local/php/sbin/php-fpm", "/usr/local/sbin/php-fpm"},
-		PathMonitor:       true,
+		Label:       "php-fpm",
+		CommNames:   []string{"php-fpm"},
+		ExeSuffixes: []string{"/php-fpm"},
+		CommonPaths: []string{"/usr/sbin/php-fpm", "/usr/bin/php-fpm", "/usr/local/php/sbin/php-fpm", "/usr/local/sbin/php-fpm"},
+		PathMonitor: true,
 	},
 	{
-		Label:             "uwsgi",
-		CommNames:         []string{"uwsgi"},
-		CmdlineSubstrings: []string{"uwsgi"},
-		ExeSuffixes:       []string{"/uwsgi"},
-		CommonPaths:       []string{"/usr/bin/uwsgi", "/usr/local/bin/uwsgi", "/usr/sbin/uwsgi"},
+		Label:       "uwsgi",
+		CommNames:   []string{"uwsgi"},
+		ExeSuffixes: []string{"/uwsgi"},
+		CommonPaths: []string{"/usr/bin/uwsgi", "/usr/local/bin/uwsgi", "/usr/sbin/uwsgi"},
 	},
 	{
-		Label:             "gunicorn",
-		CommNames:         []string{"gunicorn"},
-		CmdlineSubstrings: []string{"gunicorn"},
-		ExeSuffixes:       []string{"/gunicorn"},
-		CommonPaths:       []string{"/usr/bin/gunicorn", "/usr/local/bin/gunicorn"},
+		Label:       "gunicorn",
+		CommNames:   []string{"gunicorn"},
+		ExeSuffixes: []string{"/gunicorn"},
+		CommonPaths: []string{"/usr/bin/gunicorn", "/usr/local/bin/gunicorn"},
 	},
 	{
-		Label:             "puma",
-		CommNames:         []string{"puma"},
-		CmdlineSubstrings: []string{"puma"},
-		ExeSuffixes:       []string{"/puma"},
-		CommonPaths:       []string{"/usr/bin/puma", "/usr/local/bin/puma"},
+		Label:       "puma",
+		CommNames:   []string{"puma"},
+		ExeSuffixes: []string{"/puma"},
+		CommonPaths: []string{"/usr/bin/puma", "/usr/local/bin/puma"},
 	},
 	{
-		Label:             "unicorn",
-		CommNames:         []string{"unicorn"},
-		CmdlineSubstrings: []string{"unicorn"},
-		ExeSuffixes:       []string{"/unicorn", "/unicorn_rails"},
-		CommonPaths:       []string{"/usr/bin/unicorn", "/usr/local/bin/unicorn"},
+		Label:       "unicorn",
+		CommNames:   []string{"unicorn"},
+		ExeSuffixes: []string{"/unicorn", "/unicorn_rails"},
+		CommonPaths: []string{"/usr/bin/unicorn", "/usr/local/bin/unicorn"},
 	},
 }
 
+// commMatchesAny accepts process-title boundaries and numeric package versions,
+// but not arbitrary names such as gunicorn-check that merely share a prefix.
 func commMatchesAny(comm string, names []string) bool {
 	comm = strings.ToLower(strings.TrimSpace(comm))
 	for _, name := range names {
 		name = strings.ToLower(strings.TrimSpace(name))
-		if name != "" && (comm == name || strings.HasPrefix(comm, name)) {
+		if name == "" {
+			continue
+		}
+		if comm == name || strings.HasPrefix(comm, name+":") || strings.HasPrefix(comm, name+" ") {
+			return true
+		}
+		suffix := strings.TrimPrefix(comm, name)
+		if suffix != comm && suffix != "" && suffix[0] >= '0' && suffix[0] <= '9' && strings.Trim(suffix, "0123456789.") == "" {
 			return true
 		}
 	}
@@ -88,14 +92,14 @@ func cmdlineMatchesCompanionBackend(cmdline []string, backend companionBackend) 
 	if len(cmdline) == 0 {
 		return false
 	}
-	joined := strings.ToLower(strings.Join(cmdline, " "))
-	for _, sub := range backend.CmdlineSubstrings {
-		sub = strings.ToLower(strings.TrimSpace(sub))
-		if sub != "" && strings.Contains(joined, sub) {
-			return true
-		}
+	// Only an executable/entrypoint token may identify a backend. Arguments
+	// of pgrep, shell, curl, etc. can contain service names without being one.
+	first := strings.Fields(strings.TrimSpace(cmdline[0]))
+	if len(first) == 0 {
+		return false
 	}
-	return false
+	entry := strings.TrimSuffix(filepath.Base(first[0]), ":")
+	return commMatchesAny(entry, backend.CommNames)
 }
 
 func matchesCompanionProcess(pid int, backend companionBackend) bool {
@@ -224,11 +228,16 @@ func (m *processTreeMonitor) companionAlreadyPrimaryListener(backend companionBa
 }
 
 func (m *processTreeMonitor) bootstrapCompanionBackends(gateway listenerInfo) {
-	// FastCGI/reverse-proxy backends are not descendants of nginx/apache, but an
-	// exploited request can execute inside them. Associate their roots and
-	// executables with the gateway so evidence retains listener context.
+	// Automatic association requires a real descendant relationship. A service
+	// keyword, a shared runtime or a shared host cannot prove a proxy relation.
+	// Independent backends must be discovered as listeners in their own right.
 	for _, backend := range webGatewayCompanionBackends {
-		pids := findCompanionBackendPIDs(backend)
+		var pids []int
+		for _, pid := range findCompanionBackendPIDs(backend) {
+			if verifiedListenerDescendant(gateway, pid) {
+				pids = append(pids, pid)
+			}
+		}
 		if len(pids) == 0 {
 			continue
 		}
@@ -299,9 +308,12 @@ func (m *processTreeMonitor) registerCompanionPID(pid int, target trackingTarget
 	if pid <= 1 {
 		return
 	}
-	// Explicit companion membership is a policy association, but its cache
-	// still belongs to one PID lifetime. It must not promote runtime parents.
+	// Registration is also an admission boundary: callers cannot install a
+	// guessed cross-service relationship into the otherwise verified cache.
 	target.Gateway = bindListenerLifetime(target.Gateway)
+	if !verifiedListenerDescendant(target.Gateway, pid) {
+		return
+	}
 	start := readProcessStartTime(pid)
 	if start == 0 {
 		return
@@ -355,31 +367,9 @@ func (m *processTreeMonitor) companionTargetForProcess(pid, ppid int) (trackingT
 	return trackingTarget{}, false
 }
 
-func (m *processTreeMonitor) preferredWebGatewayLocked() (listenerInfo, bool) {
-	var fallback listenerInfo
-	for _, listener := range m.listeners {
-		if !isWebGatewayListener(listener) {
-			continue
-		}
-		if listener.Address == "0.0.0.0" {
-			return listener, true
-		}
-		if fallback.Process == "" {
-			fallback = listener
-		}
-	}
-	if fallback.Process != "" {
-		return fallback, true
-	}
-	return listenerInfo{}, false
-}
-
-func (m *processTreeMonitor) preferredWebGateway() (listenerInfo, bool) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.preferredWebGatewayLocked()
-}
-
+// gatewayForProcessChainLocked resolves all listener kinds from actual ancestry.
+// mu is held and each chain is bounded/cycle-checked. A backend keyword or an
+// executable rule alone never selects a gateway or bypasses root identity.
 func (m *processTreeMonitor) gatewayForProcessChainLocked(pid, ppid int) (listenerInfo, bool) {
 	if pid <= 1 && ppid <= 1 {
 		return listenerInfo{}, false
@@ -407,17 +397,7 @@ func (m *processTreeMonitor) gatewayForProcessChainLocked(pid, ppid int) (listen
 			if listener, state := m.cachedListenerLocked(p, 0, time.Time{}); state == attributionVerified {
 				return listener, true
 			}
-			for _, backend := range webGatewayCompanionBackends {
-				if matchesCompanionProcess(p, backend) {
-					if gw, ok := m.preferredWebGatewayLocked(); ok {
-						return gw, true
-					}
-				}
-			}
 			for _, root := range m.listeners {
-				if root.ExeOnly {
-					continue
-				}
 				if root.PID > 1 && root.PID == p && m.listenerLifetimeLocked(root) == attributionVerified {
 					return root, true
 				}

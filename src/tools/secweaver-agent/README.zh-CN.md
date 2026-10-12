@@ -1,5 +1,10 @@
 # secweaver-agent
 
+源码 0.3.95 要求 Linux 监听服务事件具备已确认且非空的 `listener_process`。
+0.3.95 修正监听 inode 解析与多实例隔离，统一短命 fork 证据，并为 eBPF 传递根代际；不再根据相同 exe 或首个 Web 网关猜测归属。
+无法确认归属的执行、连接和文件事件在写本地日志和进入学习前丢弃，不进入 Agent 上传链路。
+适用范围、升级限制和验证方法见[进程归属](docs/process-attribution.zh-CN.md)。源码修改不代表已部署。
+
 源码 0.3.93 修复 Linux 文件事件提前输出，增加各类型学习状态、过滤原因和引擎范围统计。
 见[行为学习](docs/behavior-learning.zh-CN.md)及[文件单独重学](docs/learning-recovery.zh-CN.md)，
 可恢复空文件名单并保留 exec 名单。源码更新不代表已部署。

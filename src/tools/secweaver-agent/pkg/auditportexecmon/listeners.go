@@ -124,13 +124,9 @@ func listenerMatchesFilter(listener listenerInfo, portFilter int, whitelistPorts
 	return !isLoopback(listener.Address) && (portFilter <= 0 || listener.Port == portFilter) && !whitelistPorts[listener.Port]
 }
 
+// listenerIdentity keeps independent socket owners distinct even when their
+// binaries and bind addresses match (for example SO_REUSEPORT workers).
 func listenerIdentity(listener listenerInfo) string {
-	if listener.ExeOnly && listener.MonitorExe != "" {
-		return fmt.Sprintf("exe-only:%s/%s/%d", listener.MonitorExe, listener.Address, listener.Port)
-	}
-	if listener.MonitorExe != "" {
-		return fmt.Sprintf("exe:%s/%s/%d", listener.MonitorExe, listener.Address, listener.Port)
-	}
 	return fmt.Sprintf("%d/%s/%d", listener.PID, listener.Address, listener.Port)
 }
 
@@ -349,66 +345,13 @@ func parseNetstatPIDProgram(field string) (int, string) {
 	return pid, name
 }
 
-func resolveMonitorTarget(address string, port int, netstatName string, inodeToPID map[string]int) (pid int, name string, monitorExe string, ok bool) {
-	// Socket activation can report systemd/init instead of the eventual daemon.
-	// Resolve inode ownership first, then use a tightly scoped sshd fallback.
+func resolveMonitorTarget(address string, port int, _ string, inodeToPID map[string]int) (pid int, name string, monitorExe string, ok bool) {
+	// A conventional port or a systemd/init name does not prove which daemon
+	// owns the socket. Require its inode owner instead of choosing any sshd.
 	if resolvedPID, resolvedName, found := findPIDByListenAddressPort(address, port, inodeToPID); found && resolvedPID > 1 {
 		return resolvedPID, resolvedName, "", true
 	}
-	if pids := findSSHDMonitorPIDs(); len(pids) > 0 && (port == 22 || netstatName == "init" || netstatName == "systemd") {
-		pid = pids[0]
-		name = readProcComm(pid)
-		if name == "" {
-			name = "sshd"
-		}
-		return pid, name, "", true
-	}
-	if port == 22 {
-		return 0, "sshd", "/usr/sbin/sshd", true
-	}
 	return 0, "", "", false
-}
-
-func findSSHDMonitorPIDs() []int {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return nil
-	}
-	var pids []int
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		pid, err := strconv.Atoi(entry.Name())
-		if err != nil || pid <= 1 {
-			continue
-		}
-		if !isSSHDMonitorProcess(pid) {
-			continue
-		}
-		pids = append(pids, pid)
-	}
-	for i := 0; i < len(pids); i++ {
-		for j := i + 1; j < len(pids); j++ {
-			if pids[j] < pids[i] {
-				pids[i], pids[j] = pids[j], pids[i]
-			}
-		}
-	}
-	return pids
-}
-
-func isSSHDMonitorProcess(pid int) bool {
-	comm := readProcComm(pid)
-	if comm != "sshd" {
-		return false
-	}
-	cmdline, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
-	if err != nil {
-		return true
-	}
-	text := string(bytes.ReplaceAll(cmdline, []byte{0}, []byte(" ")))
-	return !strings.Contains(text, "@")
 }
 
 func findPIDByListenAddressPort(address string, port int, inodeToPID map[string]int) (int, string, bool) {
@@ -439,7 +382,7 @@ func findPIDByListenAddressPort(address string, port int, inodeToPID map[string]
 			if !listenAddressMatches(address, listenAddress) {
 				continue
 			}
-			inode := normalizeInode(fields[len(fields)-2])
+			inode := procNetSocketInode(fields)
 			pid := lookupPIDByInode(inode, inodeToPID)
 			if pid > 1 {
 				return pid, readProcComm(pid), true
@@ -500,7 +443,7 @@ func parseProcNetListeners(path string, inodeToPID map[string]int) ([]listenerIn
 		}
 		port := int(port64)
 		address := formatProcNetAddress(localParts[0])
-		inode := normalizeInode(fields[len(fields)-2])
+		inode := procNetSocketInode(fields)
 		pid := lookupPIDByInode(inode, inodeToPID)
 		name := ""
 		if pid <= 1 {

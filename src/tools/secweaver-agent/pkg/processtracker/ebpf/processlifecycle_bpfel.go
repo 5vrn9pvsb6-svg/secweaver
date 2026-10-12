@@ -22,6 +22,7 @@ type processLifecycleProcessEvent struct {
 	Argc            uint32
 	Flags           uint32
 	TimestampNs     uint64
+	RootStartTime   uint64
 	StartBoottimeNs uint64
 	ExecutableInode uint64
 	ExecutableDev   uint32
@@ -36,9 +37,11 @@ type processLifecycleProcessEvent struct {
 }
 
 type processLifecycleProcessOwner struct {
-	RootPid   uint32
-	ParentPid uint32
-	Flags     uint32
+	RootStartTime uint64
+	RootPid       uint32
+	ParentPid     uint32
+	Flags         uint32
+	_             [4]byte
 }
 
 // loadProcessLifecycle returns the embedded CollectionSpec for processLifecycle.

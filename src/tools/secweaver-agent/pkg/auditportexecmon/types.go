@@ -12,7 +12,7 @@ type listenerInfo struct {
 	// RootStartTime binds cached owners and queued work to this listener lifetime;
 	// it is internal metadata, not part of the public listener inventory.
 	RootStartTime      uint64 `json:"-"`
-	AttributionUnknown bool   `json:"-"` // kernel-scoped evidence whose root identity expired
+	AttributionUnknown bool   `json:"-"` // expired root identity: retain lifecycle state, reject event output
 	PID                int    `json:"pid"`
 	Process            string `json:"process"`
 	Address            string `json:"address"`

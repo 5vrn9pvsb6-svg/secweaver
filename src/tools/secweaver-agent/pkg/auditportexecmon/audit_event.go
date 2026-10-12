@@ -177,19 +177,16 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 		return
 	}
 	listener, listenerMatched := monitor.matchListener(acc.fields)
-	if monitor.usesBoundedAudit() && !listenerMatched && acc.fields["attribution_status"] != "unknown" {
+	// All audit backends require a confirmed named listener at emission. A key
+	// or earlier admission does not authorize unknown events to reach disk when
+	// identity expires while auxiliary records assemble (including final flush).
+	if !listenerMatched || strings.TrimSpace(listener.Process) == "" || acc.fields["attribution_status"] == "unknown" {
 		delete(accs, id)
 		putAccumulator(acc)
 		recordAccumulatorCompleted()
 		return
 	}
 	if isSensitiveRead {
-		if !listenerMatched && acc.fields["attribution_status"] != "unknown" {
-			delete(accs, id)
-			putAccumulator(acc) // P1 Optimization: Return to pool
-			recordAccumulatorCompleted()
-			return
-		}
 		if completeFilePaths(acc) && len(filterSensitivePaths(orderedPaths(acc.paths), monitor.sensitiveFilePaths)) == 0 {
 			delete(accs, id)
 			putAccumulator(acc) // P1 Optimization: Return to pool
@@ -287,7 +284,8 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 			event.Fields["learning_file_fields_complete"] = "yes"
 		}
 	}
-	// Tracking above remains unconditional; learning can only reduce output.
+	// Only confirmed listener-scoped events reach this boundary; learning may
+	// further reduce the already scoped output but cannot widen it.
 	if err := emitNormalizedEvent(out, event); err != nil {
 		learningFault(out, "original_output_failed")
 	}

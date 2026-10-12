@@ -86,6 +86,7 @@ type processTreeMonitor struct {
 	processStartTimes map[int]uint64
 	processParentPIDs map[int]int
 	processObservedAt map[int]time.Time
+	lastForkPrune     time.Time // protected by mu; bounds source-proof cleanup work
 	// Clone evidence is bounded by the same PID ledger and short identity TTL.
 	// It is never refreshed by exec events or by an unverifiable ownership hit.
 	processCloneTimes     map[int]time.Time

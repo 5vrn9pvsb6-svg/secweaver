@@ -159,15 +159,17 @@ func (tracker *processTracker) attach(perCPUBufferBytes int) error {
 	return nil
 }
 
-func (tracker *processTracker) Track(pid, ppid, rootPID uint32, descendants bool) error {
-	if pid <= 1 || rootPID <= 1 {
+// Track writes the caller-verified root lifetime into the kernel map. This
+// token is opaque to BPF and must be echoed by every event, including exit.
+func (tracker *processTracker) Track(pid, ppid, rootPID uint32, rootStartTime uint64, descendants bool) error {
+	if pid <= 1 || rootPID <= 1 || rootStartTime == 0 {
 		return fmt.Errorf("invalid tracked process: pid=%d root_pid=%d", pid, rootPID)
 	}
 	var flags uint32
 	if descendants {
 		flags = 1
 	}
-	owner := processLifecycleProcessOwner{RootPid: rootPID, ParentPid: ppid, Flags: flags}
+	owner := processLifecycleProcessOwner{RootPid: rootPID, RootStartTime: rootStartTime, ParentPid: ppid, Flags: flags}
 	if err := tracker.objects.TrackedProcesses.Update(pid, owner, cebpf.UpdateAny); err != nil {
 		return fmt.Errorf("seed eBPF tracked process pid=%d root_pid=%d: %w", pid, rootPID, err)
 	}
@@ -241,6 +243,7 @@ func decodeEvent(raw processLifecycleProcessEvent) processtracker.Event {
 		EUID:          raw.Euid, EGID: raw.Egid, AUID: raw.Auid,
 		StartBootNS: raw.StartBoottimeNs, ExecutableInode: raw.ExecutableInode, ExecutableDev: raw.ExecutableDev,
 		RootPID:       raw.RootPid,
+		RootStartTime: raw.RootStartTime,
 		PID:           raw.Pid,
 		PPID:          raw.Ppid,
 		UID:           raw.Uid,

@@ -74,7 +74,7 @@ func followProcessTracker(ctx context.Context, tracker processtracker.Tracker, m
 				return fmt.Errorf("eBPF process event stream closed unexpectedly")
 			}
 			listener, owned := monitor.observeEBPFEvent(event)
-			if event.Type != processtracker.EventExec || !owned || (!listener.AttributionUnknown && !monitor.shouldMonitorExec(listener)) {
+			if event.Type != processtracker.EventExec || !owned || listener.AttributionUnknown || !monitor.shouldMonitorExec(listener) {
 				continue
 			}
 			if err := emitEBPFExecEvent(event, listener, monitor.execKey, host, out); err != nil {
@@ -98,8 +98,12 @@ func emitEBPFExecEvent(source processtracker.Event, listener listenerInfo, key s
 // emitEBPFExecEventWithContext keeps kernel lifecycle evidence separate from
 // best-effort /proc enrichment. Short-lived processes may disappear before the
 // reader runs; empty context therefore means unknown and must not synthesize a
-// negative TTY assertion.
+// negative TTY assertion. A missing/expired listener itself rejects output even
+// when the kernel previously tracked the event within a service tree.
 func emitEBPFExecEventWithContext(source processtracker.Event, listener listenerInfo, key string, host hostIdentity, out io.Writer, processContext processExecutionContext) error {
+	if listener.AttributionUnknown || strings.TrimSpace(listener.Process) == "" {
+		return nil
+	}
 	command := append([]string(nil), source.Args...)
 	if len(command) == 0 && source.Filename != "" {
 		command = []string{source.Filename}
@@ -142,13 +146,6 @@ func emitEBPFExecEventWithContext(source processtracker.Event, listener listener
 		ListenerProcess:  listener.Process,
 		ListenerAddress:  listener.Address,
 		ListenerPort:     listener.Port,
-	}
-	if listener.AttributionUnknown {
-		// The kernel event is still in scope, but a root lifecycle mismatch
-		// cannot be expressed as a verified service relationship.
-		event.ListenerPID, event.ListenerPort = 0, 0
-		event.ListenerProcess, event.ListenerAddress = "", ""
-		event.AttributionStatus = "unknown"
 	}
 	// Identity enrichment remains best effort. Exact-command learning uses argv
 	// completeness independently; short-lived processes need no /proc identity.

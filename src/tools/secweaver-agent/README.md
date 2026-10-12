@@ -1,5 +1,11 @@
 # secweaver-agent
 
+Source 0.3.95 requires a confirmed, nonblank `listener_process` for Linux listener events.
+0.3.95 fixes listener inode parsing and instance isolation, shares short-lived fork evidence, and carries eBPF root generations; executable equality and the first Web gateway no longer imply ownership.
+Unresolved exec/connect/file events are dropped before local output and learning, so
+the Agent shipper cannot upload them. See [process attribution](docs/process-attribution.md)
+for scope, upgrade limits and verification. Source changes do not imply deployment.
+
 Source 0.3.93 fixes premature Linux file-event emission and reports independent
 learning states/readiness with engine-local coverage. See [behavior learning](docs/behavior-learning.md)
 and [file-only recovery](docs/learning-recovery.md) to repair empty file baselines

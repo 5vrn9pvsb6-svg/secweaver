@@ -22,7 +22,14 @@ func (w *fileEvidenceCapture) WriteEvent(e auditEvent) error {
 }
 
 func TestNativeFileEvidenceReachesSimpleAdapter(t *testing.T) {
-	listener := listenerInfo{PID: 1234, Process: "nginx", Address: "0.0.0.0", Port: 443, MonitorExe: "/usr/sbin/nginx", ExeOnly: true}
+	// A real root identity is required even when the executable matches.
+	stubAttributionStartTimes(t, func(pid int) uint64 {
+		if pid == 1234 {
+			return 100
+		}
+		return 0
+	})
+	listener := listenerInfo{PID: 1234, RootStartTime: 100, Process: "nginx", Address: "0.0.0.0", Port: 443, MonitorExe: "/usr/sbin/nginx", ExeOnly: true}
 	monitor := &processTreeMonitor{listeners: []listenerInfo{listener}, pidListener: map[int]listenerInfo{},
 		monitored: map[int]bool{}, exeMonitored: map[string]bool{}, selfBranch: map[int]bool{},
 		execKey: "exec", fileKey: "file", connectKey: "connect", sensitiveFileKey: "sensitive", cloneKey: "clone",

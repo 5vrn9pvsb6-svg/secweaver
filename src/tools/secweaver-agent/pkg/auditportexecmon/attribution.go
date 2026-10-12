@@ -61,8 +61,8 @@ func (m *processTreeMonitor) invalidateOwnerLocked(pid int) {
 }
 
 // cachedListenerLocked is shared by audit backends, ancestors and companions.
-// Unknown means a previously tracked event must survive without a service
-// label; unrelated means positive contradictory identity evidence or no owner.
+// Unknown preserves uncertainty internally so a later lookup cannot invent a
+// service label; output rejects it. Unrelated means contradictory identity or no owner.
 // eventTime is required for the short-lived clone exception. It cannot be
 // replaced by receipt time, which would renew trust when old logs are replayed.
 func (m *processTreeMonitor) cachedListenerLocked(pid, eventPPID int, eventTime time.Time) (listenerInfo, attributionState) {
@@ -82,7 +82,7 @@ func (m *processTreeMonitor) cachedListenerLocked(pid, eventPPID int, eventTime 
 	if eventPPID > 0 && parent > 0 && eventPPID != parent {
 		m.invalidateOwnerLocked(pid)
 		// Once the process is gone we cannot decide whether this was PID reuse
-		// or a reparented/delayed tracked event. Keep evidence, never the old label.
+		// or a reparented/delayed tracked event. Keep uncertainty, never the old label.
 		if current == 0 {
 			return listenerInfo{}, attributionUnknown
 		}
@@ -134,8 +134,8 @@ func auditSourceTime(fields map[string]string) time.Time {
 }
 
 // matchAuditListener preserves an uncertain result on the event itself before
-// invalidating any stale cache. Rechecks during assembly must not turn that
-// accepted evidence into an unrelated event just because the cache was cleared.
+// invalidating any stale cache. Rechecks during assembly must not rescue that
+// event with a different root after uncertainty has already rejected its label.
 func (m *processTreeMonitor) matchAuditListener(fields map[string]string) (listenerInfo, bool) {
 	if fields["attribution_status"] == "unknown" {
 		return listenerInfo{}, false
@@ -148,8 +148,8 @@ func (m *processTreeMonitor) matchAuditListener(fields map[string]string) (liste
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	// Primary admission is evidence of collection scope. If its identity expires
-	// while EXECVE/PATH records assemble, retain it as unknown rather than drop
-	// an already accepted event on the second lookup.
+	// while EXECVE/PATH records assemble, retain unknown internally so the output
+	// gate drops the event instead of restoring a guessed listener on recheck.
 	uncertain := fields["attribution_accepted"] == "yes"
 	for _, candidate := range []struct{ pid, parent int }{{pid, ppid}, {ppid, 0}} {
 		listener, state := m.cachedListenerLocked(candidate.pid, candidate.parent, auditSourceTime(fields))
@@ -166,8 +166,8 @@ func (m *processTreeMonitor) matchAuditListener(fields map[string]string) (liste
 		if listener, ok := m.findListenerLocked(pid, ppid, fields["exe"]); ok {
 			return listener, true
 		}
-		// PID/executable audit rules already bound collection scope. Preserve
-		// unmatched evidence without allowing empty-service baseline learning.
+		// PID/executable audit rules already bound collection scope, but do not
+		// prove a current listener. Mark unresolved events for output rejection.
 		// Sensitive-path watches are host-wide on every backend; a watch hit
 		// alone must not expand the configured service collection scope.
 		uncertain = uncertain || (fields["key"] != "" && fields["key"] != m.sensitiveFileKey)

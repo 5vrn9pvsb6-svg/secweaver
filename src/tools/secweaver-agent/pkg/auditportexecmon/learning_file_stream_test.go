@@ -11,8 +11,17 @@ import (
 	"time"
 )
 
-func fileStreamMonitor() *processTreeMonitor {
-	listener := listenerInfo{PID: 1234, Process: "nginx", Port: 443, MonitorExe: "/usr/sbin/nginx", ExeOnly: true}
+// fileStreamMonitor provides a verified root lifetime. File assembly fixtures
+// must not rely on matching an executable to invent listener membership.
+func fileStreamMonitor(t *testing.T) *processTreeMonitor {
+	t.Helper()
+	stubAttributionStartTimes(t, func(pid int) uint64 {
+		if pid == 1234 {
+			return 100
+		}
+		return 0
+	})
+	listener := listenerInfo{PID: 1234, RootStartTime: 100, Process: "nginx", Port: 443, MonitorExe: "/usr/sbin/nginx", ExeOnly: true}
 	return &processTreeMonitor{listeners: []listenerInfo{listener}, pidListener: map[int]listenerInfo{}, monitored: map[int]bool{}, exeMonitored: map[string]bool{}, selfBranch: map[int]bool{}, execKey: "exec", fileKey: "file", connectKey: "connect", sensitiveFileKey: "sensitive", cloneKey: "clone", trackDescendants: true, monitorSensitiveFileReads: true, sensitiveFilePaths: defaultSensitiveFilePaths}
 }
 
@@ -31,7 +40,7 @@ func fileStreamLines(key string) []string {
 func TestFileStreamWaitsForPathsAndCommand(t *testing.T) {
 	for _, key := range []string{"file", "sensitive"} {
 		t.Run(key, func(t *testing.T) {
-			accs, monitor := map[string]*auditAccumulator{}, fileStreamMonitor()
+			accs, monitor := map[string]*auditAccumulator{}, fileStreamMonitor(t)
 			var out fileEvidenceCapture
 			lines := fileStreamLines(key)
 			for i, line := range lines {
@@ -57,7 +66,7 @@ func TestFileStreamWaitsForPathsAndCommand(t *testing.T) {
 // record; a missing tail must neither hang nor become eligible for suppression.
 func TestFileStreamTimeoutRetainsPartialEvidence(t *testing.T) {
 	for _, key := range []string{"file", "sensitive"} {
-		accs, monitor := map[string]*auditAccumulator{}, fileStreamMonitor()
+		accs, monitor := map[string]*auditAccumulator{}, fileStreamMonitor(t)
 		var out fileEvidenceCapture
 		for _, line := range fileStreamLines(key)[:3] {
 			consumeAuditLine(accs, line)
@@ -81,7 +90,7 @@ func TestFileEvidenceThroughAuditTransports(t *testing.T) {
 			defer cancel()
 			body := strings.Join(fileStreamLines("sensitive"), "\n") + "\n"
 			var out bytes.Buffer
-			m := fileStreamMonitor()
+			m := fileStreamMonitor(t)
 			if source == "stream" {
 				_ = followAuditStream(ctx, strings.NewReader(body), "exec", "connect", "file", m, hostIdentity{}, false, &out, time.Hour)
 			} else {
@@ -103,7 +112,7 @@ func TestFileEvidenceThroughAuditTransports(t *testing.T) {
 func TestFileCommandArrivalAndTimeout(t *testing.T) {
 	for _, scenario := range []string{"delayed", "missing", "capped", "out_of_order"} {
 		t.Run(scenario, func(t *testing.T) {
-			accs, m := map[string]*auditAccumulator{}, fileStreamMonitor()
+			accs, m := map[string]*auditAccumulator{}, fileStreamMonitor(t)
 			var out fileEvidenceCapture
 			lines := fileStreamLines("file")
 			if scenario == "out_of_order" {
@@ -145,7 +154,7 @@ func TestFileStreamEOFRetainsMissingTail(t *testing.T) {
 	for _, key := range []string{"file", "sensitive"} {
 		body := strings.Join(fileStreamLines(key)[:3], "\n") + "\n"
 		var out fileEvidenceCapture
-		_ = followAuditStream(context.Background(), strings.NewReader(body), "exec", "connect", "file", fileStreamMonitor(), hostIdentity{}, false, &out, time.Hour)
+		_ = followAuditStream(context.Background(), strings.NewReader(body), "exec", "connect", "file", fileStreamMonitor(t), hostIdentity{}, false, &out, time.Hour)
 		if out.observation.Context.File == nil || out.observation.Complete || out.observation.Reason != "incomplete_file_paths" {
 			t.Fatalf("EOF discarded partial evidence: %+v", out.observation)
 		}
