@@ -1,5 +1,10 @@
 # secweaver-agent
 
+Source 0.3.93 fixes premature Linux file-event emission and reports independent
+learning states/readiness with engine-local coverage. See [behavior learning](docs/behavior-learning.md)
+and [file-only recovery](docs/learning-recovery.md) to repair empty file baselines
+while preserving exec. Source changes do not imply live deployment.
+
 For the Linux attribution fixes and optional `attribution_status` field in Agent 0.3.92, see [Process attribution and short-lived evidence](docs/process-attribution.md). Canary verification must check both attribution accuracy and real descendant coverage.
 
 Source 0.3.86 adds [Linux learning recovery](docs/learning-recovery.md): inspect by

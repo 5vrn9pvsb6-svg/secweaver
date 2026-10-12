@@ -19,6 +19,9 @@ import (
 
 func followAuditLog(ctx context.Context, path, execKey, connectKey, fileKey string, monitor *processTreeMonitor, host hostIdentity, fromStart bool, startOffset int64, printRaw bool, out io.Writer, listenerRescanInterval time.Duration) error {
 	accs := map[string]*auditAccumulator{}
+	// This consumer alone owns accs. Before its output adapter closes, retain
+	// pending file evidence on EOF, read error or cancellation as well as timeout.
+	defer flushFileRecords(accs, execKey, connectKey, fileKey, monitor, host, printRaw, out)
 	flushTicker := time.NewTicker(auditLogFlushInterval)
 	defer flushTicker.Stop()
 	nextFlush := time.Now().Add(auditLogFlushInterval)
@@ -155,6 +158,9 @@ func followAuditLog(ctx context.Context, path, execKey, connectKey, fileKey stri
 // to the demux backlog.
 func followAuditStream(ctx context.Context, r io.Reader, execKey, connectKey, fileKey string, monitor *processTreeMonitor, host hostIdentity, printRaw bool, out io.Writer, listenerRescanInterval time.Duration) error {
 	accs := map[string]*auditAccumulator{}
+	// This consumer alone owns accs. Before its output adapter closes, retain
+	// pending file evidence on EOF, read error or cancellation as well as timeout.
+	defer flushFileRecords(accs, execKey, connectKey, fileKey, monitor, host, printRaw, out)
 	flushTicker := time.NewTicker(auditLogFlushInterval)
 	defer flushTicker.Stop()
 	nextFlush := time.Now().Add(auditLogFlushInterval)

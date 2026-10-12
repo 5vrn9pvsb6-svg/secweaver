@@ -37,7 +37,7 @@ func doctorCheckLinuxLearning(modules []runtimeModule, add func(doctorLevel, str
 		if status.Mode == "unknown" || status.Mode == "degraded" || status.UpdatedAt == "" {
 			level = doctorWarn
 		}
-		add(level, "learning/status", "Linux behavior learning status", fmt.Sprintf("mode=%s started_at=%s remaining_seconds=%d filtering_active=%t baseline_entries=%d updated_at=%s reason=%s", status.Mode, status.StartedAt, status.RemainingSeconds, status.FilteringActive, status.BaselineEntries, status.UpdatedAt, status.Reason))
+		add(level, "learning/status", "Linux behavior learning status", fmt.Sprintf("mode=%s started_at=%s remaining_seconds=%d filtering_active=%t baseline_entries=%d updated_at=%s reason=%s filtering_reason=%s", status.Mode, status.StartedAt, status.RemainingSeconds, status.FilteringActive, status.BaselineEntries, status.UpdatedAt, status.Reason, status.FilteringReason))
 		return
 	}
 	add(doctorWarn, "learning/config", "Linux behavior learning is unavailable because audit-port-execmon is disabled", "Enable the audit module before selecting --learning-mode enable or shadow")

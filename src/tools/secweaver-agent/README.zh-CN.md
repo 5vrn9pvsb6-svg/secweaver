@@ -1,5 +1,9 @@
 # secweaver-agent
 
+源码 0.3.93 修复 Linux 文件事件提前输出，增加各类型学习状态、过滤原因和引擎范围统计。
+见[行为学习](docs/behavior-learning.zh-CN.md)及[文件单独重学](docs/learning-recovery.zh-CN.md)，
+可恢复空文件名单并保留 exec 名单。源码更新不代表已部署。
+
 Agent 0.3.92 的 Linux 进程归属修复及新增可选 `attribution_status` 字段，见 [进程归属与短命进程证据](docs/process-attribution.zh-CN.md)。升级后的灰度验收应同时检查归属准确性与真实子进程覆盖。
 
 源码 0.3.86 提供[Linux 学习恢复脚本](docs/learning-recovery.zh-CN.md)：默认仅检查，

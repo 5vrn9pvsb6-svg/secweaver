@@ -45,6 +45,8 @@ class LearningRecoveryTests(unittest.TestCase):
         self.current = {"mode": "degraded", "baseline_entries": "0", "reason": "source_event_loss"}
         self.started = False
         self.file_active = False
+        self.file_current = {"mode": "enforcing", "baseline_entries": "0"}
+        self.version = "0.3.93"
 
     def command(self, argv, allowed=(0,)):
         # Only process/service boundaries are simulated. Backup, atomic writes,
@@ -57,12 +59,15 @@ class LearningRecoveryTests(unittest.TestCase):
                 return "ExecStart={} run -config {}".format(self.binary, self.supervisor)
             if argv[1] == "start":
                 self.started = True
-                generation = json.loads(self.config.read_text())["behavior_learning"]["generation"]
-                self.state_path.write_text(json.dumps({"state": {"generation": generation, "healthy_seconds": 1},
+                policy = json.loads(self.config.read_text())["behavior_learning"]
+                file_only = getattr(self.args, "scope", "all") == "file"
+                generation = policy.get("file_generation", policy["generation"]) if file_only else policy["generation"]
+                target = self.state_dir / "file-operations/state.json" if file_only else self.state_path
+                target.write_text(json.dumps({"state": {"generation": generation, "healthy_seconds": 1},
                                                       "hmac_sha256": "new synthetic"}))
             return ""
         if argv[1] == "version":
-            return "secweaver-agent 0.3.84"
+            return "secweaver-agent " + self.version
         if argv[1] == "doctor":
             return json.dumps({"checks": [{"component": "file-learning/status", "detail":
                 "filtering_active=" + str(self.file_active).lower()}]})
@@ -70,10 +75,10 @@ class LearningRecoveryTests(unittest.TestCase):
             return "behavior learning: enabled"
         raise AssertionError(argv)
 
-    def observation(self, binary, config):
+    def observation(self, binary, config, scope="all"):
         if self.started:
             return {"mode": "learning", "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
-        return self.current
+        return self.file_current if scope == "file" else self.current
 
     def execute(self, observer=None):
         with patch.object(recovery, "run", side_effect=self.command), \
@@ -214,6 +219,48 @@ class LearningRecoveryTests(unittest.TestCase):
                 recovery.recover(self.args)
         self.assertEqual(self.config.read_text(), '{"external_change":true}')
         self.assertEqual(self.identity.read_bytes(), b"synthetic enrolled identity")
+
+    def test_file_only_preserves_populated_exec_and_restores_on_failure(self):
+        self.args.scope = "file"
+        self.current = {"mode": "enforcing", "baseline_entries": "100"}
+        checkpoint = self.state_dir / "file-operations/state.json"
+        checkpoint.write_text(json.dumps({"state": {"generation": 3}}))
+        before_exec = self.state_path.read_bytes()
+        result = self.execute()
+        self.assertEqual(result["scope"], "linux_file_op_only")
+        self.assertEqual(result["status"], "relearning")
+        policy = json.loads(self.config.read_text())["behavior_learning"]
+        self.assertEqual(policy["generation"], 3)
+        self.assertEqual(policy["file_generation"], 4)
+        self.assertEqual(self.state_path.read_bytes(), before_exec)
+        self.assertEqual(self.execute()["reason"], "already_learning")
+        self.started = False
+        before = self.config.read_bytes(), self.state_path.read_bytes(), checkpoint.read_bytes()
+        original = self.command
+        starts = 0
+        def fail_once(argv, allowed=(0,)):
+            nonlocal starts
+            if [str(x) for x in argv][:2] == ["systemctl", "start"]:
+                starts += 1
+                if starts == 1:
+                    checkpoint.write_text("partial new file checkpoint")
+                    raise RuntimeError("synthetic file startup failure")
+                return ""
+            return original(argv, allowed)
+        with patch.object(recovery, "run", side_effect=fail_once), patch.object(recovery, "status", side_effect=self.observation):
+            with self.assertRaisesRegex(RuntimeError, "file startup failure"):
+                recovery.recover(self.args)
+        self.assertEqual(before, (self.config.read_bytes(), self.state_path.read_bytes(), checkpoint.read_bytes()))
+
+    def test_file_only_rejects_old_binary_and_preserves_nonempty_file(self):
+        self.args.scope = "file"
+        self.version = "0.3.92"
+        with self.assertRaisesRegex(ValueError, "0.3.93"):
+            self.execute()
+        self.version = "0.3.93"
+        self.file_current = {"mode": "degraded", "baseline_entries": "5"}
+        self.assertEqual(self.execute()["reason"], "existing_baseline_preserved")
+        self.assertFalse(any(x[:2] == ["systemctl", "stop"] for x in self.calls))
 
 
 if __name__ == "__main__":

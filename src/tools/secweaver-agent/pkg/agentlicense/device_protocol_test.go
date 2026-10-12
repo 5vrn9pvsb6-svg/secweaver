@@ -102,6 +102,10 @@ func TestEnrollAndHeartbeatUseIndependentDeviceKey(t *testing.T) {
 			if heartbeat.BehaviorLearning == nil || heartbeat.BehaviorLearning.Mode != "learning" || heartbeat.BehaviorLearning.RemainingSeconds != 86400 {
 				t.Fatalf("learning telemetry missing: %+v", heartbeat.BehaviorLearning)
 			}
+			fileStatus := heartbeat.BehaviorLearning.Streams["file"]
+			if !fileStatus.CountsReported || fileStatus.BaselineEntries != 0 || fileStatus.FilteringReason != "baseline_empty" || fileStatus.EngineCoverage == nil || fileStatus.EngineCoverage.Inputs != 1 {
+				t.Fatalf("signed stream telemetry lost: %+v", fileStatus)
+			}
 			signature, err := base64.RawURLEncoding.DecodeString(r.Header.Get("X-SecWeaver-Signature"))
 			if err != nil {
 				t.Fatal(err)
@@ -166,7 +170,8 @@ func TestEnrollAndHeartbeatUseIndependentDeviceKey(t *testing.T) {
 		"0.3.0",
 		nil,
 		nil,
-		&behaviorlearning.StatusSnapshot{Enabled: true, Mode: "learning", RemainingSeconds: 86400},
+		&behaviorlearning.StatusSnapshot{Enabled: true, Mode: "learning", RemainingSeconds: 86400,
+			Streams: map[string]behaviorlearning.StatusSnapshot{"file": {Enabled: true, Mode: "enforcing", CountsReported: true, FilteringReason: "baseline_empty", EngineCoverage: &behaviorlearning.EngineCoverage{RunID: "run-test", StartedAt: now.Format(time.RFC3339), Inputs: 1, Qualified: 1, Emitted: 1}}}},
 	); err != nil {
 		t.Fatal(err)
 	}

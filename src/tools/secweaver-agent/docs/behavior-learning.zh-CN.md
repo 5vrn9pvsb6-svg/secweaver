@@ -237,9 +237,9 @@ filtering_active 需要健康输入、非 shadow、非空有效名单；learning
 状态检查只读认证检查点和最多 128 KiB 摘要尾部，不抢运行锁；检查点最多落后 60 秒。
 启动后旧/缺失摘要不构成过滤就绪证据。
 
-现有 SaaS behavior_learning 心跳仍代表 exec 主基线，不代表其余独立名单。
-保持默认五分钟心跳。Gateway 需 0.6.0-rc.72+ 接受 learning + filtering_active，
-工作台 rc.112+ 支持显示；先发布兼容服务端，再启用新版 Agent。
+SaaS behavior_learning 顶层保留 exec 主基线；Agent 0.3.93 新增独立 streams，
+完整展示需 Gateway rc.80+、工作台 rc.131+。旧 Agent 仍只上报 exec，默认五分钟
+心跳不变；先发布兼容服务端，再启用新版 Agent 功能。
 
 Linux/Windows 进程、文件、连接的摘要仍写日志目录的 behavior-learning.log。
 Linux exec 原文的 decision_reason 表示本次学习/输出原因，例如 learning、shadow、
@@ -270,3 +270,38 @@ go test ./pkg/behaviorlearning -run '^$' -bench BenchmarkSimpleExecKnown -benchm
 迁移/正常重启、GUID 复用、文件/网络缓存上限和完整脚本/分片计数。
 跨平台构建不替代真实 Linux audit/eBPF、Windows Event Log/SCM、24 小时学习和 ES/SLS 入库验收。
 源码更新不等于已打包或部署。
+
+## 文件组装、独立状态与诊断计数（0.3.93）
+
+Linux audit 文件事件等待 SYSCALL.items 对应的完整 PATH 组及有效命令证据，
+避免第一条 PATH 就输出而丢失后续路径/PROCTITLE。等待从主记录开始最多 250 ms，
+由 100 ms 刷新周期调度；完整证据提前到齐可立即输出。超时、EOF、读取失败或取消时仍保留已组装的文件证据，不准入文件名单；
+敏感路径尚未收齐时不能用“当前未命中”丢弃整条事件。超过窗口才到达的尾记录不能补写已输出事件。
+新的 decision_reason 包括 incomplete_file_paths、missing_file_command、
+invalid_file_command、capped_file_command。128 字节封顶的 PROCTITLE 不能证明命令完整。
+原有精确匹配、五次准入、归属不明绕过学习策略不变。
+
+心跳 behavior_learning 顶层保持 exec 语义，streams 分别上报 exec/file/network/risk。
+Linux 当前为 exec/file，Windows 按各读者实际启用范围上报；缺失旧遥测不能推断成关闭。
+filtering_reason 单独解释摘要过期、源不健康、停止、shadow、空名单等，reason 仍描述名单状态。
+counts_reported 表明名单/候选计数可用；零与未知分开。完整工作台展示需 Gateway rc.80+、
+Workspace rc.131+；旧 Agent 不必为服务端升级而强制升级。
+
+每个精确匹配引擎运行状态增加 engine_coverage：run_id、started_at，以及 inputs、duplicates、
+qualified、rejected、baseline_misses、suppressed、emitted、output_errors。
+这些是本次引擎启动以来累计值，重启归零但名单不重置；不能跨状态记录相加。
+inputs 包含重复输入；去重后满足 inputs = duplicates + suppressed + emitted + output_errors，
+也满足 inputs = duplicates + qualified + rejected。qualified 仅说明满足准入字段/范围及去重预算，
+不代表行为安全或一定晋级；baseline_misses 仅统计冻结名单后未命中且按该原因保留的原文。
+统计不包含采集器绕过学习、队列溢出和上游漏采，不能用作整机总体过滤率或完整采集证明。
+旧 observed_count/suppressed_count 仍是晋级后的已知行为计数；累计运行计数只写状态记录，
+不复制到每行为摘要。Windows risk 继续只保存本地最新状态并随心跳上报，不恢复 risk 日志摘要上传。
+
+兼容升级保留已冻结的空名单。修复前冻结的空文件名单需按
+[恢复流程](learning-recovery.zh-CN.md)显式执行 --scope file，不影响 exec 名单。
+24 个健康小时结束不代表样本充分；无样本先核查采集范围/源健康，低频空名单可能合理。
+不要为了显示 true 降低五次门槛或批量重学。
+
+验证：go test -race . ./pkg/auditportexecmon ./pkg/behaviorlearning；make recovery-test。
+覆盖逐条输入、文件/流入口、延迟和缺失尾记录、多路径敏感文件、独立 generation、
+状态新鲜度及错误写出计数。源码测试不等于真实主机部署验收。

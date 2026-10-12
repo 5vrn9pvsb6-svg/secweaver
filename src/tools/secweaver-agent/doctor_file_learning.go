@@ -23,6 +23,6 @@ func doctorReportStreamLearning(stream string, status behaviorlearning.StatusSna
 	if status.Enabled && (status.Mode == "unknown" || status.Mode == "degraded" || status.UpdatedAt == "") {
 		level = doctorWarn
 	}
-	add(level, stream+"-learning/status", "Behavior learning status", fmt.Sprintf("enabled=%t mode=%s started_at=%s remaining_seconds=%d filtering_active=%t baseline_entries=%d candidate_entries=%d updated_at=%s reason=%s",
-		status.Enabled, status.Mode, status.StartedAt, status.RemainingSeconds, status.FilteringActive, status.BaselineEntries, status.CandidateEntries, status.UpdatedAt, status.Reason))
+	add(level, stream+"-learning/status", "Behavior learning status", fmt.Sprintf("enabled=%t mode=%s started_at=%s remaining_seconds=%d filtering_active=%t baseline_entries=%d candidate_entries=%d updated_at=%s reason=%s filtering_reason=%s",
+		status.Enabled, status.Mode, status.StartedAt, status.RemainingSeconds, status.FilteringActive, status.BaselineEntries, status.CandidateEntries, status.UpdatedAt, status.Reason, status.FilteringReason))
 }

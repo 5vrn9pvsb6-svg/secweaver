@@ -104,6 +104,19 @@ func emitReady(accs map[string]*auditAccumulator, execKey, connectKey, fileKey s
 	}
 }
 
+// flushFileRecords is the terminal partial-evidence path. The transport will
+// never receive another tail, so do not wait for its settle timer. This changes
+// only file assembly; existing exec/connect shutdown behavior remains separate.
+func flushFileRecords(accs map[string]*auditAccumulator, execKey, connectKey, fileKey string, monitor *processTreeMonitor, host hostIdentity, printRaw bool, out io.Writer) {
+	now := time.Now()
+	for id, acc := range accs {
+		key := acc.fields["key"]
+		if key == fileKey || key == monitor.sensitiveFileKey {
+			emitOne(accs, id, execKey, connectKey, fileKey, monitor, host, printRaw, out, time.Nanosecond, now)
+		}
+	}
+}
+
 func emitOneReady(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey string, monitor *processTreeMonitor, host hostIdentity, printRaw bool, out io.Writer) {
 	emitOne(accs, id, execKey, connectKey, fileKey, monitor, host, printRaw, out, 0, time.Now())
 }
@@ -160,7 +173,7 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	if eventType == "active_connect" && acc.fields["saddr"] == "" && maxAge == 0 {
 		return
 	}
-	if eventType == "file_op" && len(acc.paths) == 0 && maxAge == 0 {
+	if eventType == "file_op" && fileRecordPending(acc, now, maxAge) {
 		return
 	}
 	listener, listenerMatched := monitor.matchListener(acc.fields)
@@ -177,7 +190,7 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 			recordAccumulatorCompleted()
 			return
 		}
-		if len(filterSensitivePaths(orderedPaths(acc.paths), monitor.sensitiveFilePaths)) == 0 {
+		if completeFilePaths(acc) && len(filterSensitivePaths(orderedPaths(acc.paths), monitor.sensitiveFilePaths)) == 0 {
 			delete(accs, id)
 			putAccumulator(acc) // P1 Optimization: Return to pool
 			recordAccumulatorCompleted()
@@ -248,6 +261,11 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	if eventType == "file_op" {
 		if isSensitiveRead {
 			event.FilePaths = filterSensitivePaths(orderedPaths(acc.paths), monitor.sensitiveFilePaths)
+			// An incomplete path group cannot rule out a sensitive target. Keep
+			// the collected paths for investigation, but never learn this event.
+			if len(event.FilePaths) == 0 && !completeFilePaths(acc) {
+				event.FilePaths = orderedPaths(acc.paths)
+			}
 			event.FileAction = "read_sensitive_file"
 		} else {
 			event.FileAction = classifyFileAction(acc.fields)
@@ -262,8 +280,12 @@ func emitOne(accs map[string]*auditAccumulator, id, execKey, connectKey, fileKey
 	if completeAuditArgv(acc) {
 		event.Fields["learning_argv_complete"] = "yes"
 	}
-	if event.EventType == "file_op" && completeFileEvidence(acc) {
-		event.Fields["learning_file_fields_complete"] = "yes"
+	if event.EventType == "file_op" {
+		if reason := fileEvidenceReason(acc); reason != "" {
+			event.Fields["learning_file_incomplete_reason"] = reason
+		} else {
+			event.Fields["learning_file_fields_complete"] = "yes"
+		}
 	}
 	// Tracking above remains unconditional; learning can only reduce output.
 	if err := emitNormalizedEvent(out, event); err != nil {

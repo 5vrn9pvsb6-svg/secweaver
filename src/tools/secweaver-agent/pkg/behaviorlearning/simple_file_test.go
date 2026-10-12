@@ -188,3 +188,46 @@ func TestReadSummarySelectsBaselineInSharedFile(t *testing.T) {
 		t.Fatal("file summary replaced exec status")
 	}
 }
+
+// File-only recovery changes native generation identity, not exec fingerprints,
+// HMAC authentication or admission history. Reopen both real stores to prove it.
+func TestFileGenerationPreservesExecBaseline(t *testing.T) {
+	f := simpleFixture(t)
+	feedSimple(t, f, 0, 5)
+	execID, cfg := f.e.state.BaselineID, f.e.cfg
+	if err := f.e.Close(); err != nil {
+		t.Fatal(err)
+	}
+	sink := func(json.RawMessage) error { return nil }
+	summary := func(Summary) error { return nil }
+	file, err := New(FilePolicy(cfg, false), "device-test", sink, summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileID := file.state.BaselineID
+	file.state.Mode, file.state.Reason = "enforcing", "baseline_empty"
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	cfg.FileGeneration = cfg.Generation + 1
+	exec, err := New(cfg, "device-test", sink, summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer exec.Close()
+	if exec.state.BaselineID != execID || len(exec.state.Entries) != 1 {
+		t.Fatal("file recovery reset exec")
+	}
+	file, err = New(FilePolicy(cfg, false), "device-test", sink, summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer file.Close()
+	if file.state.BaselineID == fileID || file.state.Mode != "learning" || file.state.Generation != cfg.FileGeneration {
+		t.Fatal("file baseline did not restart")
+	}
+	cfg.Generation = cfg.FileGeneration + 1
+	if FilePolicy(cfg, false).Generation != cfg.Generation {
+		t.Fatal("global generation no longer restarts file")
+	}
+}

@@ -214,7 +214,7 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 				version,
 				moduleHealth,
 				updateHeartbeatReport(updater),
-				behaviorLearningStatus(runtimeModules, moduleHealth),
+				behaviorLearningStatus(runtimeModules, moduleHealth, cfg, enterpriseID),
 			)
 			cancel()
 			if metricsExporter != nil {

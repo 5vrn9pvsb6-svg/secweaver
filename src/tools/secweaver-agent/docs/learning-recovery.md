@@ -1,4 +1,4 @@
-# Learning Recovery and Empty Baselines (0.3.86)
+# Learning Recovery and Empty Baselines (0.3.93)
 
 [中文](learning-recovery.zh-CN.md)
 
@@ -38,7 +38,7 @@ sudo python3 ./restart-behavior-learning.py --apply
 sudo python3 ./restart-behavior-learning.py --apply --relearn
 ```
 
-Healthy exec baselines and active file baselines are always preserved. Healthy
+With the default --scope all, healthy exec baselines and active file baselines are always preserved. Healthy
 empty learning is skipped without --relearn. Repeating ordinary --apply preserves
 the new cycle; repeating --relearn explicitly requests another cycle. The default
 healthy day limits new admissions; completed-empty baselines never create filtering.
@@ -80,3 +80,30 @@ for backup, rollback, repeated execution, delayed startup and baseline preservat
 service/doctor boundaries are isolated. go test . ./pkg/behaviorlearning verifies
 native policy/generation behavior. Real Linux recovery needs its own host
 acceptance; source verification does not mean deployment.
+
+## Relearn only an empty file baseline (0.3.93+)
+
+Install and verify the file-assembly fix first: file_op paths/commands must be
+complete with reliable attribution. Requirements remain Linux/systemd, root,
+Python 3.6+ and the standard installation layout.
+
+```bash
+sudo python3 ./restart-behavior-learning.py --scope file
+sudo python3 ./restart-behavior-learning.py --scope file --apply
+```
+
+Use only when an empty file baseline needs recovery. Learning must already be
+enabled with shadow=false. Nonempty file baselines are always preserved; an empty
+healthy learning cycle is skipped unless --relearn explicitly restarts it.
+Only behavior_learning.file_generation increases; generation, enabled and shadow
+are unchanged. Exec entries/candidates/progress are retained. File effective
+generation is max(generation, file_generation); omission preserves old configs.
+A later whole-policy restart must raise generation above file_generation. The
+helper rejects binaries older than 0.3.93, which cannot parse the new field.
+
+The whole Agent still stops briefly. The helper backs up the complete learning
+tree/config, validates the new file generation and healthy progress, and restores
+the whole backup on failure. Verify new file candidates/admission after five
+unique source events, suppression counts, and retained exec baseline_id/entries.
+Neither upgrading nor this command guarantees immediate filtering; absent valid
+file samples, the new baseline can remain empty.

@@ -1,5 +1,11 @@
 # Changelog
 
+## Agent [0.3.93] - 2026-10-12
+
+- Assemble complete Linux file PATH/command evidence before emission, with bounded partial-evidence fallback and specific missing-field reasons.
+- Report independent exec/file/network/risk readiness, explicit count availability and cumulative engine-local coverage without changing matching or legacy aggregate semantics.
+- Add Linux file-only generation/recovery with backup/rollback and preserved exec baselines; add stream, transport, timeout, counter and recovery regressions with bilingual guides.
+
 ## Agent [0.3.92] - 2026-10-12
 
 - Stop listener ownership at the service root; runtime parents and sibling runc processes no longer inherit that service through upward expansion.

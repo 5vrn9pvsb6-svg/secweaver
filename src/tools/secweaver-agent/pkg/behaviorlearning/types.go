@@ -148,29 +148,31 @@ type State struct {
 }
 
 // Summary deliberately has no PID: aggregate counts must not become process
-// graph edges. Counts refer only to this qualified behavior's unique inputs.
+// graph edges. Legacy count fields cover only the qualified behavior; the
+// optional EngineCoverage has a separate, cumulative engine-local scope.
 type Summary struct {
-	SourceEventType string    `json:"source_event_type,omitempty"`
-	Time            time.Time `json:"time"`
-	EventType       string    `json:"event_type"`
-	AssetType       string    `json:"asset_type"`
-	SourceHealthy   bool      `json:"source_healthy"`
-	FilteringActive bool      `json:"filtering_active"`
-	Shadow          bool      `json:"shadow"`
-	DeviceID        string    `json:"device_id"`
-	BaselineID      string    `json:"baseline_id"`
-	Fingerprint     string    `json:"behavior_fingerprint,omitempty"`
-	SummaryID       string    `json:"summary_id"`
-	WindowStart     time.Time `json:"window_start"`
-	WindowEnd       time.Time `json:"window_end"`
-	Observed        uint64    `json:"observed_count"`
-	Suppressed      uint64    `json:"suppressed_count"`
-	Emitted         uint64    `json:"original_emitted_count"`
-	Replayed        uint64    `json:"context_reemitted_count"`
-	Complete        bool      `json:"counter_complete"`
-	Mode            string    `json:"learning_state"`
-	Reason          string    `json:"reason,omitempty"`
-	HealthySeconds  float64   `json:"healthy_seconds"`
-	Entries         int       `json:"baseline_entries"`
-	Candidates      int       `json:"candidate_entries"`
+	EngineCoverage  *EngineCoverage `json:"engine_coverage,omitempty"`
+	SourceEventType string          `json:"source_event_type,omitempty"`
+	Time            time.Time       `json:"time"`
+	EventType       string          `json:"event_type"`
+	AssetType       string          `json:"asset_type"`
+	SourceHealthy   bool            `json:"source_healthy"`
+	FilteringActive bool            `json:"filtering_active"`
+	Shadow          bool            `json:"shadow"`
+	DeviceID        string          `json:"device_id"`
+	BaselineID      string          `json:"baseline_id"`
+	Fingerprint     string          `json:"behavior_fingerprint,omitempty"`
+	SummaryID       string          `json:"summary_id"`
+	WindowStart     time.Time       `json:"window_start"`
+	WindowEnd       time.Time       `json:"window_end"`
+	Observed        uint64          `json:"observed_count"`
+	Suppressed      uint64          `json:"suppressed_count"`
+	Emitted         uint64          `json:"original_emitted_count"`
+	Replayed        uint64          `json:"context_reemitted_count"`
+	Complete        bool            `json:"counter_complete"`
+	Mode            string          `json:"learning_state"`
+	Reason          string          `json:"reason,omitempty"`
+	HealthySeconds  float64         `json:"healthy_seconds"`
+	Entries         int             `json:"baseline_entries"`
+	Candidates      int             `json:"candidate_entries"`
 }

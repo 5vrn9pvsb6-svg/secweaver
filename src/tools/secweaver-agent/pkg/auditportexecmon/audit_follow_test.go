@@ -609,8 +609,9 @@ func TestEmitSensitiveFileReadRequiresListenerMatch(t *testing.T) {
 	}
 	accs := map[string]*auditAccumulator{}
 	lines := []string{
-		`type=SYSCALL msg=audit(1782320671.957:88931): arch=c000003e syscall=2 success=yes exit=3 a0=7fff... a1=0 a2=0 ppid=1234 pid=2345 auid=4294967295 uid=33 gid=33 euid=33 suid=33 fsuid=33 egid=33 sgid=33 fsgid=33 tty=(none) ses=4294967295 comm="nginx" exe="/usr/sbin/nginx" key="tb_external_listener_sensitive"`,
+		`type=SYSCALL msg=audit(1782320671.957:88931): arch=c000003e syscall=2 items=1 success=yes exit=3 a0=7fff... a1=0 a2=0 ppid=1234 pid=2345 auid=4294967295 uid=33 gid=33 euid=33 suid=33 fsuid=33 egid=33 sgid=33 fsgid=33 tty=(none) ses=4294967295 comm="nginx" exe="/usr/sbin/nginx" key="tb_external_listener_sensitive"`,
 		`type=PATH msg=audit(1782320671.957:88931): item=0 name="/etc/shadow" inode=123 mode=0100640 ouid=0 ogid=42 rdev=00:00 nametype=NORMAL cap_fp=0 cap_fi=0 cap_fe=0 cap_fver=0 cap_frootid=0`,
+		`type=PROCTITLE msg=audit(1782320671.957:88931): proctitle="nginx -g daemon off;"`,
 	}
 	for _, line := range lines {
 		_, _ = consumeAuditLine(accs, line)

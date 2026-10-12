@@ -81,14 +81,17 @@ func (e *Engine) validateSimpleState(now time.Time) error {
 // Other streams keep their native completeness gates. PID/UID/ancestry, binaries,
 // rate models and live /proc state have no role in this policy.
 func (e *Engine) processSimple(o Observation, now time.Time) error {
+	e.coverage.Inputs++
 	if len(o.Raw) > 65536 || len(o.EventID) > 256 {
-		return e.original(o.Raw)
+		e.coverage.Rejected++
+		return e.emitCoveredOriginal(o.Raw)
 	}
 	id := e.simpleHash("source", o.EventID)
 	if at, ok := e.seen[id]; ok {
 		if now.Before(at) {
 			e.faultLocked("clock_regression")
 		} else if now.Sub(at) <= simpleExecWindow {
+			e.coverage.Duplicates++
 			return nil
 		}
 		delete(e.seen, id)
@@ -125,6 +128,11 @@ func (e *Engine) processSimple(o Observation, now time.Time) error {
 	if qualified && reason == "" {
 		key = e.simpleHash(e.cfg.simpleEventType(), fields)
 	}
+	if key != "" {
+		e.coverage.Qualified++
+	} else {
+		e.coverage.Rejected++
+	}
 	healthy := e.sourceHealthy(now)
 	if e.state.Mode == "learning" && key != "" && healthy && e.state.Entries[key] == nil {
 		reason = e.learnSimple(key, now)
@@ -137,6 +145,7 @@ func (e *Engine) processSimple(o Observation, now time.Time) error {
 		suppress = false
 	}
 	if suppress {
+		e.coverage.Suppressed++
 		c := e.counter(key, now)
 		c.Observed++
 		c.Suppressed++
@@ -173,8 +182,11 @@ func (e *Engine) processSimple(o Observation, now time.Time) error {
 	if commandEvidenceReason != "" {
 		metadata["command_evidence_reason"] = commandEvidenceReason
 	}
+	if reason == "baseline_miss" {
+		e.coverage.BaselineMisses++
+	}
 	raw := decorate(o.Raw, metadata)
-	if err := e.original(raw); err != nil {
+	if err := e.emitCoveredOriginal(raw); err != nil {
 		e.faultLocked("original_output_failed")
 		return err
 	}

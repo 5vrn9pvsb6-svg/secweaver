@@ -14,20 +14,26 @@ import (
 )
 
 // StatusSnapshot is the bounded operational view sent in the managed heartbeat.
-// It intentionally contains progress and mode only; baseline fingerprints and
+// It intentionally contains progress, readiness and bounded counters only; baseline fingerprints and
 // command arguments never leave the host through this status object.
 type StatusSnapshot struct {
-	Enabled          bool    `json:"enabled"`
-	Mode             string  `json:"mode"`
-	Shadow           bool    `json:"shadow"`
-	StartedAt        string  `json:"started_at,omitempty"`
-	RemainingSeconds int64   `json:"remaining_seconds,omitempty"`
-	FilteringActive  bool    `json:"filtering_active"`
-	HealthySeconds   float64 `json:"healthy_seconds,omitempty"`
-	BaselineEntries  int     `json:"baseline_entries,omitempty"`
-	CandidateEntries int     `json:"candidate_entries,omitempty"`
-	Reason           string  `json:"reason,omitempty"`
-	UpdatedAt        string  `json:"updated_at,omitempty"`
+	EngineCoverage   *EngineCoverage `json:"engine_coverage,omitempty"`
+	Enabled          bool            `json:"enabled"`
+	Mode             string          `json:"mode"`
+	Shadow           bool            `json:"shadow"`
+	StartedAt        string          `json:"started_at,omitempty"`
+	RemainingSeconds int64           `json:"remaining_seconds,omitempty"`
+	FilteringActive  bool            `json:"filtering_active"`
+	HealthySeconds   float64         `json:"healthy_seconds,omitempty"`
+	BaselineEntries  int             `json:"baseline_entries,omitempty"`
+	CandidateEntries int             `json:"candidate_entries,omitempty"`
+	Reason           string          `json:"reason,omitempty"`
+	UpdatedAt        string          `json:"updated_at,omitempty"`
+	FilteringReason  string          `json:"filtering_reason,omitempty"`
+	CountsReported   bool            `json:"counts_reported,omitempty"`
+	// Only the heartbeat root sets Streams; each value is a leaf. Old consumers
+	// keep reading the top-level exec projection. No baseline content is sent.
+	Streams map[string]StatusSnapshot `json:"streams,omitempty"`
 }
 
 // policyHash excludes installation paths and activation choices. Switching
@@ -40,6 +46,8 @@ func policyHash(cfg Config) string {
 	}
 	cfg.StateDir, cfg.OutputLog = "", ""
 	cfg.Enabled, cfg.Shadow, cfg.Generation = false, false, 0
+	// A file-only recovery request must not invalidate any stream's match keys.
+	cfg.FileGeneration = 0
 	body, _ := json.Marshal(cfg)
 	if cfg.simpleExec {
 		body = append(body, []byte(cfg.simpleStrategy())...)
@@ -147,7 +155,7 @@ func ReadBaselineSummary(path, baseline string) (*Summary, error) {
 		if baseline != "" && candidate.BaselineID != baseline {
 			continue
 		}
-		if latest == nil || candidate.Time.After(latest.Time) {
+		if latest == nil || candidate.Time.After(latest.Time) || (candidate.Time.Equal(latest.Time) && candidate.EventType == "behavior_learning_status") {
 			copy := candidate
 			latest = &copy
 		}
@@ -181,14 +189,15 @@ func InspectStatus(cfg Config) (StatusSnapshot, error) {
 // collector failure.
 func Snapshot(cfg Config, state *State, latest *Summary, now time.Time) StatusSnapshot {
 	if !cfg.Enabled {
-		return StatusSnapshot{Mode: "disabled", Reason: "disabled"}
+		return StatusSnapshot{Mode: "disabled", Reason: "disabled", FilteringReason: "disabled"}
 	}
-	result := StatusSnapshot{Enabled: true, Shadow: cfg.Shadow, Mode: "unknown", Reason: "state_unavailable"}
+	result := StatusSnapshot{Enabled: true, Shadow: cfg.Shadow, Mode: "unknown", Reason: "state_unavailable", FilteringReason: "state_unavailable"}
 	if state == nil {
 		return result
 	}
 	if state.Generation != cfg.Generation || state.Policy != policyHash(cfg) {
 		result.Reason = "policy_changed_explicit_relearn_required"
+		result.FilteringReason = result.Reason
 		return result
 	}
 	result.Mode = state.Mode
@@ -197,6 +206,7 @@ func Snapshot(cfg Config, state *State, latest *Summary, now time.Time) StatusSn
 		result.StartedAt = state.Started.UTC().Format(time.RFC3339)
 	}
 	result.HealthySeconds = state.HealthySeconds
+	result.CountsReported = true
 	result.BaselineEntries = len(state.Entries)
 	result.CandidateEntries = len(state.Candidates)
 	result.Reason = strings.TrimSpace(state.Reason)
@@ -208,18 +218,37 @@ func Snapshot(cfg Config, state *State, latest *Summary, now time.Time) StatusSn
 	}
 	// Rotation and explicit relearning can leave an older generation in the
 	// log. Only a matching device/baseline may qualify the runtime observation.
+	result.FilteringReason = "summary_unavailable"
 	if latest == nil || latest.DeviceID != state.Device || latest.BaselineID != state.BaselineID {
 		return result
 	}
+	result.EngineCoverage = latest.EngineCoverage
 	result.UpdatedAt = latest.Time.UTC().Format(time.RFC3339)
 	if strings.TrimSpace(latest.Reason) != "" {
 		result.Reason = latest.Reason
 	}
-	// A stale status is never treated as proof that filtering remains active.
+	// Preserve the baseline reason independently from current runtime readiness.
+	// This order explains stopped/stale input before discussing match coverage.
 	age := now.Sub(latest.Time)
-	if !state.CleanShutdown && !latest.Time.IsZero() && age >= 0 && age <= 2*time.Duration(cfg.SummarySeconds)*time.Second {
-		filterable := state.Mode == "enforcing" || (cfg.simpleExec && state.Mode == "learning")
-		result.FilteringActive = latest.FilteringActive && latest.SourceHealthy && !cfg.Shadow && !latest.Shadow && filterable && latest.Mode == state.Mode
+	filterable := state.Mode == "enforcing" || (cfg.simpleExec && state.Mode == "learning")
+	switch {
+	case state.CleanShutdown:
+		result.FilteringReason = "collector_stopped"
+	case latest.Time.IsZero() || age < 0 || age > 2*time.Duration(cfg.SummarySeconds)*time.Second:
+		result.FilteringReason = "summary_stale"
+	case !latest.SourceHealthy:
+		result.FilteringReason = "source_unhealthy"
+	case cfg.Shadow || latest.Shadow:
+		result.FilteringReason = "shadow"
+	case !filterable || latest.Mode != state.Mode:
+		result.FilteringReason = "mode_not_filtering"
+	case len(state.Entries) == 0:
+		result.FilteringReason = "baseline_empty"
+	case !latest.FilteringActive:
+		result.FilteringReason = "runtime_not_filtering"
+	default:
+		result.FilteringActive = true
+		result.FilteringReason = "active"
 	}
 	return result
 }

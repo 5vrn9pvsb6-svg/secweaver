@@ -74,14 +74,14 @@ def atomic_copy(source, target):
             os.unlink(name)
 
 
-def status(binary, config):
+def status(binary, config, scope="all"):
     # Native doctor authenticates checkpoints. Ignore unrelated doctor warnings,
     # but a missing/invalid learning report cannot authorize a state reset.
     report = json.loads(run([binary, "doctor", "-config", config, "-json",
                              "-check-license=false"], allowed=(0, 1)))
     checks = {c["component"]: c.get("detail", "") for c in report["checks"]}
-    detail = checks.get("learning/status", "")
-    if not detail and "disabled" in checks.get("learning/config", ""):
+    detail = checks.get("file-learning/status" if scope == "file" else "learning/status", "")
+    if scope == "all" and not detail and "disabled" in checks.get("learning/config", ""):
         return {"mode": "disabled"}
     values = dict(re.findall(r"\b([a-z_]+)=([^\s;]+)", detail))
     if values.get("mode") not in ("learning", "enforcing", "degraded"):
@@ -172,15 +172,18 @@ def recover(args):
         if str(supervisor) not in command or str(root / "bin/secweaver-agent-launch") not in command:
             raise ValueError("Service ExecStart does not match installation root")
     run(["systemctl", "is-active", "--quiet", args.service])
-    before = status(binary, supervisor)
+    scope = getattr(args, "scope", "all")
+    if scope == "file" and tuple(map(int, match.groups())) < (0, 3, 93):
+        raise ValueError("File-only recovery requires Agent 0.3.93+")
+    before = status(binary, supervisor, scope) if scope == "file" else status(binary, supervisor)
     policy = cfg.get("behavior_learning") or {}
     if not isinstance(policy, dict):
         raise ValueError("Expected behavior_learning object")
     state_dir = root / "data/behavior-learning"
     if (policy.get("state_dir") or str(state_dir)) != str(state_dir):
         raise ValueError("Custom state_dir needs its documented manual recovery procedure")
-    if policy.get("event_types") and "exec" not in policy["event_types"]:
-        raise ValueError("Exec is outside the configured learning scope")
+    if policy.get("event_types") and ("file_op" if scope == "file" else "exec") not in policy["event_types"]:
+        raise ValueError("Requested stream is outside the configured learning scope")
     update_dir = Path(main.get("update", {}).get("state_dir") or str(root / "data/update"))
     pending(update_dir)
     # Healthy learning is not a defect. Preserve it, including empty baselines;
@@ -190,14 +193,22 @@ def recover(args):
     file_checks = [c.get("detail", "") for c in file_detail["checks"] if c["component"] == "file-learning/status"]
     entries = int(before.get("baseline_entries", "0"))
     file_active = any("filtering_active=true" in x for x in file_checks)
-    if file_active or (entries > 0 and before["mode"] != "degraded"):
+    # File-only repair never enables/shifts the exec policy and never discards
+    # an existing file whitelist. The global recovery keeps its legacy guards.
+    if scope == "file" and (not policy.get("enabled") or policy.get("shadow")):
+        raise ValueError("File-only recovery requires enabled, non-shadow learning")
+    if (scope == "all" and file_active) or (entries > 0 and (scope == "file" or before["mode"] != "degraded")):
         return {"status": "skipped", "reason": "existing_baseline_preserved", "learning": before}
     if before["mode"] == "learning" and not args.relearn and not policy.get("shadow"):
         return {"status": "skipped", "reason": "already_learning", "learning": before}
-    checkpoint = state_dir / "state.json"
+    checkpoint = (state_dir / "file-operations" if scope == "file" else state_dir) / "state.json"
     generation = policy.get("generation", 0)
+    file_generation = policy.get("file_generation", 0)
+    if type(file_generation) is not int or not 0 <= file_generation < (1 << 64) - 1:
+        raise ValueError("Invalid or exhausted file learning generation")
     if type(generation) is not int or not 0 <= generation < (1 << 64) - 1:
         raise ValueError("Invalid or exhausted learning generation")
+    generation = max(generation, file_generation)
     if checkpoint.exists():
         saved_generation = read_json(checkpoint, 96 << 20)["state"]["generation"]
         if type(saved_generation) is not int:
@@ -206,9 +217,12 @@ def recover(args):
     if type(generation) is not int or not 0 <= generation < (1 << 64) - 1:
         raise ValueError("Invalid or exhausted learning generation")
     candidate = copy.deepcopy(cfg)
-    candidate["behavior_learning"] = dict(policy, enabled=True, shadow=False, generation=generation + 1)
+    if scope == "file":
+        candidate["behavior_learning"] = dict(policy, file_generation=generation + 1)
+    else:
+        candidate["behavior_learning"] = dict(policy, enabled=True, shadow=False, generation=generation + 1)
     result = {"status": "checked", "generation": generation + 1, "learning_before": before,
-              "scope": "linux_exec_and_configured_file_op", "immediate_filtering_guaranteed": False}
+              "scope": "linux_file_op_only" if scope == "file" else "linux_exec_and_configured_file_op", "immediate_filtering_guaranteed": False}
     if not args.apply:
         return result
     hashes = [digest(p) for p in (config, supervisor, binary)]
@@ -251,7 +265,7 @@ def recover(args):
             # Startup may briefly expose the old checkpoint or no summary. Wait
             # for native authenticated status and a fresh healthy-time sample.
             try:
-                observed = status(binary, supervisor)
+                observed = status(binary, supervisor, scope) if scope == "file" else status(binary, supervisor)
                 stamp = observed.get("updated_at", "")
                 fresh = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
                 checkpoint_state = read_json(checkpoint, 96 << 20)["state"]
@@ -296,6 +310,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", default="/opt/secweaver-agent")
     parser.add_argument("--service", default="secweaver-agent")
+    parser.add_argument("--scope", choices=("all", "file"), default="all", help="file preserves exec policy/progress; requires Agent 0.3.93+")
     parser.add_argument("--apply", action="store_true", help="back up, change generation and restart")
     parser.add_argument("--relearn", action="store_true", help="also restart healthy learning with an empty baseline")
     parser.add_argument("--health-timeout", type=int, default=180)

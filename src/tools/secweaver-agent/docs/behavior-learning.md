@@ -294,10 +294,10 @@ checkpoints and at most 128 KiB of summary tail without taking the writer lock;
 checkpoint progress can lag sixty seconds. Missing/stale startup summaries do
 not prove filtering readiness.
 
-The existing SaaS behavior_learning heartbeat describes only the main exec
-baseline, not every independent stream, and keeps the default five-minute cadence.
-Gateway 0.6.0-rc.72+ accepts learning + filtering_active; Workspace rc.112+
-displays it. Deploy compatible servers before enabling new Agents.
+The SaaS behavior_learning top level retains the main exec baseline. Agent
+0.3.93 adds independent streams; complete display needs Gateway rc.80+ and
+Workspace rc.131+. Earlier clients remain exec-only. Default cadence remains
+five minutes. Deploy compatible servers before enabling new Agent features.
 
 Process/file/connection summaries remain in behavior-learning.log beside the
 event log. Linux exec originals use decision_reason for the learning/output
@@ -337,3 +337,50 @@ GUID reuse, cache budgets and whole-script/fragment counts.
 Cross-platform builds do not replace native Linux audit/eBPF, Windows Event
 Log/SCM, 24-hour learning or ES/SLS delivery acceptance. Source changes do not
 publish or deploy binaries.
+
+## File assembly, independent status and diagnostic counters (0.3.93)
+
+Linux audit file events wait for the complete indexed PATH group declared by
+SYSCALL.items and valid command evidence, instead of emitting on the first PATH.
+The deadline is 250 ms from the primary record, scheduled by the 100 ms flush
+cycle; complete evidence can emit immediately. Timeout, EOF, read error and cancellation retain assembled evidence
+without file admission. A partial sensitive-path group cannot prove absence and
+must not discard the event. Tail records beyond the deadline cannot amend an
+already emitted event. New decision_reason values are incomplete_file_paths,
+missing_file_command, invalid_file_command and capped_file_command. A 128-byte
+PROCTITLE cannot prove completeness. Exact matching, five-event admission and
+unknown-attribution bypass remain unchanged.
+
+Heartbeat behavior_learning keeps top-level exec semantics and adds separate
+exec/file/network/risk streams. Linux currently reports exec/file; Windows follows
+each reader's actual scope. Missing old telemetry does not imply disabled.
+filtering_reason explains stale summaries, unhealthy input, stopped collectors,
+shadow and empty baselines separately from baseline reason. counts_reported
+separates available zero entry/candidate counts from unknown. Full display needs
+Gateway rc.80+ and Workspace rc.131+; old Agents remain supported.
+
+Exact-engine runtime status adds engine_coverage: run_id, started_at, inputs,
+duplicates, qualified, rejected, baseline_misses, suppressed, emitted and
+output_errors. These are cumulative since engine startup; restart resets counters,
+not the baseline. Never sum status samples. Inputs include retries:
+inputs = duplicates + suppressed + emitted + output_errors, and
+inputs = duplicates + qualified + rejected. Qualified means fields/scope/dedup
+budget permit admission, not safety or actual promotion. Baseline misses count
+originals retained for that reason after admission freezes. Adapter bypasses,
+queue overflow and upstream loss are excluded: this is not a host-wide filtering
+rate or collection-completeness proof. Existing observed_count/suppressed_count
+still cover known behaviors after admission. Cumulative counters occur only in
+runtime status, never per-behavior aggregates. Windows risk still keeps only its
+local latest status and heartbeat projection; risk-log summary uploads stay off.
+
+Compatible upgrades preserve frozen empty baselines. Explicitly recover an empty
+file baseline created before this fix with --scope file in the
+[recovery guide](learning-recovery.md), preserving exec history. A completed
+24-hour healthy budget does not prove sample sufficiency. Diagnose missing input
+first; low-frequency empty baselines can be valid. Do not lower admission gates
+or reset every host merely to display active filtering.
+
+Validation: go test -race . ./pkg/auditportexecmon ./pkg/behaviorlearning;
+make recovery-test. Covers per-record input, both transports, delayed/missing
+tails, later sensitive paths, independent generation, freshness and failed-output
+accounting. Local tests do not certify live-host deployment.

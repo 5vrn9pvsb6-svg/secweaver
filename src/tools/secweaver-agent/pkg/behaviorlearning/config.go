@@ -46,7 +46,10 @@ type Config struct {
 	OnError        string   `json:"on_error"`
 	// Generation is an explicit relearn request. It must increase, never decrease.
 	Generation uint64 `json:"generation,omitempty"`
-	Shadow     bool   `json:"shadow,omitempty"`
+	// FileGeneration restarts only the file baseline. Its effective generation
+	// is max(Generation, FileGeneration); omission preserves existing installs.
+	FileGeneration uint64 `json:"file_generation,omitempty"`
+	Shadow         bool   `json:"shadow,omitempty"`
 }
 
 // Decode rejects unknown learning fields without rejecting the outer collector

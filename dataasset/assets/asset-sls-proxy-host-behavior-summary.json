@@ -35,7 +35,8 @@
       "reason",
       "healthy_seconds",
       "baseline_entries",
-      "candidate_entries"
+      "candidate_entries",
+      "engine_coverage"
     ],
     "time_field": "time",
     "retention_days": 30
@@ -54,7 +55,8 @@
       "Group counts by source_event_type; legacy summaries without it describe exec. Network/file aggregates are not process-tree edges.",
       "observed_count = suppressed_count + original_emitted_count only when counter_complete is true.",
       "context_reemitted_count is separate; do not build PID edges from summaries.",
-      "learning_state and reason describe evidence gaps; missing originals do not imply no execution."
+      "learning_state and reason describe evidence gaps; missing originals do not imply no execution.",
+      "Known-behavior counts start at admission, not all collector inputs. engine_coverage is cumulative per run_id on status records only; do not sum snapshots or call it a host-wide filtering rate."
     ]
   },
   "sensitivity": "confidential",

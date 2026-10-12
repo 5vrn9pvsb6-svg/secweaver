@@ -3,10 +3,22 @@ package auditportexecmon
 import (
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"secweaver-agent/pkg/behaviorlearning"
 )
+
+const fileRecordSettleDelay = 250 * time.Millisecond
+
+// fileRecordPending keeps all PATH records and the sampled command together.
+// The first PATH is not an end marker: filtering it before the rest arrive can
+// discard a later sensitive path. A fixed deadline from the primary record
+// bounds latency even when a damaged source keeps adding auxiliary records.
+// An explicit age-based flush still permits partial evidence, never admission.
+func fileRecordPending(acc *auditAccumulator, now time.Time, maxAge time.Duration) bool {
+	return maxAge == 0 && !completeFileEvidence(acc) && now.Sub(acc.firstSeen) < fileRecordSettleDelay
+}
 
 // resolveFileCommand preserves spaces inside the sampled title. The exec
 // display fallback tokenizes short titles; using that fallback for file keys
@@ -25,6 +37,12 @@ func resolveFileCommand(acc *auditAccumulator, comm string) []string {
 // File syscalls have no EXECVE record, so PROCTITLE is the normal command source.
 // It describes the kernel-sampled title, not an immutable launch-time argv.
 func completeFileEvidence(acc *auditAccumulator) bool {
+	return fileEvidenceReason(acc) == ""
+}
+
+// completeFilePaths proves the full indexed group is available before a
+// negative sensitive-path decision; a partial group cannot prove absence.
+func completeFilePaths(acc *auditAccumulator) bool {
 	items, err := strconv.Atoi(acc.fields["items"])
 	if err != nil || items < 1 || items > 64 || items != len(acc.paths) {
 		return false
@@ -34,16 +52,30 @@ func completeFileEvidence(acc *auditAccumulator) bool {
 			return false
 		}
 	}
+	return true
+}
+
+// fileEvidenceReason is bounded diagnostic metadata, never raw path/command
+// content. Invalid or capped titles retain originals instead of qualifying.
+func fileEvidenceReason(acc *auditAccumulator) string {
+	if !completeFilePaths(acc) {
+		return "incomplete_file_paths"
+	}
 	if completeAuditArgv(acc) {
-		return true
+		return ""
 	}
 	if !acc.seenProctitle {
-		return false
+		return "missing_file_command"
 	}
 	title, err := hexStringToBytes(acc.proctitle)
-	// MAX_PROCTITLE_AUDIT_LEN is 128 in the supported audit record format.
-	// At that boundary completeness is unknown; retain the original instead.
-	return err == nil && len(title) > 0 && len(title) < 128 && utf8.Valid(title)
+	if err != nil || len(title) == 0 || !utf8.Valid(title) {
+		return "invalid_file_command"
+	}
+	// MAX_PROCTITLE_AUDIT_LEN is 128; at that boundary completeness is unknown.
+	if len(title) >= 128 {
+		return "capped_file_command"
+	}
+	return ""
 }
 
 // fileLearningObservation matches normalized fields verbatim. Source IDs only
@@ -57,7 +89,10 @@ func fileLearningObservation(e auditEvent, backend, boot string) behaviorlearnin
 	o.Complete = !e.CommandTruncated && e.Fields["learning_file_fields_complete"] == "yes"
 	o.Reason = ""
 	if !o.Complete {
-		o.Reason = "incomplete_file_evidence"
+		o.Reason = e.Fields["learning_file_incomplete_reason"]
+		if o.Reason == "" {
+			o.Reason = "incomplete_file_evidence"
+		}
 	}
 	return o
 }

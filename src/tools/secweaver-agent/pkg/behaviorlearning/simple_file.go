@@ -13,6 +13,9 @@ const simpleWindowsFileStrategy = "windows_file_five_fields_v1"
 // covers file operations. Windows installation flags remain authoritative.
 // The adapter must resolve the parent's absolute state path before calling.
 func FilePolicy(base Config, windows bool) Config {
+	if base.FileGeneration > base.Generation {
+		base.Generation = base.FileGeneration
+	}
 	enabled := !windows && !base.eventTypesExplicit
 	for _, kind := range base.EventTypes {
 		enabled = enabled || kind == "file_op"

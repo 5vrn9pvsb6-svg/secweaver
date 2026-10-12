@@ -44,6 +44,7 @@ type Engine struct {
 	lastFlush       time.Time
 	lastSave        time.Time
 	lastSimplePrune time.Time
+	coverage        EngineCoverage
 	counters        map[string]*counters
 	evidence        map[string]evidence
 	evidenceBytes   int
@@ -78,7 +79,7 @@ func New(cfg Config, device string, original func(json.RawMessage) error, summar
 		s.Close()
 		return nil, err
 	}
-	e := &Engine{cfg: cfg, store: s, now: time.Now, counters: map[string]*counters{}, evidence: map[string]evidence{}, seen: map[string]time.Time{}, original: original, summary: summary, runID: runID}
+	e := &Engine{cfg: cfg, store: s, now: time.Now, counters: map[string]*counters{}, evidence: map[string]evidence{}, seen: map[string]time.Time{}, original: original, summary: summary, runID: runID, coverage: newEngineCoverage(runID, time.Now())}
 	policy := policyHash(cfg)
 	prior, err := s.Load()
 	if err != nil {
@@ -579,6 +580,7 @@ func (e *Engine) flush(now time.Time) error {
 	}
 	status := e.summaryBase(now)
 	status.EventType = "behavior_learning_status"
+	status.EngineCoverage = e.coverageSnapshot()
 	e.sequence++
 	status.SummaryID = fmt.Sprintf("%s:status:%d", e.runID, e.sequence)
 	return e.summary(status)

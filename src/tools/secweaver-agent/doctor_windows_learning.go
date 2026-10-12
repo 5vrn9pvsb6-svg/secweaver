@@ -119,6 +119,6 @@ func doctorCheckWindowsRiskLearning(cfg agentConfig, args []string, add func(doc
 	if status.Mode == "unknown" || status.Mode == "degraded" {
 		level = doctorWarn
 	}
-	add(level, "risk-learning/status", "Windows risk learning status", fmt.Sprintf("mode=%s started_at=%s remaining_seconds=%d filtering_active=%t baseline_entries=%d candidate_entries=%d updated_at=%s reason=%s",
-		status.Mode, status.StartedAt, status.RemainingSeconds, status.FilteringActive, status.BaselineEntries, status.CandidateEntries, status.UpdatedAt, status.Reason))
+	add(level, "risk-learning/status", "Windows risk learning status", fmt.Sprintf("mode=%s started_at=%s remaining_seconds=%d filtering_active=%t baseline_entries=%d candidate_entries=%d updated_at=%s reason=%s filtering_reason=%s",
+		status.Mode, status.StartedAt, status.RemainingSeconds, status.FilteringActive, status.BaselineEntries, status.CandidateEntries, status.UpdatedAt, status.Reason, status.FilteringReason))
 }

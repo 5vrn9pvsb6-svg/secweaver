@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"secweaver-agent/pkg/agentlicense"
 	"strings"
 	"testing"
 )
@@ -33,11 +34,11 @@ func TestDoctorLinuxLearningReportsDisabledAndUnavailable(t *testing.T) {
 			}
 		})
 	}
-	status := behaviorLearningStatus([]runtimeModule{module}, nil)
+	status := behaviorLearningStatus([]runtimeModule{module}, nil, agentlicense.Config{}, "")
 	if status.FilteringActive || status.Mode != "unknown" {
 		t.Fatalf("invalid policy status: %+v", status)
 	}
-	if status := behaviorLearningStatus(nil, nil); status.Mode != "disabled" || status.Reason != "collector_disabled" {
+	if status := behaviorLearningStatus(nil, nil, agentlicense.Config{}, ""); status.Mode != "disabled" || status.Reason != "collector_disabled" {
 		t.Fatalf("disabled collector: %+v", status)
 	}
 }

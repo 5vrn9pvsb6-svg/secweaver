@@ -1,4 +1,4 @@
-# 学习恢复与空名单（0.3.86）
+# 学习恢复与空名单（0.3.93）
 
 [English](learning-recovery.md)
 
@@ -35,7 +35,7 @@ sudo python3 ./restart-behavior-learning.py --apply
 sudo python3 ./restart-behavior-learning.py --apply --relearn
 ```
 
-已有正常 exec 名单或正在过滤的 file_op 名单始终跳过。未指定 --relearn 时，正常学习
+默认 --scope all 时，已有正常 exec 名单或正在过滤的 file_op 名单始终跳过。未指定 --relearn 时，正常学习
 即使名单为空也保留进度。重复执行普通 --apply 不会不断重置新周期；反复指定
 --relearn 则明确再次重学。默认一健康日只限制新增名单，完成后空名单不会自行产生过滤。
 
@@ -67,3 +67,24 @@ journal、key）备份到 `<安装目录>/data/recovery/learning-*`，原子写�
 验证：make recovery-test 使用真实临时文件验证备份、回退、重复执行、延迟启动及
 健康名单跳过，服务/doctor 边界隔离；go test . ./pkg/behaviorlearning 验证原生策略及
 generation 行为。真实 Linux 服务重学须独立验收；源码验证不代表已经部署。
+
+## 仅重学空文件名单（0.3.93+）
+
+先安装并验证 0.3.93 的文件组装修复，确认原始 file_op 的路径/命令完整且归属可靠，再逐机处理。
+Linux/systemd、root、Python 3.6+、标准安装目录要求不变：
+
+```bash
+sudo python3 ./restart-behavior-learning.py --scope file
+sudo python3 ./restart-behavior-learning.py --scope file --apply
+```
+
+仅在文件名单为空且需要恢复时使用。要求 learning 已启用且 shadow=false；非空文件名单
+始终保留，健康空名单仍在学习时默认跳过，--relearn 才明确重启此学习期。
+脚本仅增加 behavior_learning.file_generation，不修改 generation、enabled、shadow，
+不重置 exec 名单/候选/学习进度。文件有效代数取 max(generation, file_generation)，
+默认省略保持旧配置；后续全类型重学 generation 必须高于 file_generation。
+旧于 0.3.93 的二进制拒绝此选项，避免旧解析器不认识字段而降级。
+
+仍会短暂停止整个 Agent，备份完整学习树和配置，启动后验证文件新代和健康时间；失败恢复整个备份。
+观察新文件候选、五个不同源事件后的名单晋级、过滤统计以及 exec baseline_id/名单保留。
+升级或这条命令本身不保证立即过滤；没有正常文件样本时仍可能为空。

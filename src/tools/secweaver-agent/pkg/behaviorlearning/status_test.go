@@ -17,7 +17,7 @@ func TestSnapshotFilteringRequiresCurrentHealthyRuntime(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
-	state := State{Device: "device", BaselineID: "baseline", Mode: "enforcing", Generation: cfg.Generation, Policy: policyHash(cfg), Started: now.Add(-25 * time.Hour)}
+	state := State{Device: "device", BaselineID: "baseline", Mode: "enforcing", Generation: cfg.Generation, Policy: policyHash(cfg), Started: now.Add(-25 * time.Hour), Entries: map[string]*Entry{"known": {}}}
 	summary := Summary{DeviceID: state.Device, BaselineID: state.BaselineID, Mode: "enforcing", Time: now.Add(-time.Minute), SourceHealthy: true, FilteringActive: true}
 	if !Snapshot(cfg, &state, &summary, now).FilteringActive {
 		t.Fatal("healthy runtime was not active")
@@ -153,5 +153,48 @@ func TestWriteLatestSummaryBoundedPrivateReplacement(t *testing.T) {
 	entries, err := os.ReadDir(dir)
 	if err != nil || len(entries) != 2 || entries[0].Name() != "blocked" || entries[1].Name() != "runtime-status.json" {
 		t.Fatalf("status accumulated files: %v %v", entries, err)
+	}
+}
+
+// The readiness reason must distinguish lifecycle/input failures from a
+// baseline's own state, preserving explicit zero counts for new consumers.
+func TestSnapshotReadinessReasonsAndCounts(t *testing.T) {
+	cfg, _ := (Config{Enabled: true, simpleExec: true}).Normalize()
+	now := time.Now()
+	state := State{Device: "device", BaselineID: "base", Mode: "enforcing", Policy: policyHash(cfg), Reason: "baseline_empty"}
+	latest := Summary{DeviceID: "device", BaselineID: "base", Mode: "enforcing", Time: now, SourceHealthy: true}
+	got := Snapshot(cfg, &state, &latest, now)
+	if !got.CountsReported || got.FilteringReason != "baseline_empty" || got.FilteringActive {
+		t.Fatalf("empty: %+v", got)
+	}
+	latest.SourceHealthy = false
+	if got = Snapshot(cfg, &state, &latest, now); got.FilteringReason != "source_unhealthy" || got.Reason != "baseline_empty" {
+		t.Fatalf("health: %+v", got)
+	}
+	latest.Time = now.Add(-time.Hour)
+	if got = Snapshot(cfg, &state, &latest, now); got.FilteringReason != "summary_stale" {
+		t.Fatalf("stale: %+v", got)
+	}
+	if got = Snapshot(cfg, &state, nil, now); got.FilteringReason != "summary_unavailable" {
+		t.Fatalf("missing: %+v", got)
+	}
+}
+
+func TestSnapshotCountAvailabilityOnWire(t *testing.T) {
+	for _, known := range []bool{false, true} {
+		body, err := json.Marshal(StatusSnapshot{Mode: "unknown", CountsReported: known})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wire map[string]any
+		if err := json.Unmarshal(body, &wire); err != nil {
+			t.Fatal(err)
+		}
+		if _, ok := wire["baseline_entries"]; ok {
+			t.Fatal("unknown/zero field must use availability flag")
+		}
+		if known && wire["counts_reported"] != true {
+			t.Fatal("explicit zero availability lost")
+		}
 	}
 }
