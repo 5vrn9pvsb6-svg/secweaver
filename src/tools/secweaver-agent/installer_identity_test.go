@@ -59,7 +59,17 @@ fi
 			write("installed/etc/config.json", "{}", 0600)
 			write("installed/data/preserved", "identity", 0600)
 			write("package/libexec/secweaver-agent-launch", "#!/bin/sh\n", 0755)
+			// Model an audit-capable Linux host independently from the local
+			// kernel; this scenario is about enrollment/update identity.
+			write("stubs/auditctl", `#!/usr/bin/env bash
+case "$1" in
+  -s) printf 'enabled 1\npid 1\n' ;;
+  -v) echo 'auditctl version 3.0.0' ;;
+  *) exit 0 ;;
+esac
+`, 0755)
 			write("stubs/systemctl", "#!/bin/sh\nexit 1\n", 0755)
+			write("stubs/timeout", "#!/bin/sh\nshift 2\nexec \"$@\"\n", 0755)
 			write("stubs/pgrep", "#!/bin/sh\nexit 1\n", 0755)
 			args := []string{filepath.Join(pkg, "install.sh"), "--license-server-url", "https://gateway.example.com", "--update-manifest-url", "https://gateway.example.com/manifest.json", "--update-public-key", strings.Repeat("A", 43) + "="}
 			if scenario == "legacy" {

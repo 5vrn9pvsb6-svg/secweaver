@@ -7,6 +7,7 @@
   },
   "whitelist_ports": [],
   "audit": {
+    "mode": "auto",
     "arches": ["b64"],
     "max_rules": 1024,
     "pressure": {

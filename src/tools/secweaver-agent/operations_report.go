@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"secweaver-agent/internal/errlog"
 	"secweaver-agent/pkg/layout"
 	agentoutput "secweaver-agent/pkg/output"
 )
@@ -53,6 +54,7 @@ type agentOperationsReporter struct {
 	// their next snapshot and checked_at exposes the actual observation time.
 	shipperCheckedAt time.Time
 	shipperStatus    operationsShipper
+	writeErrors      *errlog.Reporter
 }
 
 type operationsReportEvent struct {
@@ -107,6 +109,9 @@ type operationsAuditHealth struct {
 	Readers               int    `json:"readers"`
 	Subscribers           int    `json:"subscribers"`
 	BacklogLines          int    `json:"backlog_lines"`
+	QueuedLines           int    `json:"queued_lines"`
+	QueueCapacity         int    `json:"queue_capacity"`
+	PausedSubscribers     int    `json:"paused_subscribers"`
 	LinesProcessedTotal   uint64 `json:"lines_processed_total"`
 	ReaderFailuresTotal   uint64 `json:"reader_failures_total"`
 	BacklogOverflowsTotal uint64 `json:"backlog_overflows_total"`
@@ -158,6 +163,7 @@ func newAgentOperationsReporter(config operationsReportRuntime, tracker *statusT
 	return &agentOperationsReporter{
 		config: config, tracker: tracker, audit: audit, identity: identity, version: agentVersion,
 		jitterSeed: jitterSeed, wake: tracker.healthSignal, stop: make(chan struct{}), done: make(chan struct{}), started: time.Now(),
+		writeErrors: errlog.New("operations report write"),
 	}
 }
 
@@ -315,11 +321,13 @@ func (r *agentOperationsReporter) emit(eventType, severity, healthStatus, reason
 	}
 	body = append(body, '\n')
 	if _, err := r.writer.Write(body); err != nil {
-		fmt.Fprintf(os.Stderr, "operations report write failed: %v\n", err)
+		r.writeErrors.Observe(err)
 		return
 	}
 	if eventType != "health_snapshot" {
-		_ = r.writer.Flush()
+		// Recovery means a real flush, never merely acceptance into RAM; the
+		// periodic output owner reports its own asynchronous flush failures.
+		r.writeErrors.Observe(r.writer.Flush())
 	}
 }
 
@@ -384,7 +392,14 @@ func operationAudit(metrics auditDemuxMetrics) operationsAuditHealth {
 	if metrics.readers > 0 {
 		backend = "audit_shared_reader"
 	}
-	return operationsAuditHealth{Backend: backend, ReaderReady: metrics.readers == 0 || auditReaderReady(metrics), Readers: metrics.readers, Subscribers: metrics.subscribers, BacklogLines: metrics.backlogLines, LinesProcessedTotal: metrics.linesProcessed, ReaderFailuresTotal: metrics.readerFailures, BacklogOverflowsTotal: metrics.backlogOverflows}
+	return operationsAuditHealth{
+		Backend: backend, ReaderReady: metrics.readers == 0 || auditReaderReady(metrics),
+		Readers: metrics.readers, Subscribers: metrics.subscribers,
+		BacklogLines: metrics.backlogLines, QueuedLines: metrics.queuedLines,
+		QueueCapacity: metrics.queueCapacity, PausedSubscribers: metrics.pausedSubscribers,
+		LinesProcessedTotal: metrics.linesProcessed, ReaderFailuresTotal: metrics.readerFailures,
+		BacklogOverflowsTotal: metrics.backlogOverflows,
+	}
 }
 
 // operationsLicense maps authorization state without copying server error text

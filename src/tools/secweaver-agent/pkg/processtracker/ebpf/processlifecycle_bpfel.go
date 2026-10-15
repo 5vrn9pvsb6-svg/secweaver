@@ -13,27 +13,32 @@ import (
 )
 
 type processLifecycleProcessEvent struct {
-	Type            uint32
-	RootPid         uint32
-	Pid             uint32
-	Ppid            uint32
-	Uid             uint32
-	Gid             uint32
-	Argc            uint32
-	Flags           uint32
-	TimestampNs     uint64
-	RootStartTime   uint64
-	StartBoottimeNs uint64
-	ExecutableInode uint64
-	ExecutableDev   uint32
-	Euid            uint32
-	Egid            uint32
-	IdentityValid   uint32
-	Auid            uint32
-	IdentityPadding uint32
-	Comm            [16]int8
-	Filename        [256]int8
-	Args            [16][96]int8
+	Type                  uint32
+	RootPid               uint32
+	Pid                   uint32
+	Ppid                  uint32
+	Uid                   uint32
+	Gid                   uint32
+	Argc                  uint32
+	Flags                 uint32
+	TimestampNs           uint64
+	RootStartTime         uint64
+	StartBoottimeNs       uint64
+	ExecutableInode       uint64
+	ExecutableDev         uint32
+	Euid                  uint32
+	Egid                  uint32
+	IdentityValid         uint32
+	Auid                  uint32
+	IdentityPadding       uint32
+	Comm                  [16]int8
+	Filename              [256]int8
+	Args                  [16][96]int8
+	ParentStartBoottimeNs uint64
+	ParentFlags           uint32
+	ParentExeOffset       uint32
+	ParentComm            [16]int8
+	ParentExe             [256]int8
 }
 
 type processLifecycleProcessOwner struct {
@@ -42,6 +47,11 @@ type processLifecycleProcessOwner struct {
 	ParentPid     uint32
 	Flags         uint32
 	_             [4]byte
+}
+
+type processLifecycleProcessScratch struct {
+	Event           processLifecycleProcessEvent
+	PathBoundsGuard [256]int8
 }
 
 // loadProcessLifecycle returns the embedded CollectionSpec for processLifecycle.

@@ -42,3 +42,29 @@ func TestEmbeddedObjectCarriesRootLifetime(t *testing.T) {
 		}
 	}
 }
+
+// The embedded object must carry parent evidence, not just Go fields that
+// silently remain zero because a stale release object was not regenerated.
+func TestEmbeddedObjectCarriesParentSnapshot(t *testing.T) {
+	spec, err := cebpf.LoadCollectionSpec("processlifecycle_bpfel.o")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var layout *btf.Struct
+	if err := spec.Types.TypeByName("process_event", &layout); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]int{"parent_start_boottime_ns": 8, "parent_flags": 4, "parent_exe_offset": 4, "parent_comm": 16, "parent_exe": 256}
+	for _, member := range layout.Members {
+		size, err := btf.Sizeof(member.Type)
+		if expected, ok := want[member.Name]; ok {
+			if err != nil || size != expected {
+				t.Fatalf("%s: size=%d want=%d err=%v", member.Name, size, expected, err)
+			}
+			delete(want, member.Name)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing parent evidence: %v", want)
+	}
+}

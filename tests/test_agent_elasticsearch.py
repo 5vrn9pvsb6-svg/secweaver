@@ -127,11 +127,14 @@ class AgentElasticsearchTests(unittest.TestCase):
         # JSON is a YAML subset; parse without adding a runtime YAML dependency.
         config = json.loads((INTEGRATION / "filebeat.yml").read_text())
         inputs = config["filebeat.inputs"]
-        self.assertEqual(len(inputs), 7)
-        self.assertEqual(len({entry["id"] for entry in inputs}), 7)
+        # Custom-rule alerts are a separate source in addition to the seven
+        # original streams; preserve unique IDs and complete output coverage.
+        self.assertEqual(len(inputs), 8)
+        self.assertEqual(len({entry["id"] for entry in inputs}), 8)
         sources = ROOT / "src/tools/secweaver-agent"
         agent = json.loads((sources / "config.example.json").read_text())
-        expected = {agent["operations_report"]["output"], "/opt/secweaver-agent/logs/behavior-learning.log"}
+        expected = {agent["operations_report"]["output"], "/opt/secweaver-agent/logs/behavior-learning.log",
+                    "/opt/secweaver-agent/logs/custom-risk-alert.log"}
         for module in ("syslog-risk-json", "host-process-snapshot", "host-state-snapshot"):
             args = agent["modules"][module]["args"]
             expected.add(args[args.index("-output") + 1])
@@ -162,6 +165,15 @@ class AgentElasticsearchTests(unittest.TestCase):
             self.assertEqual(fields[name]["type"], "long")
         for name in ("counter_complete", "source_healthy", "filtering_active", "shadow"):
             self.assertEqual(fields[name]["type"], "boolean")
+
+    def test_parent_snapshot_fields_are_searchable(self):
+        # dynamic=false intentionally rejects accidental field indexing; these
+        # explicit mappings keep new parent evidence searchable/aggregatable.
+        mapping = es.template(1)["template"]["mappings"]
+        self.assertFalse(mapping["dynamic"])
+        for name in ("ppid_name", "ppid_exe", "parent_identity_status", "ppid_exe_status"):
+            self.assertEqual(mapping["properties"][name]["type"], "keyword")
+        self.assertEqual(mapping["properties"]["ppid_start_boot_ns"]["type"], "long")
 
     def test_installer_shell_syntax(self):
         subprocess.run(["bash", "-n", str(INTEGRATION / "install-agent.sh")], check=True)

@@ -88,6 +88,11 @@ func runSupervisor(ctx context.Context, modules []runtimeModule, updater *schedu
 			}
 		}()
 	}
+	// runAgentCommand freezes transport flags before entering this owner. Both audit
+	// subscriptions were suppressed there; retain the coverage limit in health.
+	if auditModuleCollectionMode(modules) == configAuditModeEBPFOnly {
+		tracker.setDiagnostic("collection_mode", "warn", "eBPF-only: Audit connect/file/sensitive evidence and persistence actor enrichment unavailable; persistence polling remains active", nil)
+	}
 	var operationsReporter *agentOperationsReporter
 	if operations != nil && operations.Enabled {
 		operationsReporter = newAgentOperationsReporter(*operations, tracker, auditDemuxes, identity, version)
@@ -529,6 +534,9 @@ func updateAuditMetrics(exporter *metrics.Exporter, snapshot auditDemuxMetrics) 
 	}
 	exporter.UpdateAuditMetrics(metrics.AuditMetrics{
 		BacklogLines:       snapshot.backlogLines,
+		QueuedLines:        snapshot.queuedLines,
+		QueueCapacity:      snapshot.queueCapacity,
+		PausedSubscribers:  snapshot.pausedSubscribers,
 		Subscribers:        snapshot.subscribers,
 		RetiredSubscribers: snapshot.retiredSubscribers,
 		LinesProcessed:     snapshot.linesProcessed,

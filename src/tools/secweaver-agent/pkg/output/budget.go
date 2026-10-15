@@ -1,12 +1,30 @@
 package output
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+// ErrDiskReserve identifies a refusal before any bytes reach the filesystem.
+// Only this known retry-safe failure may release a buffered writer's error latch;
+// ambiguous I/O and durability failures remain sticky to protect evidence.
+var ErrDiskReserve = errors.New("output disk reserve exhausted")
+
+// diskRetryDelay bounds reserve probes during prolonged pressure while keeping
+// recovery automatic. A successful probe/write resets the episode to one second.
+func diskRetryDelay(previous time.Duration) time.Duration {
+	if previous < time.Second {
+		return time.Second
+	}
+	if previous >= 30*time.Second {
+		return time.Minute
+	}
+	return 2 * previous
+}
 
 const (
 	defaultDiskBudgetTotalMB      = 2048

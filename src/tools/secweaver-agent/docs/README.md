@@ -9,6 +9,7 @@ Start with the [Agent engineering manual](../README.md) for installation and bui
 | Task | Guide |
 |---|---|
 | Listener discovery, instance isolation, short-lived processes and output scope | [process-attribution](process-attribution.md) |
+| Linux transport selection without Audit, eBPF-only coverage and verification | [ebpf-only-mode](ebpf-only-mode.md) |
 | Behavior learning, baselines, and log reduction | [behavior-learning](behavior-learning.md) |
 | Enterprise collection rules: alert/suppress/keep/pass, field combinations, regex, and whitelist_ports (design draft, not implemented) | [custom-whitelist-design](custom-whitelist-design.md) |
 | Self-managed ES from a release package | [self-managed-es](self-managed-es.md) |

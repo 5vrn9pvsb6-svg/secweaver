@@ -59,6 +59,16 @@ concurrent replacement. Failure never triggers deletion. Existing indices, other
 and retention policies are untouched. Have an administrator review any higher-priority
 templates that also match this prefix.
 
+Agent 0.3.101 adds mappings for eBPF parent snapshots (`ppid_name`, `ppid_exe`,
+`ppid_start_boot_ns`, `parent_identity_status`, `ppid_exe_status`); the template
+body version is 2, while its existing name remains `secweaver-public-agent-v1`.
+Because mappings use `dynamic=false`, an older template retains new fields in
+`_source` but cannot search them. Existing deployments must have an administrator
+review and add these mappings to the template and any current indices that need
+them. Updating a template alone affects newly created indices; it does not index
+old documents retroactively. The initializer still refuses differing templates
+and never performs this migration automatically.
+
 Defaults are one primary and one replica. For a **single-node test cluster**, add
 `--replicas 0`; that provides no replica redundancy. Changing this option on a later run
 refuses the differing template; an administrator must review and change it explicitly.

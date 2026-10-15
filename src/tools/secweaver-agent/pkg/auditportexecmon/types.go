@@ -27,29 +27,36 @@ type listenerInfo struct {
 // contains parser-only data and is deliberately excluded from serialization;
 // downstream assets consume the stable top-level fields instead.
 type auditEvent struct {
-	Time             time.Time `json:"time"`
-	HostName         string    `json:"host_name"`
-	HostIP           string    `json:"host_ip"`
-	EventType        string    `json:"event_type"`
-	AuditID          string    `json:"audit_id"`
-	PID              string    `json:"pid,omitempty"`
-	PIDName          string    `json:"pid_name,omitempty"`
-	PPID             string    `json:"ppid,omitempty"`
-	PPIDName         string    `json:"ppid_name,omitempty"`
-	UID              string    `json:"uid,omitempty"`
-	UIDName          string    `json:"uid_name,omitempty"`
-	AUID             string    `json:"auid,omitempty"`
-	AUIDName         string    `json:"auid_name,omitempty"`
-	Comm             string    `json:"comm,omitempty"`
-	Exe              string    `json:"exe,omitempty"`
-	CWD              string    `json:"cwd,omitempty"`
-	Command          []string  `json:"command,omitempty"`
-	CommandLine      string    `json:"command_line,omitempty"`
-	CommandTruncated bool      `json:"command_truncated,omitempty"`
-	Success          string    `json:"success,omitempty"`
-	Exit             string    `json:"exit,omitempty"`
-	Key              string    `json:"key,omitempty"`
-	TTY              string    `json:"tty,omitempty"`
+	Time      time.Time `json:"time"`
+	HostName  string    `json:"host_name"`
+	HostIP    string    `json:"host_ip"`
+	EventType string    `json:"event_type"`
+	AuditID   string    `json:"audit_id"`
+	PID       string    `json:"pid,omitempty"`
+	PIDName   string    `json:"pid_name,omitempty"`
+	PPID      string    `json:"ppid,omitempty"`
+	PPIDName  string    `json:"ppid_name,omitempty"`
+	// eBPF parent metadata is captured at exec, not inferred from the
+	// reader's current /proc. Unknown fields are omitted; Audit keeps its
+	// existing contract without claiming these kernel-snapshot guarantees.
+	PPIDExe              string   `json:"ppid_exe,omitempty"`
+	PPIDStartBootNS      uint64   `json:"ppid_start_boot_ns,omitempty"`
+	ParentIdentityStatus string   `json:"parent_identity_status,omitempty"`
+	PPIDExeStatus        string   `json:"ppid_exe_status,omitempty"`
+	UID                  string   `json:"uid,omitempty"`
+	UIDName              string   `json:"uid_name,omitempty"`
+	AUID                 string   `json:"auid,omitempty"`
+	AUIDName             string   `json:"auid_name,omitempty"`
+	Comm                 string   `json:"comm,omitempty"`
+	Exe                  string   `json:"exe,omitempty"`
+	CWD                  string   `json:"cwd,omitempty"`
+	Command              []string `json:"command,omitempty"`
+	CommandLine          string   `json:"command_line,omitempty"`
+	CommandTruncated     bool     `json:"command_truncated,omitempty"`
+	Success              string   `json:"success,omitempty"`
+	Exit                 string   `json:"exit,omitempty"`
+	Key                  string   `json:"key,omitempty"`
+	TTY                  string   `json:"tty,omitempty"`
 	// HasTTY is tri-state: nil means the collector could not observe session TTY
 	// state. Unknown must be omitted because downstream analysis treats false as
 	// positive evidence of a non-interactive WebShell/RCE-style execution.

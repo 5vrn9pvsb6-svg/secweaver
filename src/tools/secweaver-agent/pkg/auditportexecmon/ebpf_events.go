@@ -15,7 +15,19 @@ import (
 
 var processTrackerFactory processtracker.Factory = processtrackerebpf.Factory{}
 
+// startConfiguredProcessTracker honors explicit backends and verifies actual
+// attach before returning an active tracker. Auto fallback is allowed only
+// when the product mode still has an available Audit transport.
 func startConfiguredProcessTracker(ctx context.Context, cfg processTreeRuntimeConfig, monitorExec, activate bool) (string, processtracker.Tracker, string, error) {
+	if cfg.CollectionMode == auditCollectionModeEBPFOnly {
+		// eBPF-only is a product contract, not a best-effort process-tree hint.
+		// Force the embedded tracker and reject an audit fallback so a host with
+		// audit=0 cannot appear healthy while silently collecting nothing.
+		if !monitorExec {
+			return "", nil, "", fmt.Errorf("eBPF-only mode requires exec.monitor=true")
+		}
+		cfg.Backend = processTreeBackendEBPF
+	}
 	if !monitorExec {
 		return cfg.FallbackBackend, nil, "process exec monitoring is disabled", nil
 	}
@@ -36,10 +48,39 @@ func startConfiguredProcessTracker(ctx context.Context, cfg processTreeRuntimeCo
 		}
 		probeErr = err
 	}
-	if cfg.Backend == processTreeBackendEBPF {
+	if cfg.Backend == processTreeBackendEBPF || cfg.CollectionMode == auditCollectionModeEBPFOnly {
 		return "", nil, "", fmt.Errorf("eBPF process tree backend is required but unavailable: %w", probeErr)
 	}
 	return cfg.FallbackBackend, nil, fmt.Sprintf("eBPF unavailable, fallback to %s: %v", cfg.FallbackBackend, probeErr), nil
+}
+
+// followEBPFOnly keeps listener reconciliation alive without opening audit.log.
+// The tracker remains the sole event producer; the bounded ticker only repairs
+// process ownership after lost perf samples or listener replacement.
+func followEBPFOnly(ctx context.Context, tracker processtracker.Tracker, monitor *processTreeMonitor, host hostIdentity, out io.Writer, rescanInterval time.Duration) error {
+	if tracker == nil {
+		return fmt.Errorf("eBPF-only mode started without an eBPF tracker")
+	}
+	if rescanInterval <= 0 {
+		rescanInterval = defaultListenerRescanInterval
+	}
+	rescanCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	defer func() { cancel(); <-done }()
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(rescanInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-rescanCtx.Done():
+				return
+			case <-ticker.C:
+				monitor.requestRescan()
+			}
+		}
+	}()
+	return followProcessTracker(rescanCtx, tracker, monitor, host, out)
 }
 
 // followProcessTracker consumes only backend-neutral events. Fork and exit keep
@@ -128,7 +169,6 @@ func emitEBPFExecEventWithContext(source processtracker.Event, listener listener
 		PID:              pid,
 		PIDName:          comm,
 		PPID:             ppid,
-		PPIDName:         readProcComm(int(source.PPID)),
 		UID:              uid,
 		UIDName:          resolveAccountName(uid),
 		AUID:             processContext.AUID,
@@ -147,6 +187,22 @@ func emitEBPFExecEventWithContext(source processtracker.Event, listener listener
 		ListenerProcess:  listener.Process,
 		ListenerAddress:  listener.Address,
 		ListenerPort:     listener.Port,
+	}
+	// Parent evidence survives process exit and PID reuse. Never replace a
+	// missing snapshot with the current /proc/<ppid>/comm: that can name an
+	// unrelated replacement. Service ownership stays independently validated.
+	event.ParentIdentityStatus = "unavailable"
+	event.PPIDExeStatus = "unavailable"
+	if source.PPID == 0 {
+		event.PPID = ""
+	}
+	if parent := source.Parent; parent != nil {
+		event.PPIDName, event.PPIDExe = parent.Comm, parent.Exe
+		event.PPIDStartBootNS, event.PPIDExeStatus = parent.StartBootNS, parent.ExeStatus
+		event.ParentIdentityStatus = "partial"
+		if parent.Comm != "" && parent.StartBootNS != 0 && parent.ExeStatus == "captured" && parent.Exe != "" {
+			event.ParentIdentityStatus = "complete"
+		}
 	}
 	// Identity enrichment remains best effort. Exact-command learning uses argv
 	// completeness independently; short-lived processes need no /proc identity.

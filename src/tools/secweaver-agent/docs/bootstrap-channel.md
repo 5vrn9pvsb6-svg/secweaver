@@ -1,5 +1,18 @@
 # Dynamic Bootstrap Version
 
+## Linux Collection Mode (0.3.100)
+
+The installer checks kernel Audit availability first. When Audit is unavailable
+but eBPF prerequisites exist, it verifies the embedded programs by temporarily
+loading/attaching them before enrollment, stopping an existing Agent, or replacing
+its binary. Successful verification selects `audit.mode=ebpf_only`. If neither
+transport works, installation exits nonzero with the capability/verifier error.
+eBPF-only skips auditd queue tuning and lifecycle operations; persistence polling
+continues with Audit actor enrichment disabled in memory. See
+[eBPF-only mode](ebpf-only-mode.md) for supported kernels, policy precedence,
+coverage limits and upgrade behavior. The audit queue procedure below applies
+only to Audit-capable hosts.
+
 ## Linux Audit Queue Precheck (0.3.80)
 
 The Linux archive's `install.sh` checks native audit queues after dependencies
@@ -21,12 +34,19 @@ and unrelated rules remain intact. Changed files get unique same-directory
 `.secweaver-backup.<suffix>` backups whose complete paths appear in the log,
 then atomic replacement retaining permissions, ownership and security metadata.
 Backup filenames do not end in `.rules`, so augenrules cannot load them as policy.
-Concurrent changes detected before publication stop installation. Repeating an
-install does not rewrite adequate values or request another dispatcher reload.
+Concurrent changes detected before publication stop installation. Repeating a
+successfully completed install does not rewrite adequate values or request another
+dispatcher reload. An unresolved pending reload is retried even when the file's
+queue value is already adequate.
 
-A running daemon is reloaded only when dispatcher settings change, never
-restarted or killed. Hosts with native `/etc/init.d/auditd` use
-`service auditd start/reload`, including CentOS 7; other hosts use systemctl.
+A running daemon is reloaded only when dispatcher settings change or a reload is pending, never
+restarted or killed. From 0.3.99, hosts with `/etc/init.d/auditd` or the requested
+`/usr/libexec/initscripts/legacy-actions/auditd/<action>` use `service auditd
+<action>`, including CentOS 7 packages that omit the init script. Otherwise,
+systemctl reload is used only when the unit reports `CanReload=yes`; if unavailable,
+the installer uses `auditctl --signal reload` only when advertised by native help.
+Missing reload support fails with the native helper, backup and pending-marker
+diagnosis, rather than attempting an unsupported reload or falling back to restart.
 Service operations have 30-second limits; status/auditctl probes have 10-second
 limits, followed by up to 5 seconds to terminate the command. No `auditctl -D/-R`
 or `augenrules --load` runs. Live backlog uses `auditctl -b` and read-back
@@ -56,11 +76,20 @@ prepared and verified audit. Installation success under this override does not
 verify those settings. Bootstrap users can pass the same environment variables
 through `sudo env`; the Linux child installer inherits them.
 
+Before publishing a dispatcher change, 0.3.99 creates a root-owned 0600
+`<dispatcher-config>.secweaver-reload-required` regular file. This intent survives
+failed or interrupted installation. The next install retries the native reload
+(or starts a stopped daemon), then clears it after successful service/kernel
+verification. Symlinked or non-regular markers are refused before editing policy.
+`AUDIT_TUNE=0` leaves this pending tuning work untouched. Run installs serially.
+
 Configuration may already have been raised when a later step fails. Backups and
 installation logs are retained; the installer does not automatically undo
 completed steps. For rollback, stop the Agent, restore each exact backup path
-reported in the log, then use native `service auditd reload` or systemctl reload
-for dispatcher settings. Restoring backlog also requires consistent persistent
+reported in the log, then use the supported native reload interface described
+above. Audit 2.x can grow its dispatcher queue on reload but cannot shrink it;
+shrinking requires an operator-planned service restart. The installer never does
+that restart. Restoring backlog also requires consistent persistent
 `-b` directives and a mutable live-kernel value; immutable kernels require reboot.
 Do not restore multiple backups using a wildcard.
 
@@ -73,6 +102,39 @@ Isolated regressions cover both native loaders, audit 2/3/4, larger values,
 immutability, idempotence and service/kernel failures. Real CentOS 7 acceptance
 still needs the target kernel and plugin configuration, reload verification,
 business peaks and the cloud upload path.
+
+## CentOS 7 Reload Recovery (0.3.99)
+
+In 0.3.98 and earlier, the installer detects only `/etc/init.d/auditd` and can
+choose `systemctl reload auditd.service` on a CentOS 7 host with legacy-actions
+only. Its unit lacks `ExecReload`, so first installation fails after writing
+`q_depth=2000`. A second install skips reload because the file now meets the floor;
+that success does not demonstrate application to the running dispatcher. This is
+an installer compatibility defect, not evidence that auditd stopped.
+
+Those older failures did not create the new pending marker. After reviewing the
+dispatcher configuration, run the native reload once, inspect its asynchronous
+result, then retry installation:
+
+```bash
+sudo timeout --kill-after=5s 30s service auditd reload
+sudo systemctl is-active auditd.service
+sudo auditctl -s
+sudo journalctl -u auditd.service --since '-5 minutes' --no-pager
+```
+
+Command success means the reload request was accepted, not that every dispatcher
+or plugin parsed its settings. Check for configuration errors/DAEMON_CONFIG and
+new audit.log writes; separately verify Agent JSONL and SLS/ES receipt. If the
+native helper is missing, repair the host's audit/initscripts packages first.
+Do not clear all rules or disable audit to bypass this error. After 0.3.99 is
+published, repeat the original installation command to use the repaired installer;
+an in-process Agent binary update does not rerun host dependency/queue setup.
+
+References: [RHEL 7 native audit service control](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/security_guide/sec-starting_the_audit_service),
+[audit 2.8.5 unit](https://github.com/linux-audit/audit-userspace/blob/v2.8.5/init.d/auditd.service),
+[legacy reload helper](https://github.com/linux-audit/audit-userspace/blob/v2.8.5/init.d/auditd.reload),
+[dispatcher reconfiguration](https://github.com/linux-audit/audit-userspace/blob/v2.8.5/audisp/audispd.c).
 
 ## Installation Progress (0.3.44)
 

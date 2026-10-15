@@ -33,6 +33,9 @@ UPDATE_REQUIRE_SERVER_POLICY="true"
 BOOTSTRAP_CA_FILE="${SECWEAVER_BOOTSTRAP_CA_FILE:-}"
 PERSISTENT_CA_FILE="${SHIPPER_DIR}/ca.crt"
 LEGACY_PERSISTENT_CA_FILE="${CONFIG_DIR}/shipper/ca.crt"
+# Set during dependency detection. The value is persisted in the module JSON
+# only after the product-owned configuration has been copied into place.
+AUDIT_RUNTIME_MODE="auto"
 
 usage() {
   cat <<'EOF'
@@ -283,6 +286,68 @@ need_cmd() {
   [[ -x "/usr/sbin/$1" || -x "/sbin/$1" || -x "/usr/bin/$1" || -x "/bin/$1" ]]
 }
 
+# auditctl -s is the usable-kernel check, not merely a binary existence check.
+# Kylin and hardened images can ship auditctl while booting with audit=0; in
+# that case attempting queue tuning or auditd lifecycle operations is invalid.
+audit_kernel_control_available() {
+  need_cmd auditctl || return 1
+  local status
+  status="$(timeout --kill-after=5s 10s auditctl -s 2>/dev/null || true)"
+  [[ "${status}" =~ (^|[[:space:]])enabled[[:space:]]+(1|2)([[:space:]]|$) ]]
+}
+
+# This is intentionally a conservative prerequisite probe. The actual Agent
+# startup still performs the CO-RE verifier/attach check, so a false positive
+# fails with the kernel's concrete reason instead of silently selecting audit.
+ebpf_kernel_prerequisites_available() {
+  local arch
+  arch="$(uname -m 2>/dev/null || true)"
+  case "${arch}" in
+    x86_64|amd64|aarch64|arm64) ;;
+    *) return 1 ;;
+  esac
+  [[ -r /sys/kernel/btf/vmlinux ]] || return 1
+  local group name group_name
+  for group_name in "syscalls sys_enter_execve" "syscalls sys_exit_execve" "sched sched_process_exec"; do
+    read -r group name <<<"${group_name}"
+    [[ -r "/sys/kernel/tracing/events/${group}/${name}/format" || -r "/sys/kernel/debug/tracing/events/${group}/${name}/format" ]] || return 1
+  done
+}
+
+detect_linux_collection_mode() {
+  if audit_kernel_control_available; then
+    AUDIT_RUNTIME_MODE="auto"
+    return 0
+  fi
+  if ebpf_kernel_prerequisites_available; then
+    AUDIT_RUNTIME_MODE="ebpf_only"
+    if [[ -r /proc/cmdline ]] && grep -Eq '(^|[[:space:]])audit=0([[:space:]]|$)' /proc/cmdline; then
+      log "audit kernel support disabled by boot parameter audit=0; selecting product eBPF-only mode"
+    else
+      log "audit kernel control unavailable; selecting product eBPF-only mode"
+    fi
+    return 0
+  fi
+  return 1
+}
+
+# A stopped daemon can expose enabled=0 or pid=0, but a failed netlink status
+# means the current kernel cannot provide Audit. Do not try auditd lifecycle
+# operations merely because the installed auditctl binary has a version string.
+prepare_linux_collection_mode() {
+  if detect_linux_collection_mode; then
+    [[ "${AUDIT_RUNTIME_MODE}" == "ebpf_only" ]] || start_auditd_service
+    return 0
+  fi
+  local status
+  status="$(timeout --kill-after=5s 10s auditctl -s 2>/dev/null || true)"
+  if [[ "${status}" =~ (^|[[:space:]])enabled[[:space:]]+0([[:space:]]|$) ]]; then
+    start_auditd_service
+    detect_linux_collection_mode && return 0
+  fi
+  fatal "Linux collection unavailable: kernel Audit is not usable and required eBPF BTF/tracepoints are missing; enable Audit at boot or use an eBPF-capable kernel"
+}
+
 is_systemd_running() {
   [[ -d /run/systemd/system ]] && return 0
   if [[ -r /proc/1/comm ]] && grep -qx "systemd" /proc/1/comm; then
@@ -372,18 +437,21 @@ install_packages() {
 ensure_linux_dependencies() {
   if [[ "${INSTALL_DEPS}" == "0" || "${INSTALL_DEPS}" == "false" || "${INSTALL_DEPS}" == "no" ]]; then
     log "dependency installation skipped by INSTALL_DEPS=${INSTALL_DEPS}"
+    detect_linux_collection_mode || fatal "Linux collection unavailable: auditctl -s is not usable and required eBPF BTF/tracepoints are missing"
     return 0
   fi
+  local ebpf_ready=0
+  ebpf_kernel_prerequisites_available && ebpf_ready=1 || true
   local missing=()
-  if ! need_cmd auditctl; then
+  if ! need_cmd auditctl && [[ "${ebpf_ready}" -eq 0 ]]; then
     missing+=("auditd")
   fi
   if ! need_cmd netstat; then
     missing+=("net-tools")
   fi
   if [[ "${#missing[@]}" -eq 0 ]]; then
-    log "dependencies already installed: auditctl, netstat"
-    start_auditd_service
+    log "dependencies already installed: $(need_cmd auditctl && echo auditctl || echo eBPF-runtime), netstat"
+    prepare_linux_collection_mode
     return 0
   fi
 
@@ -396,7 +464,7 @@ ensure_linux_dependencies() {
   local packages=()
   case "${pm}" in
     apt)
-      if ! need_cmd auditctl; then
+      if ! need_cmd auditctl && [[ "${ebpf_ready}" -eq 0 ]]; then
         packages+=("auditd")
       fi
       if ! need_cmd netstat; then
@@ -404,7 +472,7 @@ ensure_linux_dependencies() {
       fi
       ;;
     dnf|yum|zypper)
-      if ! need_cmd auditctl; then
+      if ! need_cmd auditctl && [[ "${ebpf_ready}" -eq 0 ]]; then
         packages+=("audit")
       fi
       if ! need_cmd netstat; then
@@ -415,7 +483,7 @@ ensure_linux_dependencies() {
 
   install_packages "${pm}" "${packages[@]}"
 
-  if ! need_cmd auditctl; then
+  if ! need_cmd auditctl && [[ "${ebpf_ready}" -eq 0 ]]; then
     warn "auditctl is still unavailable after package installation"
     return 1
   fi
@@ -423,7 +491,7 @@ ensure_linux_dependencies() {
     warn "netstat is still unavailable after package installation"
     return 1
   fi
-  start_auditd_service
+  prepare_linux_collection_mode
 }
 
 # Read only active numeric directives. Refuse ambiguous/invalid configuration
@@ -529,6 +597,20 @@ audit_queue_raise() {
     rm -f "${temporary}"
     fatal "audit queue configuration appeared during installation: ${file}"
   fi
+  if [[ "${kind}" == q_depth ]]; then
+    # Record intent before publication: interruption or a failed reload must not
+    # let the next install confuse an adequate on-disk value with applied state.
+    [[ ! -L "${AUDIT_DISPATCHER_PENDING}" ]] && \
+      [[ ! -e "${AUDIT_DISPATCHER_PENDING}" || -f "${AUDIT_DISPATCHER_PENDING}" ]] || \
+      fatal "unsafe audit dispatcher pending marker: ${AUDIT_DISPATCHER_PENDING}"
+    local pending_stage
+    pending_stage="$(mktemp "${file}.secweaver-reload-stage.XXXXXX")" || \
+      fatal "cannot stage audit dispatcher pending marker: ${file}"
+    chmod 0600 "${pending_stage}" && mv -f "${pending_stage}" "${AUDIT_DISPATCHER_PENDING}" || {
+      rm -f "${pending_stage}" "${temporary}"
+      fatal "cannot record audit dispatcher pending reload: ${file}"
+    }
+  fi
   if ! mv -f "${temporary}" "${file}"; then
     rm -f "${temporary}"
     fatal "cannot publish audit queue configuration: ${file}; backup=${backup:-none}"
@@ -555,6 +637,7 @@ prepare_audit_queues() {
   local files=() backlog_source=0
   AUDIT_DISPATCHER_CHANGED=0
   AUDIT_DISPATCHER_BACKUP=""
+  AUDIT_DISPATCHER_PENDING=""
   AUDIT_BACKLOG_FLOOR=0
   case "${AUDIT_TUNE}" in
     0|false|no) log "audit queue tuning disabled by AUDIT_TUNE=${AUDIT_TUNE}"; return 0 ;;
@@ -603,7 +686,17 @@ prepare_audit_queues() {
       (( maximum <= AUDIT_BACKLOG_FLOOR )) || AUDIT_BACKLOG_FLOOR="${maximum}"
     fi
   done
-  [[ -z "${dispatcher_conf}" ]] || audit_queue_raise "${dispatcher_conf}" q_depth 2000
+  if [[ -n "${dispatcher_conf}" ]]; then
+    AUDIT_DISPATCHER_PENDING="${dispatcher_conf}.secweaver-reload-required"
+    [[ ! -L "${AUDIT_DISPATCHER_PENDING}" ]] && \
+      [[ ! -e "${AUDIT_DISPATCHER_PENDING}" || -f "${AUDIT_DISPATCHER_PENDING}" ]] || \
+      fatal "unsafe audit dispatcher pending marker: ${AUDIT_DISPATCHER_PENDING}"
+    audit_queue_raise "${dispatcher_conf}" q_depth 2000
+    if [[ -f "${AUDIT_DISPATCHER_PENDING}" ]]; then
+      AUDIT_DISPATCHER_CHANGED=1
+      log "audit queue: dispatcher reload pending (marker=${AUDIT_DISPATCHER_PENDING})"
+    fi
+  fi
   for file in ${files[@]+"${files[@]}"}; do
     values="$(audit_queue_values "${file}" backlog)"
     read -r count minimum maximum <<<"${values}"
@@ -623,9 +716,34 @@ prepare_audit_queues() {
   fi
 }
 
-# RHEL/CentOS 7 require the audit init script for lifecycle actions. A running
-# daemon is only reloaded, never restarted/killed, preserving live audit rules.
-# Every service/auditctl call is bounded and startup failure blocks installation.
+# RHEL/CentOS packages may ship only legacy-actions, with no /etc/init.d/auditd
+# and no ExecReload in their unit. Resolve the requested action, not just the
+# init script. Direct auditctl signalling is supported only when advertised;
+# never convert an unsupported reload into a restart or send an unverified PID.
+auditd_lifecycle_command() {
+  local action="$1" can_reload help
+  AUDIT_SERVICE_COMMAND=(systemctl "${action}" auditd.service)
+  if need_cmd service && { [[ -x /etc/init.d/auditd ]] || \
+      [[ -x "/usr/libexec/initscripts/legacy-actions/auditd/${action}" ]]; }; then
+    AUDIT_SERVICE_COMMAND=(service auditd "${action}")
+  elif [[ "${action}" == reload ]]; then
+    can_reload="$(timeout --kill-after=5s 10s systemctl show -p CanReload auditd.service)" || \
+      fatal "cannot inspect auditd reload support; pending marker=${AUDIT_DISPATCHER_PENDING:-none}"
+    if [[ "${can_reload}" != CanReload=yes ]]; then
+      help="$(LC_ALL=C timeout --kill-after=5s 10s auditctl -h 2>&1)" || help=""
+      if [[ "${help}" == *--signal* ]]; then
+        AUDIT_SERVICE_COMMAND=(auditctl --signal reload)
+      else
+        fatal "auditd has no supported reload interface (CanReload=${can_reload#*=}); install the native auditd legacy-action/service helper; dispatcher backup=${AUDIT_DISPATCHER_BACKUP:-none}; pending marker=${AUDIT_DISPATCHER_PENDING:-none}"
+      fi
+    fi
+  fi
+}
+
+# A running daemon is only reloaded, never restarted/killed, preserving live
+# audit rules. Pending intent survives failed/interrupted installs and is cleared
+# only after successful lifecycle and kernel verification. A reload command's
+# success does not prove asynchronous dispatcher configuration was accepted.
 start_auditd_service() {
   if ! need_cmd systemctl; then
     warn "systemctl not found; cannot enable/start auditd automatically"
@@ -638,10 +756,6 @@ start_auditd_service() {
   prepare_audit_queues "/etc/audit/auditd.conf" "/etc/audisp/audispd.conf" "/etc/audit/rules.d"
   timeout --kill-after=5s 30s systemctl enable auditd.service || fatal "cannot enable auditd.service"
   local action=start status pid enabled backlog
-  local lifecycle=(systemctl)
-  if [[ -x /etc/init.d/auditd ]] && need_cmd service; then
-    lifecycle=(service auditd)
-  fi
   if timeout --kill-after=5s 10s systemctl is-active --quiet auditd.service; then
     if [[ "${AUDIT_DISPATCHER_CHANGED}" -eq 1 ]]; then
       action=reload
@@ -650,13 +764,10 @@ start_auditd_service() {
     fi
   fi
   if [[ -n "${action}" ]]; then
-    if [[ "${lifecycle[0]}" == systemctl ]]; then
-      timeout --kill-after=5s 30s systemctl "${action}" auditd.service || \
-        fatal "auditd ${action} failed; inspect journalctl -u auditd; dispatcher backup=${AUDIT_DISPATCHER_BACKUP:-none}"
-    else
-      timeout --kill-after=5s 30s "${lifecycle[@]}" "${action}" || \
-        fatal "auditd ${action} failed; inspect journalctl -u auditd; dispatcher backup=${AUDIT_DISPATCHER_BACKUP:-none}"
-    fi
+    auditd_lifecycle_command "${action}"
+    log "audit queue: lifecycle command=${AUDIT_SERVICE_COMMAND[*]}"
+    timeout --kill-after=5s 30s "${AUDIT_SERVICE_COMMAND[@]}" || \
+      fatal "auditd ${action} failed; inspect journalctl -u auditd; dispatcher backup=${AUDIT_DISPATCHER_BACKUP:-none}; pending marker=${AUDIT_DISPATCHER_PENDING:-none}"
   fi
   timeout --kill-after=5s 10s systemctl is-active --quiet auditd.service || fatal "auditd.service is not active after setup"
   status="$(timeout --kill-after=5s 10s auditctl -s)" || fatal "cannot verify auditd after setup"
@@ -679,6 +790,10 @@ start_auditd_service() {
         log "audit queue: kernel backlog_limit=${backlog} verified"
       fi
     fi
+  fi
+  if [[ -n "${AUDIT_DISPATCHER_PENDING}" && -f "${AUDIT_DISPATCHER_PENDING}" ]]; then
+    rm -f "${AUDIT_DISPATCHER_PENDING}" || fatal "cannot clear verified audit dispatcher pending reload: ${AUDIT_DISPATCHER_PENDING}"
+    log "audit queue: dispatcher lifecycle accepted; verify asynchronous reload in auditd journal"
   fi
   log "auditd service ready (pid=${pid}, enabled=${enabled})"
 }
@@ -712,8 +827,18 @@ if [[ ! -f "${MODE_CONFIG}" && -f /etc/secweaver-agent/config.json ]]; then
 fi
 "${ROOT_DIR}/bin/secweaver-agent" config set-deployment-mode -config "${MODE_CONFIG}" -mode "${DEPLOYMENT_MODE}" -check-only
 require_systemd
-stop_legacy_collectors
 ensure_linux_dependencies
+# Verify the real embedded programs before enrollment, binary replacement or
+# stopping an existing collector. BTF/tracepoint presence alone cannot prove
+# verifier/helper/privilege compatibility on vendor kernels.
+COLLECTION_CONFIG="${CONFIG_DIR}/audit-port-execmon.json"
+if [[ ! -f "${COLLECTION_CONFIG}" ]]; then
+  COLLECTION_CONFIG="${ROOT_DIR}/etc/secweaver-agent/audit-port-execmon.example.json"
+  [[ ! -f /etc/secweaver-agent/audit-port-execmon.json ]] || COLLECTION_CONFIG=/etc/secweaver-agent/audit-port-execmon.json
+fi
+"${ROOT_DIR}/bin/secweaver-agent" config check-linux-collection -config "${COLLECTION_CONFIG}" || \
+  fatal "Linux collection verification failed; device was not enrolled and Agent binary was not replaced"
+stop_legacy_collectors
 
 # Product-owned files live below one root. The command symlink and systemd unit
 # are the only integration points outside this tree.
@@ -854,6 +979,18 @@ if [[ ! -f "${CONFIG_DIR}/host-persistence.json" ]]; then
   else
     install -m 0600 "${ROOT_DIR}/etc/secweaver-agent/host-persistence.example.json" "${CONFIG_DIR}/host-persistence.json"
   fi
+fi
+if [[ "${AUDIT_RUNTIME_MODE}" == "ebpf_only" ]]; then
+  # Persist only the transport choice. The supervisor disables persistence
+  # Audit enrichment in memory; custom policy and learning state stay intact.
+  "${BIN_DIR}/secweaver-agent" config set-audit-mode \
+    -config "${CONFIG_DIR}/audit-port-execmon.json" \
+    -mode ebpf_only \
+    -auto-only || \
+    fatal "cannot persist product eBPF-only mode"
+  log "collection mode: eBPF-only (audit kernel interface unavailable)"
+else
+  log "collection mode: audit-capable (auditd backend remains available)"
 fi
 
 if [[ -d "${SYSTEMD_DIR}" ]]; then

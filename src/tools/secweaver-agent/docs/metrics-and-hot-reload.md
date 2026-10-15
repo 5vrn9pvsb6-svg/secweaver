@@ -59,8 +59,10 @@ curl --fail http://127.0.0.1:9100/metrics
 - `secweaver_agent_module_status`: `1` running, `0` stopped/not started, `-1` error, `-2` restarting, and `-3` circuit-open degradation.
 - `secweaver_agent_module_pid`: current child PID, or `0` while it is not running.
 - `secweaver_agent_audit_backlog_lines`: total shared-demux lines waiting for replay.
+- `secweaver_agent_audit_queued_lines`, `secweaver_agent_audit_queue_capacity`: current active queue occupancy/capacity in raw lines (0.3.102+).
+- `secweaver_agent_audit_paused_subscribers`: subscribers buffering for ordered replay; pressure does not itself mean evidence loss (0.3.102+).
 - `secweaver_agent_audit_backlog_overflows_total`: evidence lines overwritten after a fixed backlog filled; alert on every non-zero production increase.
-- `secweaver_agent_audit_retired_subscribers_total`: subscriptions retired after a full queue or pipe failure.
+- `secweaver_agent_audit_retired_subscribers_total`: subscriptions retired after actual backlog loss or pipe failure; a full queue alone no longer retires them in 0.3.102+.
 - `secweaver_agent_audit_lines_processed_total`: raw lines processed by the parent's shared audit reader.
 - `secweaver_agent_audit_readers` and `secweaver_agent_audit_readers_ready`: configured shared readers and readers whose source file is currently open.
 - `secweaver_agent_audit_reader_failures_total`: transitions from available to unavailable; retries in one outage do not repeatedly increment it.
@@ -75,6 +77,12 @@ single-slot queue coalesces to the latest throttle point, while Prometheus total
 remain exact. Stderr and `status.json` include the oldest lost and latest audit
 IDs. The resulting `error` diagnostic remains sticky for that Agent process
 because later recovery cannot reconstruct evidence that was already overwritten.
+
+From 0.3.102 the 8192-line live queue can pause into the 4096-line ring without
+closing its pipe. Replay precedes newer input; diagnostic IO is asynchronous.
+`audit_demux/backpressure/<module>` warns while buffering and clears on recovery;
+it never clears the separate sticky evidence-loss error. For explicit relearning
+after loss, see [learning recovery](learning-recovery.md#audit-backpressure-03102).
 
 The file-follow layer reports initial open, read failure, and audit.log rotation
 reopen state. An unavailable reader creates a recoverable `error` diagnostic;

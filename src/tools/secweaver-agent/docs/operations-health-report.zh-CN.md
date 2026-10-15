@@ -1,5 +1,11 @@
 # Agent 运维健康日志
 
+0.3.102 起，`audit` 对象新增 `queued_lines`、`queue_capacity`、
+`paused_subscribers`，用来区分 Agent 内部订阅压力与内核 backlog/lost。
+`backlog_lines` 包含实时暂存的数据，只有 `backlog_overflows_total` 增量才证明
+积压环发生覆盖。采样时压力为零不代表此前没有短时拥塞。
+见[Audit 背压与恢复](learning-recovery.zh-CN.md#audit-背压03102)。
+
 从 0.3.47 起，配置了部署模式的健康日志包含可选 `deployment_mode`
 （`sls_saas` / `es_private`），据此选择本地输送链路；ES 模式不检查 SLS
 机器组身份或无关 Logtail。旧配置兼容及迁移见[部署模式](deployment-modes.zh-CN.md)。

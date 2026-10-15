@@ -65,7 +65,10 @@ func TestHealthEndpointSeparatesLivenessFromReadiness(t *testing.T) {
 func TestAuditMetricsUseCumulativeSnapshotDeltas(t *testing.T) {
 	exporter := NewExporter("6X13NGV4G9CVK92E", "test")
 	exporter.UpdateAuditMetrics(AuditMetrics{BacklogLines: 4, Subscribers: 2, LinesProcessed: 10, RetiredSubscribers: 1, BacklogOverflows: 2, Readers: 1, ReadersReady: 0, ReaderFailures: 1})
-	exporter.UpdateAuditMetrics(AuditMetrics{BacklogLines: 1, Subscribers: 1, LinesProcessed: 15, RetiredSubscribers: 3, BacklogOverflows: 5, Readers: 1, ReadersReady: 1, ReaderFailures: 2})
+	exporter.UpdateAuditMetrics(AuditMetrics{BacklogLines: 1, QueuedLines: 8, QueueCapacity: 16, PausedSubscribers: 1, Subscribers: 1, LinesProcessed: 15, RetiredSubscribers: 3, BacklogOverflows: 5, Readers: 1, ReadersReady: 1, ReaderFailures: 2})
+	if exportedMetricValue(t, exporter.auditQueuedLines) != 8 || exportedMetricValue(t, exporter.auditQueueCapacity) != 16 || exportedMetricValue(t, exporter.auditPausedSubscribers) != 1 {
+		t.Fatal("current subscriber pressure gauges missing")
+	}
 
 	if got := exportedMetricValue(t, exporter.auditLinesProcessed); got != 15 {
 		t.Fatalf("processed counter = %v, want 15", got)

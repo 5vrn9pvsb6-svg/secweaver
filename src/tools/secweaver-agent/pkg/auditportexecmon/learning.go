@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"secweaver-agent/internal/errlog"
 	"secweaver-agent/pkg/behaviorlearning"
 	"secweaver-agent/pkg/eventwhitelist"
 	"secweaver-agent/pkg/eventwhitelist/core"
@@ -33,6 +34,7 @@ type learningOutput struct {
 	closeSummary func()
 	backend      string
 	health       func() (bool, bool)
+	eventErrors  [2]*errlog.Reporter
 }
 
 func learningPaths(c behaviorlearning.Config, eventPath string) behaviorlearning.Config {
@@ -80,6 +82,7 @@ func newLearningOutput(cfg config, eventPath, backend string, out io.Writer, tra
 		return nil, err
 	}
 	w := &learningOutput{Writer: out, queue: make(chan auditEvent, 128), stop: make(chan struct{}), done: make(chan struct{}), closeSummary: closeSummary, backend: backend, health: trackerHealth}
+	w.eventErrors = [2]*errlog.Reporter{errlog.New("behavior learning exec output"), errlog.New("behavior learning file output")}
 	original := func(raw json.RawMessage) error {
 		_, err := fmt.Fprintln(out, string(raw))
 		if err != nil {
@@ -216,16 +219,17 @@ func (w *learningOutput) run() {
 	healthTick := time.NewTicker(30 * time.Second)
 	defer healthTick.Stop()
 	w.sampleHealth()
+	// Each immutable engine owns an independent failure episode. A successful
+	// exec checkpoint must not hide a still-failing file checkpoint.
+	reports := [2]*errlog.Reporter{errlog.New("behavior learning exec checkpoint"), errlog.New("behavior learning file checkpoint")}
 	for {
 		select {
 		case e := <-w.queue:
 			w.process(e)
 		case <-tick.C:
-			for _, engine := range w.engines() {
+			for i, engine := range w.engines() {
 				if engine != nil {
-					if err := engine.Tick(); err != nil {
-						fmt.Fprintf(os.Stderr, "behavior learning checkpoint: %v\n", err)
-					}
+					reports[i].Observe(engine.Tick())
 				}
 			}
 		case <-healthTick.C:
@@ -260,6 +264,9 @@ func (w *learningOutput) sampleHealth() {
 		}
 	}
 }
+
+// process is worker-owned; separate event reporters prevent a successful exec
+// from clearing a file-output failure (or vice versa).
 func (w *learningOutput) process(e auditEvent) {
 	engine := w.engine
 	var observation behaviorlearning.Observation
@@ -269,9 +276,11 @@ func (w *learningOutput) process(e auditEvent) {
 	} else {
 		observation = execLearningObservation(e, w.backend, bootLearningID())
 	}
-	if err := engine.Process(observation); err != nil {
-		fmt.Fprintf(os.Stderr, "behavior learning event output: %v\n", err)
+	i := 0
+	if e.EventType == "file_op" {
+		i = 1
 	}
+	w.eventErrors[i].Observe(engine.Process(observation))
 }
 
 // engines are immutable after construction; the single worker owns transitions.

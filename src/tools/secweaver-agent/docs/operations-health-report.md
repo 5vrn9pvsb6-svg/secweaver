@@ -1,5 +1,12 @@
 # Agent Operations Health Log
 
+From 0.3.102, the `audit` object also reports `queued_lines`, `queue_capacity`
+and `paused_subscribers`. These additive fields expose internal subscriber
+pressure separately from kernel backlog/lost counters. `backlog_lines` includes
+temporarily buffered live data; only increases in `backlog_overflows_total`
+prove ring overwrite. A sampled zero pressure value cannot rule out short bursts.
+See [Audit backpressure and recovery](learning-recovery.md#audit-backpressure-03102).
+
 From 0.3.47, records include optional `deployment_mode` (`sls_saas` or
 `es_private`) when configured. It selects the expected local delivery path;
 ES mode does not inspect SLS machine-group identity or unrelated Logtail.

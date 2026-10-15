@@ -78,6 +78,10 @@ type processTreeMonitor struct {
 	pidListener    map[int]listenerInfo
 	processTracker processtracker.Tracker
 	processBackend string
+	// ebpfOnly suppresses every auditctl mutation owned by this monitor. eBPF
+	// process events remain active, while audit-backed connect/file/sensitive
+	// evidence is reported as unavailable by the product preflight.
+	ebpfOnly bool
 	// History is bounded independently of active rules. mu protects these maps;
 	// event snapshots copied into reader-owned accumulators need no monitor lock.
 	attributionHistory  attributionHistory
@@ -177,6 +181,26 @@ func (m *processTreeMonitor) setProcessTracker(backend string, tracker processtr
 	defer m.mu.Unlock()
 	m.processBackend = backend
 	m.processTracker = tracker
+}
+
+// setEBPFOnly records the product transport boundary before bootstrap. Keeping
+// it on the monitor makes later listener rescans and shutdown cleanup obey the
+// same rule as initial startup instead of reintroducing audit rules on demand.
+func (m *processTreeMonitor) setEBPFOnly(enabled bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.ebpfOnly = enabled
+	if enabled {
+		m.monitorConnect = false
+		m.monitorFileOps = false
+		m.monitorSensitiveFileReads = false
+	}
+}
+
+func (m *processTreeMonitor) isEBPFOnly() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.ebpfOnly
 }
 
 func (m *processTreeMonitor) usesEBPF() bool {

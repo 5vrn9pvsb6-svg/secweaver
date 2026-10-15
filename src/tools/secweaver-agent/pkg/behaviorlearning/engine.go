@@ -43,6 +43,9 @@ type Engine struct {
 	warmUntil       time.Time
 	lastFlush       time.Time
 	lastSave        time.Time
+	persistenceErr  error
+	persistenceAt   time.Time
+	persistenceWait time.Duration
 	lastSimplePrune time.Time
 	coverage        EngineCoverage
 	counters        map[string]*counters
@@ -483,20 +486,35 @@ func (e *Engine) Tick() error {
 			e.faultLocked("learning_deadline")
 		}
 	}
+	// Advance online/health accounting on every tick, but do not repeat failed
+	// disk operations every second. Returning the cached error keeps callers
+	// degraded (and their diagnostics rate-limited) until actual I/O succeeds.
+	if e.persistenceErr != nil && now.Before(e.persistenceAt) {
+		e.pruneRuntime(now)
+		return e.persistenceErr
+	}
 	if now.Sub(e.lastFlush) >= time.Duration(e.cfg.SummarySeconds)*time.Second {
 		if err := e.flush(now); err != nil {
 			e.faultLocked("summary_output_failed")
-			return err
+			return e.persistenceFailed(err, now)
 		}
 		e.lastFlush = now
 	}
 	if now.Sub(e.lastSave) >= time.Minute {
 		if err := e.store.Commit(e.state); err != nil {
 			e.faultLocked("checkpoint_failed")
-			return err
+			return e.persistenceFailed(err, now)
 		}
 		e.lastSave = now
 	}
+	e.persistenceErr, e.persistenceAt, e.persistenceWait = nil, time.Time{}, 0
+	e.pruneRuntime(now)
+	return nil
+}
+
+// pruneRuntime keeps reception windows/context caches bounded even while disk
+// retries are delayed. Tick calls it under mu, never on the source reader path.
+func (e *Engine) pruneRuntime(now time.Time) {
 	if e.cfg.simpleExec {
 		e.pruneSimple(now)
 	} else {
@@ -514,7 +532,14 @@ func (e *Engine) Tick() error {
 			delete(e.evidence, k)
 		}
 	}
-	return nil
+}
+
+// persistenceFailed is called with mu held. Backoff is bounded to one minute;
+// recovery repairs persistence only and never clears a faulted baseline/trust.
+func (e *Engine) persistenceFailed(err error, now time.Time) error {
+	e.persistenceWait = min(time.Minute, max(time.Second, 2*e.persistenceWait))
+	e.persistenceErr, e.persistenceAt = err, now.Add(e.persistenceWait)
+	return err
 }
 
 // freeze closes exact-policy admissions without changing durable entries.

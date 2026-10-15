@@ -1,7 +1,6 @@
 package output
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -41,16 +40,6 @@ type AppendOptions struct {
 	MaxBackups    int
 }
 
-type PeriodicFlushWriter struct {
-	mu   sync.Mutex
-	buf  *bufio.Writer
-	dest io.Writer
-	stop chan struct{}
-	done chan struct{}
-	once sync.Once
-	err  error
-}
-
 type EnterpriseJSONLinesWriter struct {
 	mu           sync.Mutex
 	destination  io.Writer
@@ -76,6 +65,8 @@ type RotatingFile struct {
 	budget       diskBudgetPolicy
 	nextCheck    time.Time
 	budgetErr    error
+	retryDelay   time.Duration
+	now          func() time.Time
 }
 
 var availableDiskBytes = diskFreeBytes
@@ -306,86 +297,6 @@ func setRequiredString(record map[string]json.RawMessage, key, fallback string) 
 	record[key] = encoded
 }
 
-func NewPeriodicFlushWriter(w io.Writer, bufferSize int, interval time.Duration) *PeriodicFlushWriter {
-	if bufferSize <= 0 {
-		bufferSize = DefaultBufferSize
-	}
-	p := &PeriodicFlushWriter{buf: bufio.NewWriterSize(w, bufferSize), dest: w}
-	if interval > 0 {
-		p.stop = make(chan struct{})
-		p.done = make(chan struct{})
-		go p.flushLoop(interval)
-	}
-	return p
-}
-
-func (w *PeriodicFlushWriter) Sync() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.err != nil {
-		return w.err
-	}
-	if err := w.buf.Flush(); err != nil {
-		w.err = err
-		return err
-	}
-	if syncer, ok := w.dest.(interface{ Sync() error }); ok {
-		if err := syncer.Sync(); err != nil {
-			w.err = err
-			return err
-		}
-	}
-	return nil
-}
-
-func (w *PeriodicFlushWriter) Write(p []byte) (int, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.err != nil {
-		return 0, w.err
-	}
-	return w.buf.Write(p)
-}
-
-func (w *PeriodicFlushWriter) Flush() error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if w.err != nil {
-		return w.err
-	}
-	if err := w.buf.Flush(); err != nil {
-		w.err = err
-		return err
-	}
-	return nil
-}
-
-func (w *PeriodicFlushWriter) Close() error {
-	if w.stop != nil {
-		w.once.Do(func() {
-			close(w.stop)
-			<-w.done
-		})
-	}
-	return w.Flush()
-}
-
-func (w *PeriodicFlushWriter) flushLoop(interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer func() {
-		ticker.Stop()
-		close(w.done)
-	}()
-	for {
-		select {
-		case <-ticker.C:
-			_ = w.Flush()
-		case <-w.stop:
-			return
-		}
-	}
-}
-
 // OpenRotatingFile opens an Agent-owned log and enforces its requested mode on
 // both the active file and retained backups. Applying the mode to existing
 // files is intentional: upgrades must repair logs created by older releases
@@ -443,6 +354,7 @@ func OpenRotatingFile(path string, perm os.FileMode, maxSizeBytes int64, maxBack
 		file:         file,
 		size:         size,
 		budget:       budget,
+		now:          time.Now,
 	}, nil
 }
 
@@ -470,12 +382,13 @@ func (f *RotatingFile) Write(p []byte) (int, error) {
 
 // checkDiskBudgetLocked protects the host reserve without statfs on every
 // record. On pressure it removes only this output's numeric backups, then
-// rechecks before refusing the write with an observable module error.
+// rechecks before refusing the write with an observable module error. All probe
+// and retry state is protected by f.mu; recovery never lowers the reserve.
 func (f *RotatingFile) checkDiskBudgetLocked(force bool) error {
 	if !f.budget.enabled {
 		return nil
 	}
-	now := time.Now()
+	now := f.now()
 	if !force && now.Before(f.nextCheck) {
 		return f.budgetErr
 	}
@@ -488,6 +401,7 @@ func (f *RotatingFile) checkDiskBudgetLocked(force bool) error {
 	required := f.budget.requiredFreeBytes()
 	if available >= required {
 		f.budgetErr = nil
+		f.retryDelay = 0
 		return nil
 	}
 	for index := f.maxBackups; index >= 1 && available < required; index-- {
@@ -503,13 +417,13 @@ func (f *RotatingFile) checkDiskBudgetLocked(force bool) error {
 		}
 	}
 	if available < required {
-		// Retry quickly after a refusal so collection resumes promptly when an
-		// external shipper or operator frees space.
-		f.nextCheck = now.Add(time.Second)
-		f.budgetErr = fmt.Errorf("output disk reserve exhausted: available=%d required=%d priority=%s", available, required, f.budget.priority)
+		f.retryDelay = diskRetryDelay(f.retryDelay)
+		f.nextCheck = now.Add(f.retryDelay)
+		f.budgetErr = fmt.Errorf("%w: available=%d required=%d priority=%s retry_in=%s", ErrDiskReserve, available, required, f.budget.priority, f.retryDelay)
 		return f.budgetErr
 	}
 	f.budgetErr = nil
+	f.retryDelay = 0
 	return nil
 }
 

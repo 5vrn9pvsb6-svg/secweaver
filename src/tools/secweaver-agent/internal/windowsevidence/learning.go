@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"secweaver-agent/internal/errlog"
 	"secweaver-agent/internal/modulecontract"
 	"secweaver-agent/pkg/behaviorlearning"
 	"secweaver-agent/pkg/layout"
@@ -176,17 +177,18 @@ func (w *Learning) tick() {
 	defer close(w.done)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	// Bounded per-stream reporters avoid cross-stream false recovery and keep
+	// recurring checkpoint failures from flooding Windows service diagnostics.
+	reports := [3]*errlog.Reporter{errlog.New("Windows exec learning checkpoint"), errlog.New("Windows file learning checkpoint"), errlog.New("Windows connection learning checkpoint")}
 	for {
 		select {
 		case <-ticker.C:
 			w.mu.Lock()
 			w.pruneContexts(time.Now())
-			for _, engine := range w.engines() {
+			for i, engine := range w.engines() {
 				if engine != nil {
 					engine.Health(!w.lastPoll.IsZero() && time.Since(w.lastPoll) <= w.lease, false)
-					if err := engine.Tick(); err != nil {
-						fmt.Fprintf(os.Stderr, "Windows learning checkpoint: %v\n", err)
-					}
+					reports[i].Observe(engine.Tick())
 				}
 			}
 			w.mu.Unlock()

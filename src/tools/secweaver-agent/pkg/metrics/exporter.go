@@ -30,6 +30,9 @@ type Exporter struct {
 
 	// Audit metrics
 	auditBacklog            prometheus.Gauge
+	auditQueuedLines        prometheus.Gauge
+	auditQueueCapacity      prometheus.Gauge
+	auditPausedSubscribers  prometheus.Gauge
 	auditLinesProcessed     prometheus.Counter
 	auditSubscribers        prometheus.Gauge
 	auditRetiredSubscribers prometheus.Counter
@@ -91,6 +94,9 @@ type ModuleStatus struct {
 // AuditMetrics represents audit stream metrics
 type AuditMetrics struct {
 	BacklogLines       int
+	QueuedLines        int
+	QueueCapacity      int
+	PausedSubscribers  int
 	Subscribers        int
 	RetiredSubscribers uint64
 	LinesProcessed     uint64
@@ -153,6 +159,15 @@ func NewExporter(enterpriseID, version string) *Exporter {
 			},
 		),
 
+		auditQueuedLines: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "secweaver_agent_audit_queued_lines", Help: "Lines waiting in active audit subscriber queues",
+		}),
+		auditQueueCapacity: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "secweaver_agent_audit_queue_capacity", Help: "Total line capacity of active audit subscriber queues",
+		}),
+		auditPausedSubscribers: prometheus.NewGauge(prometheus.GaugeOpts{
+			Name: "secweaver_agent_audit_paused_subscribers", Help: "Audit subscribers paused for ordered backlog replay",
+		}),
 		auditLinesProcessed: prometheus.NewCounter(
 			prometheus.CounterOpts{
 				Name: "secweaver_agent_audit_lines_processed_total",
@@ -303,6 +318,9 @@ func NewExporter(enterpriseID, version string) *Exporter {
 		e.moduleConsecutiveFails,
 		e.modulePID,
 		e.auditBacklog,
+		e.auditQueuedLines,
+		e.auditQueueCapacity,
+		e.auditPausedSubscribers,
 		e.auditLinesProcessed,
 		e.auditSubscribers,
 		e.auditRetiredSubscribers,
@@ -492,6 +510,9 @@ func (e *Exporter) UpdateAuditMetrics(metrics AuditMetrics) {
 	defer e.mu.Unlock()
 
 	e.auditBacklog.Set(float64(metrics.BacklogLines))
+	e.auditQueuedLines.Set(float64(metrics.QueuedLines))
+	e.auditQueueCapacity.Set(float64(metrics.QueueCapacity))
+	e.auditPausedSubscribers.Set(float64(metrics.PausedSubscribers))
 	e.auditSubscribers.Set(float64(metrics.Subscribers))
 	e.auditReaders.Set(float64(metrics.Readers))
 	e.auditReadersReady.Set(float64(metrics.ReadersReady))

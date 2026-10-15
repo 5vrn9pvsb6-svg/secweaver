@@ -33,12 +33,27 @@ type Event struct {
 	Filename      string
 	Args          []string
 	ArgsTruncated bool
+	// Parent is historical kernel evidence at successful exec. Nil means the
+	// relationship could not be captured; consumers must not query a reusable
+	// parent PID to manufacture missing historical fields.
+	Parent *ParentIdentity
 	// IdentityValid gates learning; zero-valued fields without it are unknown.
 	IdentityValid                bool
 	EUID, EGID                   uint32
 	AUID                         uint32
 	StartBootNS, ExecutableInode uint64
 	ExecutableDev                uint32
+}
+
+// ParentIdentity describes the exec-time parent process in the host PID space.
+// StartBootNS is the parent's CLOCK_BOOTTIME start token, not wall-clock time.
+// Exe is relative to the parent's filesystem root; ExeStatus distinguishes a
+// complete path from an unavailable or bounded-out path (which is omitted).
+type ParentIdentity struct {
+	Comm        string
+	StartBootNS uint64
+	Exe         string
+	ExeStatus   string
 }
 
 // Tracker owns one kernel process-lifecycle data source. Track seeds an

@@ -19,8 +19,13 @@ func TestLinuxInstallerAuditQueueSetup(t *testing.T) {
 		name, version, dispatcher, rules, generated, enabled, fault string
 		backlog, wantBacklog, wantQueue                             string
 		legacy, stopped, disabled, fail                             bool
+		noInit, legacyActions, signal, pending                      bool
 	}{
 		{name: "centos7", version: "2.8.5", legacy: true, dispatcher: "q_depth = 80\nmax_restarts = 10\n", rules: "-b 64\n", generated: "-b 64\n-e 1\n", backlog: "64", wantBacklog: "8192", wantQueue: "q_depth = 2000"},
+		{name: "centos7-legacy-actions-only", version: "2.8.5", legacy: true, noInit: true, legacyActions: true, fault: "no-reload", dispatcher: "q_depth = 80\n", rules: "-b 8192\n", backlog: "8192", wantBacklog: "8192", wantQueue: "q_depth = 2000"},
+		{name: "centos7-no-reload-helper", version: "2.8.5", legacy: true, noInit: true, fault: "no-reload", dispatcher: "q_depth = 80\n", rules: "-b 8192\n", backlog: "8192", fail: true},
+		{name: "audit3-native-signal", version: "3.0.9", signal: true, fault: "no-reload", dispatcher: "q_depth = 80\n", rules: "-b 8192\n", backlog: "8192", wantBacklog: "8192", wantQueue: "q_depth = 2000"},
+		{name: "interrupted-install", version: "3.0.9", pending: true, dispatcher: "q_depth = 2000\n", rules: "-b 8192\n", backlog: "8192", wantBacklog: "8192", wantQueue: "q_depth = 2000"},
 		{name: "audit3", version: "3.0.9", dispatcher: "q_depth = 400\n", rules: "-b 4096\n", backlog: "4096", wantBacklog: "8192", wantQueue: "q_depth = 2000"},
 		{name: "audit4", version: "4.0.0", dispatcher: "q_depth = 2000\n", rules: "-b 8192\n", backlog: "8192", wantBacklog: "8192", wantQueue: "q_depth = 2000"},
 		{name: "larger-existing", version: "3.0.9", dispatcher: "q_depth = 12000\n", rules: "-b 65536\n-b 64\n", backlog: "32768", wantBacklog: "65536", wantQueue: "q_depth = 12000"},
@@ -51,13 +56,21 @@ func TestLinuxInstallerAuditQueueSetup(t *testing.T) {
 			if tc.legacy {
 				dispatcherPath = "audisp/audispd.conf"
 				auditConf += "dispatcher = /sbin/audispd\ndisp_qos = lossy\n"
-				fixture.write(t, "init.d/auditd", "#!/bin/sh\n", 0755)
+				if !tc.noInit {
+					fixture.write(t, "init.d/auditd", "#!/bin/sh\n", 0755)
+				}
+				if tc.legacyActions {
+					fixture.write(t, "legacy-actions/auditd/reload", "#!/bin/sh\n", 0755)
+				}
 			} else {
 				auditConf += tc.dispatcher
 			}
 			fixture.write(t, "audit/auditd.conf", auditConf, 0640)
 			if tc.legacy {
 				fixture.write(t, dispatcherPath, tc.dispatcher, 0640)
+			}
+			if tc.pending {
+				fixture.write(t, dispatcherPath+".secweaver-reload-required", "", 0600)
 			}
 			if tc.rules != "" {
 				fixture.write(t, "audit/rules.d/10-base.rules", "# operator policy\n"+tc.rules+"-a never,exit -F exe=/usr/bin/example\n-e 1\n", 0600)
@@ -78,6 +91,9 @@ func TestLinuxInstallerAuditQueueSetup(t *testing.T) {
 				tune = "0"
 			}
 			env := []string{"AUDIT_VERSION=" + tc.version, "AUDIT_ENABLED=" + enabled, "AUDIT_FAULT=" + tc.fault, "AUDIT_TUNE=" + tune}
+			if tc.signal {
+				env = append(env, "AUDIT_SIGNAL_SUPPORTED=1")
+			}
 			before := fixture.read(t, dispatcherPath)
 			output, err := fixture.run(t, "start_auditd_service", env...)
 			if (err != nil) != tc.fail {
@@ -96,6 +112,38 @@ func TestLinuxInstallerAuditQueueSetup(t *testing.T) {
 				}
 				if tc.fault == "reload" && !strings.Contains(output, "dispatcher backup=") {
 					t.Fatal("reload failure must identify the recovery backup")
+				}
+				if tc.fault == "reload" || tc.fault == "start" || tc.fault == "no-reload" {
+					marker := filepath.Join(fixture.root, dispatcherPath+".secweaver-reload-required")
+					if info, err := os.Stat(marker); err != nil || info.Mode().Perm() != 0600 {
+						t.Fatalf("failed lifecycle lost pending reload intent: %v", err)
+					}
+					if _, err := fixture.run(t, "start_auditd_service", env...); err == nil {
+						t.Fatal("unchanged configuration hid the unresolved lifecycle failure on retry")
+					}
+					// Retry after repairing the native helper. The configuration is
+					// already adequate, but the failed application must run again.
+					if tc.fault == "no-reload" {
+						fixture.write(t, "legacy-actions/auditd/reload", "#!/bin/sh\n", 0755)
+					}
+					traceBefore := trace
+					if retryOutput, retryErr := fixture.run(t, "start_auditd_service", "AUDIT_VERSION="+tc.version, "AUDIT_ENABLED="+enabled, "AUDIT_FAULT=", "AUDIT_TUNE=1"); retryErr != nil {
+						t.Fatalf("retry after lifecycle failure failed: %v\n%s", retryErr, retryOutput)
+					}
+					operation := "service:reload"
+					if tc.stopped {
+						operation = "service:start"
+					}
+					if !strings.Contains(strings.TrimPrefix(fixture.read(t, "trace"), traceBefore), operation) {
+						t.Fatal("repeat install skipped the failed dispatcher lifecycle")
+					}
+					if _, err := os.Lstat(marker); !os.IsNotExist(err) {
+						t.Fatalf("successful retry retained pending intent: %v", err)
+					}
+					backups, _ := filepath.Glob(filepath.Join(fixture.root, dispatcherPath) + ".secweaver-backup.*")
+					if len(backups) != 1 {
+						t.Fatalf("retries rewrote an adequate dispatcher: %v", backups)
+					}
 				}
 				return
 			}
@@ -135,6 +183,18 @@ func TestLinuxInstallerAuditQueueSetup(t *testing.T) {
 			if !tc.stopped && tc.legacy && strings.Contains(trace, "systemctl:reload") {
 				t.Fatal("CentOS 7 reload must use the audit init script")
 			}
+			if tc.legacyActions && !strings.Contains(trace, "service:reload") {
+				t.Fatal("legacy-action-only host did not use service auditd reload")
+			}
+			if tc.signal && !strings.Contains(trace, "auditctl:--signal reload") {
+				t.Fatal("native auditctl signal fallback was not used")
+			}
+			if tc.pending && !strings.Contains(trace, "systemctl:reload") {
+				t.Fatal("interrupted install lost the pending dispatcher reload")
+			}
+			if _, err := os.Lstat(filepath.Join(fixture.root, dispatcherPath+".secweaver-reload-required")); !os.IsNotExist(err) {
+				t.Fatalf("verified lifecycle retained its pending marker: %v", err)
+			}
 			if tc.rules != "" && !tc.disabled {
 				rules := fixture.read(t, "audit/rules.d/10-base.rules")
 				if !strings.Contains(rules, "-a never,exit -F exe=/usr/bin/example\n-e 1\n") {
@@ -172,6 +232,27 @@ func TestLinuxInstallerAuditQueueSetup(t *testing.T) {
 	}
 }
 
+// Pending state is an installer-owned regular file, never a target to follow.
+// Reject a redirected marker before changing the host's dispatcher policy.
+func TestLinuxInstallerAuditPendingMarkerRejectsSymlink(t *testing.T) {
+	fixture := newAuditInstallerFixture(t)
+	before := "q_depth = 80\n"
+	fixture.write(t, "audit/auditd.conf", before, 0640)
+	fixture.write(t, "backlog", "8192", 0600)
+	fixture.write(t, "active", "yes", 0600)
+	fixture.write(t, "operator-file", "preserve", 0600)
+	if err := os.Symlink(filepath.Join(fixture.root, "operator-file"), filepath.Join(fixture.root, "audit/auditd.conf.secweaver-reload-required")); err != nil {
+		t.Fatal(err)
+	}
+	output, err := fixture.run(t, "start_auditd_service", "AUDIT_VERSION=3.0.9", "AUDIT_ENABLED=1", "AUDIT_FAULT=", "AUDIT_TUNE=1")
+	if err == nil || !strings.Contains(output, "unsafe audit dispatcher pending marker") {
+		t.Fatalf("redirected pending marker accepted: %v\n%s", err, output)
+	}
+	if fixture.read(t, "audit/auditd.conf") != before || fixture.read(t, "operator-file") != "preserve" {
+		t.Fatal("unsafe pending state changed operator files")
+	}
+}
+
 type auditInstallerFixture struct {
 	root, functions string
 }
@@ -205,6 +286,7 @@ func newAuditInstallerFixture(t *testing.T) auditInstallerFixture {
 		"/etc/audit/", "${AUDIT_TEST_ROOT}/audit/",
 		"/etc/audisp/", "${AUDIT_TEST_ROOT}/audisp/",
 		"/etc/init.d/auditd", "${AUDIT_TEST_ROOT}/init.d/auditd",
+		"/usr/libexec/initscripts/legacy-actions/", "${AUDIT_TEST_ROOT}/legacy-actions/",
 	).Replace(string(source)[start:end])
 	for _, dir := range []string{"audit/rules.d", "audisp", "stubs"} {
 		if err := os.MkdirAll(filepath.Join(fixture.root, dir), 0755); err != nil {
@@ -223,6 +305,8 @@ case "$1" in
     printf 'backlog_limit %s\n' "$(<"$AUDIT_TEST_ROOT/backlog")"
     echo 'backlog 0'; echo 'lost 0' ;;
   -b) [[ "$AUDIT_FAULT" == backlog ]] || printf '%s' "$2" > "$AUDIT_TEST_ROOT/backlog" ;;
+  -h) [[ "${AUDIT_SIGNAL_SUPPORTED:-0}" == 1 ]] && echo '    --signal <signal> Send a signal to the daemon' || echo 'usage: auditctl [options]' ;;
+  --signal) [[ "${AUDIT_SIGNAL_SUPPORTED:-0}" == 1 && "$2" == reload ]] || exit 99 ;;
   *) exit 99 ;;
 esac
 `, 0755)
@@ -232,9 +316,12 @@ echo "systemctl:$*" >> "$AUDIT_TEST_ROOT/trace"
 case "$1" in
   cat) [[ "$AUDIT_FAULT" != unit ]] ;;
   enable) exit 0 ;;
+  show) [[ "$2" == -p && "$3" == CanReload ]] || exit 99
+    if [[ "$AUDIT_FAULT" == no-reload ]]; then echo 'CanReload=no'; else echo 'CanReload=yes'; fi ;;
   is-active) [[ -f "$AUDIT_TEST_ROOT/active" ]] ;;
   start|reload)
     [[ "$AUDIT_FAULT" != "$1" ]] || exit 1
+    [[ "$1" != reload || "$AUDIT_FAULT" != no-reload ]] || exit 1
     touch "$AUDIT_TEST_ROOT/active" ;;
   *) exit 99 ;;
 esac
@@ -243,6 +330,11 @@ esac
 set -euo pipefail
 [[ "$1" == auditd ]] || exit 99
 echo "service:$2" >> "$AUDIT_TEST_ROOT/trace"
+# Match the RHEL service wrapper: without a native script/legacy action it
+# redirects to systemctl, which cannot reload the CentOS 7 auditd unit.
+if [[ ! -x "$AUDIT_TEST_ROOT/init.d/auditd" && ! -x "$AUDIT_TEST_ROOT/legacy-actions/auditd/$2" ]]; then
+  exec systemctl "$2" auditd.service
+fi
 [[ "$AUDIT_FAULT" != "$2" ]] || exit 1
 case "$2" in start|reload) touch "$AUDIT_TEST_ROOT/active" ;; *) exit 99 ;; esac
 `, 0755)

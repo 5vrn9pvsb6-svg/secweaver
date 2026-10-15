@@ -40,7 +40,7 @@ func TestAgentConfigSchemaTopLevelPropertiesMatchRuntime(t *testing.T) {
 	}
 	// Keep this list next to the runtime contract. A new top-level field must be
 	// added to both the strict Go decoder and the published JSON Schema.
- want := []string{"collection_rules", "deployment_mode", "disk_budget", "enterprise_id", "license", "metrics", "modules", "operations_report", "remote_config", "status_path", "update"}
+	want := []string{"collection_rules", "deployment_mode", "disk_budget", "enterprise_id", "license", "metrics", "modules", "operations_report", "remote_config", "status_path", "update"}
 	if len(schema.Properties) != len(want) {
 		t.Fatalf("schema top-level properties=%v want=%v", schema.Properties, want)
 	}
@@ -232,7 +232,7 @@ func TestLinuxInstallerUpgradeMakesBootstrapCAAvailableToExistingConfig(t *testi
 	root := t.TempDir()
 	packageRoot := filepath.Join(root, "package")
 	installRoot := filepath.Join(root, "installed")
-	for _, directory := range []string{"bin", "etc/secweaver-agent", "libexec", "systemd"} {
+	for _, directory := range []string{"bin", "etc/secweaver-agent", "libexec", "systemd", "stubs"} {
 		if err := os.MkdirAll(filepath.Join(packageRoot, directory), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -262,6 +262,23 @@ fi
 	if err := os.WriteFile(filepath.Join(packageRoot, "bin", "secweaver-agent"), []byte(fakeAgent), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// This fixture represents an audit-capable Linux host. The real installer
+	// must still reject a host where both audit and the eBPF prerequisites fail;
+	// this test is focused on bootstrap-CA ordering and therefore supplies the
+	// minimum successful auditctl status explicitly.
+	auditctl := `#!/usr/bin/env bash
+case "$1" in
+  -s) printf 'enabled 1\npid 1\n' ;;
+  -v) echo 'auditctl version 3.0.0' ;;
+  *) exit 0 ;;
+esac
+`
+	if err := os.WriteFile(filepath.Join(packageRoot, "stubs", "auditctl"), []byte(auditctl), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(packageRoot, "stubs", "timeout"), []byte("#!/bin/sh\nshift 2\nexec \"$@\"\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	for _, file := range []string{"config.example.json", "audit-port-execmon.example.json", "host-persistence.example.json"} {
 		if err := os.WriteFile(filepath.Join(packageRoot, "etc/secweaver-agent", file), []byte("{}\n"), 0o644); err != nil {
 			t.Fatal(err)
@@ -289,6 +306,7 @@ fi
 	shipperDir := filepath.Join(installRoot, "shipper")
 	command := exec.Command("bash", installerPath, "--enterprise-id", "ABCD1234EFGH5678")
 	command.Env = append(os.Environ(),
+		"PATH="+filepath.Join(packageRoot, "stubs")+":"+os.Getenv("PATH"),
 		"INSTALL_ROOT="+installRoot,
 		"BIN_DIR="+filepath.Join(installRoot, "bin"),
 		"CONFIG_DIR="+configDir,

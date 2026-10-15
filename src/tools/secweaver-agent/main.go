@@ -297,6 +297,19 @@ func runAgentCommand(args []string) int {
 		}
 		return 0
 	}
+	// Resolve and verify the Linux transport before license retry loops, update
+	// activation or worker startup. Hosts without either transport must fail
+	// locally even if their authorization server is currently unreachable.
+	modules, collectionProfile, err := prepareLinuxCollectionModules(context.Background(), modules, true)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "collection initialization failed: %v\n", err)
+		// The installed unit excludes exit 78 from automatic restart. Kernel
+		// capabilities/forced policy need operator repair, not a retry storm.
+		return configurationErrorExitCode
+	}
+	if collectionProfile.Mode != "" {
+		fmt.Fprintf(os.Stderr, "Linux collection mode: %s (%s)\n", collectionProfile.Mode, collectionProfile.Reason)
+	}
 	if err := agentoutput.ApplyDiskBudgetEnvironment(cfg.DiskBudget, configuredOutputFileCount(modules, updateRuntime, &operationsRuntime)); err != nil {
 		fmt.Fprintf(os.Stderr, "configure output disk budget failed: %v\n", err)
 		return configurationErrorExitCode

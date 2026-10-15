@@ -1,5 +1,14 @@
 # secweaver-agent
 
+源码 0.3.103 增加 Linux/Windows 低磁盘有界退避、重复错误限流及实际恢复提示。
+缓冲输出遇到磁盘保护拒写后可在进程内恢复，不重置已降级的学习信任。验证及边界
+见[磁盘恢复说明](docs/reliability-and-disk-protection.zh-CN.md)。源码修改不代表已部署。
+
+源码 0.3.102 修复共享 Audit 队列拥塞导致的重启放大，在固定容量内按序回放，
+并上报内部队列压力。真实证据丢失仍停止学习过滤，升级不会重置已降级状态。
+显式修复及验证见[学习恢复](docs/learning-recovery.zh-CN.md#audit-背压03102)。
+源码修改不代表已经部署。
+
 源码 0.3.96 要求 Linux 监听服务事件具备已确认且非空的 `listener_process`。
 0.3.96 保存已确认事件的归属快照，增加有界历史恢复，修复重新托管与暂时不可读导致的归属丢失；PID 复用、同容器兄弟进程和未知归属仍受校验。
 无法确认归属的执行、连接和文件事件在写本地日志和进入学习前丢弃，不进入 Agent 上传链路。
@@ -648,7 +657,7 @@ Windows 示例见 [`config.windows.example.json`](config.windows.example.json)�
 | `enterprise_id` | 必填，由 SecWeaver 平台签发的 16 位企业 ID |
 | `status_path` | Agent 本地健康状态文件；记录授权检查、心跳错误、模块状态、PID、重启次数和最近启动/退出时间 |
 | `operations_report` | 默认开启的 Agent 运维健康 JSONL；默认每 300 秒输出快照并加入最多 60 秒稳定抖动，记录模块、共享 audit reader、授权、持久化和 shipper 配置状态 |
-| `disk_budget` | 默认启用；Agent 管理输出总预算 2048MB，最低剩余空间 512MB，每 30 秒检查；快照会比实时日志更早停写 |
+| `disk_budget` | 默认启用；Agent 管理输出总预算 2048MB，最低剩余空间 512MB，正常每 30 秒检查；低空间重试按 1～60 秒退避，快照比实时日志更早停写。见[磁盘恢复](docs/reliability-and-disk-protection.zh-CN.md) |
 | `license.outage_grace_seconds` | 控制面临时网络故障或 HTTP 408/425/429/5xx 时可使用最近一次成功授权的最长时间，默认 86400 秒，设为 `0` 禁用，最大 604800 秒 |
 | `remote_config` | 可选的 Data Cloud 托管策略拉取；启用后 Agent 定时拉取完整签名配置，校验通过后替换 `config.json` 并退出，由服务管理器重启生效 |
 | `modules.<name>.enabled` | 是否启用模块；不写时默认启用 |
@@ -674,7 +683,9 @@ Linux 发布包的 systemd unit 默认把整个 Agent 进程树限制在单核 5
 
 eBPF exec 事件会在进程仍存活时，从 `/proc/<pid>` 尽力补齐 `auid`、`auid_name`、`cwd`、`tty` 和 `has_tty`。`has_tty` 是三态契约：只有 `/proc/<pid>/stat` 能确认是否存在控制终端时才输出 `true` 或 `false`；短命进程已退出或 procfs 读取失败时省略该字段。下游必须把字段缺失解释为“未知”，不能解释为“无交互终端”。audit 后端仍直接从内核 audit 记录获得这些字段，通常能提供更完整的会话上下文。
 
-eBPF 仅替换动态 exec/clone 进程树能力。`connect.monitor`、`file_ops.monitor` 和敏感文件读取仍使用 audit；前两项默认关闭，敏感文件默认只保留一条 `/etc/shadow` read watch。有界 `audit` 回退会让 auditd 记录整机 exec/clone，再在进入事件累积器前丢弃不属于目标 listener 树的记录；它显著降低内核规则匹配成本，但高进程创建率主机仍需关注 audit 日志吞吐。进程退出由每 5 分钟对账清理，PID 归属以 `/proc` starttime 防复用。`audit.max_rules=1024` 同时约束固定规则和 watch；事务回滚、启动遗留清理和退出清理保持不变。运行 `secweaver-agent preflight` 或 `doctor` 可检查 BTF、exec tracepoint 和实际回退条件。
+在 Audit 可用主机上，eBPF 替换动态 exec/clone 进程树能力；`connect.monitor`、`file_ops.monitor` 和敏感文件读取仍使用 Audit。前两项默认关闭，敏感文件默认保留一条 `/etc/shadow` read watch。有界 `audit` 回退让 auditd 记录整机 exec/clone，再在事件累积前丢弃不属于目标 listener 树的记录；它降低内核规则匹配成本，但高进程创建率主机仍需关注 audit 日志吞吐。每 5 分钟对账修复遗漏并清理退出进程，PID 归属以 `/proc` starttime 防复用。`audit.max_rules=1024` 同时约束固定规则和 watch；事务回滚、启动遗留清理和退出清理保持不变。
+
+从 0.3.100 开始，`audit.mode=auto` 在 Audit 不可用且包内 eBPF 程序可运行时选择产品级 eBPF-only；两者都不可用则安装/启动报错退出。`audit.mode=ebpf_only` 可显式要求此模式。它关闭 Audit 输入和规则、connect/file/敏感文件证据以及持久化行为人补充，保留 exec、自学习、监听对账和文件持久化轮询。安装器在注册前验证实际加载，`preflight/doctor` 显示能力限制警告。支持条件、显式策略冲突与验证命令见 [eBPF-only 模式](docs/ebpf-only-mode.zh-CN.md)。
 
 listener 对账默认每 5 分钟运行一次，实时 clone/exec 归属仍由 eBPF 或 audit 事件维护，对账只修复 listener 变化和遗漏。发现过程先执行强制 `LC_ALL=C`、`LANG=C` 的 `netstat -tlnp`；解析器不依赖固定列宽或固定的 `LISTEN-2`/`LISTEN+1` 偏移，而是在大小写不敏感的 `LISTEN` 前寻找第一个地址字段、在后续列中寻找 PID/Program。它兼容标准 net-tools、BusyBox 风格 `*:port`、带或不带方括号的 IPv6、附加厂商列、缺失 PID 列，以及包含冒号或空格的进程标签。每次执行都会分别统计原始 TCP LISTEN、成功解析和拒绝行；任一监听行不能解析时会记录 `netstat listener parse incomplete` 并强制进入 procfs 补全，不会静默接受部分结果。
 

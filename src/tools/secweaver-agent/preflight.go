@@ -64,6 +64,17 @@ func collectPreflightReport(configPath string, modules []runtimeModule, updater 
 
 	checkPlatformSupport(add)
 	checkModulePlatforms(modules, add)
+	if runtime.GOOS == "linux" && !runningInContainer() {
+		prepared, profile, err := prepareLinuxCollectionModules(context.Background(), modules, false)
+		if err != nil {
+			add(preflightError, "collection-mode", "no usable Linux evidence transport", err.Error())
+		} else {
+			modules = prepared
+			if profile.Mode != "" && profile.Mode != configAuditModeEBPFOnly {
+				add(preflightOK, "collection-mode", "Audit-capable collection mode selected", profile.Reason)
+			}
+		}
+	}
 	switch runtime.GOOS {
 	case "linux":
 		checkLinuxRuntime(modules, add)
@@ -190,6 +201,7 @@ func checkLinuxEBPF(modules []runtimeModule, add func(preflightLevel, string, st
 		return
 	}
 	backend := "auto"
+	collectionMode := auditModuleCollectionMode(modules)
 	if configPath, found := stringFlag(module.Config.Args, "config"); found {
 		if body, err := os.ReadFile(strings.TrimSpace(configPath)); err == nil {
 			var cfg struct {
@@ -197,37 +209,46 @@ func checkLinuxEBPF(modules []runtimeModule, add func(preflightLevel, string, st
 					Backend string `json:"process_tree_backend"`
 				} `json:"exec"`
 			}
-			if json.Unmarshal(body, &cfg) == nil && strings.TrimSpace(cfg.Exec.Backend) != "" {
-				backend = strings.ToLower(strings.TrimSpace(cfg.Exec.Backend))
+			if json.Unmarshal(body, &cfg) == nil {
+				if strings.TrimSpace(cfg.Exec.Backend) != "" {
+					backend = strings.ToLower(strings.TrimSpace(cfg.Exec.Backend))
+				}
 			}
 		}
+	}
+	if collectionMode == "ebpf_only" {
+		backend = "ebpf"
 	}
 	if backend == "audit" || backend == "audit_pid" {
 		add(preflightOK, "ebpf", "eBPF process tracking is disabled by configuration", "exec.process_tree_backend="+backend)
 		return
 	}
 	level := preflightWarn
-	if backend == "ebpf" {
+	if backend == "ebpf" || collectionMode == "ebpf_only" {
 		level = preflightError
 	}
 	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
-		add(level, "ebpf", "architecture is not release-tested for eBPF process tracking", fmt.Sprintf("linux/%s will use audit fallback when backend=auto", runtime.GOARCH))
+		add(level, "ebpf", "architecture is not release-tested for eBPF process tracking", fmt.Sprintf("linux/%s requires Audit; eBPF-only supports amd64/arm64", runtime.GOARCH))
 		return
 	}
 	if _, err := os.Stat("/sys/kernel/btf/vmlinux"); err != nil {
-		add(level, "ebpf/btf", "kernel BTF is unavailable", "/sys/kernel/btf/vmlinux is required for CO-RE; backend=auto falls back to audit")
+		detail := "/sys/kernel/btf/vmlinux is required for CO-RE"
+		if collectionMode != "ebpf_only" {
+			detail += "; backend=auto falls back to audit"
+		}
+		add(level, "ebpf/btf", "kernel BTF is unavailable", detail)
 		return
 	}
 	if !linuxTracepointExists("syscalls", "sys_enter_execve") {
-		add(level, "ebpf/tracepoint", "execve tracepoint is unavailable", "syscalls/sys_enter_execve is required; backend=auto falls back to audit")
+		add(level, "ebpf/tracepoint", "execve tracepoint is unavailable", "syscalls/sys_enter_execve is required for eBPF; Audit fallback requires an available Audit environment and backend=auto")
 		return
 	}
 	if !linuxTracepointExists("syscalls", "sys_exit_execve") {
-		add(level, "ebpf/tracepoint", "execve exit tracepoint is unavailable", "syscalls/sys_exit_execve is required to discard failed exec attempts; backend=auto falls back to audit")
+		add(level, "ebpf/tracepoint", "execve exit tracepoint is unavailable", "syscalls/sys_exit_execve is required to discard failed exec attempts; eBPF-only cannot use Audit fallback")
 		return
 	}
 	if !linuxTracepointExists("sched", "sched_process_exec") {
-		add(level, "ebpf/tracepoint", "successful exec tracepoint is unavailable", "sched/sched_process_exec is required; backend=auto falls back to audit")
+		add(level, "ebpf/tracepoint", "successful exec tracepoint is unavailable", "sched/sched_process_exec is required for eBPF; Audit fallback requires an available Audit environment and backend=auto")
 		return
 	}
 	add(preflightOK, "ebpf", "kernel exposes required eBPF CO-RE capabilities", fmt.Sprintf("backend=%s btf=/sys/kernel/btf/vmlinux", backend))
@@ -285,9 +306,14 @@ func checkLinuxProcAndNetstat(add func(preflightLevel, string, string, string)) 
 
 func checkLinuxAudit(modules []runtimeModule, add func(preflightLevel, string, string, string)) {
 	hardFail := moduleEnabled(modules, "audit-port-execmon")
+	ebpfOnly := auditModuleCollectionMode(modules) == "ebpf_only"
 	levelForAudit := preflightWarn
-	if hardFail {
+	if hardFail && !ebpfOnly {
 		levelForAudit = preflightError
+	}
+	if ebpfOnly {
+		add(preflightWarn, "audit-mode", "product eBPF-only mode is active", "auditd rules/log input are intentionally disabled; exec/process evidence uses eBPF, host-persistence actor enrichment is unavailable")
+		return
 	}
 	if _, err := exec.LookPath("auditctl"); err != nil {
 		add(levelForAudit, "auditd", "auditctl not found", "install auditd/audit and start auditd.service before enabling audit-based modules")
@@ -315,6 +341,41 @@ func checkLinuxAudit(modules []runtimeModule, add func(preflightLevel, string, s
 	for _, path := range auditLogPathsFromModules(modules) {
 		checkAuditLogPath(path, levelForAudit, add)
 	}
+}
+
+// auditModuleCollectionMode honors the supervisor's CLI override, then the
+// persisted product mode. An absent field is the backward-compatible auto mode;
+// unreadable module configuration
+// remains an ordinary audit preflight failure so strict checks stay conservative.
+func auditModuleCollectionMode(modules []runtimeModule) string {
+	module, ok := runtimeModuleByName(modules, "audit-port-execmon")
+	if !ok {
+		return ""
+	}
+	if mode, ok := stringFlag(module.Config.Args, "collection-mode"); ok {
+		return strings.ToLower(strings.TrimSpace(mode))
+	}
+	path, ok := stringFlag(module.Config.Args, "config")
+	if !ok || strings.TrimSpace(path) == "" {
+		return "auto"
+	}
+	body, err := os.ReadFile(strings.TrimSpace(path))
+	if err != nil {
+		return "auto"
+	}
+	var cfg struct {
+		Audit struct {
+			Mode string `json:"mode"`
+		} `json:"audit"`
+	}
+	if err := json.Unmarshal(body, &cfg); err != nil {
+		return "auto"
+	}
+	mode := strings.ToLower(strings.TrimSpace(cfg.Audit.Mode))
+	if mode == "" {
+		return "auto"
+	}
+	return mode
 }
 
 func checkAuditLogPath(path string, level preflightLevel, add func(preflightLevel, string, string, string)) {

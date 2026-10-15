@@ -46,9 +46,37 @@ type sensitiveFileReadsSettings struct {
 }
 
 type auditSettings struct {
+	// Mode controls the product-level evidence transport. "auto" keeps the
+	// normal auditd path when it is usable, while the installer/runtime may
+	// select "ebpf_only" when audit is unavailable. "audit" is an explicit
+	// operator requirement and must fail instead of silently degrading.
+	Mode     string                `json:"mode,omitempty"`
 	Arches   []string              `json:"arches"`
 	MaxRules int                   `json:"max_rules"`
 	Pressure auditPressureSettings `json:"pressure"`
+}
+
+const (
+	auditCollectionModeAuto     = "auto"
+	auditCollectionModeAudit    = "audit"
+	auditCollectionModeEBPFOnly = "ebpf_only"
+)
+
+func normalizeAuditCollectionMode(mode string) string {
+	mode = strings.ToLower(strings.TrimSpace(mode))
+	if mode == "" {
+		return auditCollectionModeAuto
+	}
+	return mode
+}
+
+func validAuditCollectionMode(mode string) bool {
+	switch normalizeAuditCollectionMode(mode) {
+	case auditCollectionModeAuto, auditCollectionModeAudit, auditCollectionModeEBPFOnly:
+		return true
+	default:
+		return false
+	}
 }
 
 // auditPressureSettings is the on-disk representation. Zero values mean
@@ -132,6 +160,7 @@ func configTrackDescendants(cfg config) bool {
 type processTreeRuntimeConfig struct {
 	Backend               string
 	FallbackBackend       string
+	CollectionMode        string
 	MaxTrackedProcesses   uint32
 	PerfBufferBytesPerCPU int
 }
@@ -156,6 +185,7 @@ func resolveProcessTreeConfig(cfg config) processTreeRuntimeConfig {
 	return processTreeRuntimeConfig{
 		Backend:               backend,
 		FallbackBackend:       fallback,
+		CollectionMode:        normalizeAuditCollectionMode(cfg.Audit.Mode),
 		MaxTrackedProcesses:   uint32(maxTracked),
 		PerfBufferBytesPerCPU: perfBufferBytes,
 	}
@@ -387,6 +417,10 @@ func loadConfig(path string) (config, error) {
 		return config{}, err
 	}
 	cfg.normalize()
+	if !validAuditCollectionMode(cfg.Audit.Mode) {
+		return config{}, fmt.Errorf("audit.mode 只能是 %q、%q 或 %q", auditCollectionModeAuto, auditCollectionModeAudit, auditCollectionModeEBPFOnly)
+	}
+	cfg.Audit.Mode = normalizeAuditCollectionMode(cfg.Audit.Mode)
 	for _, port := range cfg.WhitelistPorts {
 		if port <= 0 || port > 65535 {
 			return config{}, fmt.Errorf("whitelist_ports 包含非法端口 %d", port)

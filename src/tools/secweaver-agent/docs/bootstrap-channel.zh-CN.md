@@ -1,5 +1,15 @@
 # Bootstrap 动态安装版本
 
+## Linux 采集模式（0.3.100）
+
+安装器先检查内核 Audit 可用性。Audit 不可用而 eBPF 前提满足时，在注册设备、
+停止原有 Agent 或替换二进制之前，临时加载并挂载包内的 eBPF 程序验证实际能力。
+验证成功后选择 `audit.mode=ebpf_only`；两种方式都不可用时，以非零退出码报告
+具体能力或 verifier 错误。eBPF-only 跳过 auditd 队列修改和服务启停；文件持久化
+轮询继续运行，Audit 行为人补充在内存中关闭。支持条件、显式策略优先级、采集
+限制及升级行为见 [eBPF-only 模式](ebpf-only-mode.zh-CN.md)。下文的队列预检查
+仅适用于 Audit 可用主机。
+
 ## Linux 审计队列预检查（0.3.80）
 
 Linux 发布包的 `install.sh` 在依赖就绪后、注册设备及启动 Agent 前检查本机 audit
@@ -19,11 +29,16 @@ coreutils（包括 GNU `timeout`）、awk、auditctl 和可用的 auditd systemd
 或其他审计规则。每个被修改的文件先生成同目录唯一的 `.secweaver-backup.<suffix>`
 备份，日志显示完整路径，再以保留权限、所有者及安全元数据的临时文件原子替换。
 备份不以 `.rules` 结尾，不会被 augenrules 当作规则源。原文件在写入前发生变化时
-停止安装，避免覆盖运维操作；重复安装不会再次改写符合下限的配置或触发 reload。
+停止安装，避免覆盖运维操作；已成功完成的重复安装不会再次改写符合下限的配置或
+触发 reload。存在待重载状态时，即使配置数字已符合下限，也必须重试。
 
-已运行的 auditd 仅在分发队列改变时 reload，不 restart、不 kill。有原生
-`/etc/init.d/auditd` 时通过 `service auditd start/reload` 操作，兼容 CentOS 7；其他主机
-通过 systemctl 操作。服务操作限时 30 秒，状态/auditctl 查询限时 10 秒，超时后最多
+已运行的 auditd 仅在分发队列改变或有待重载状态时 reload，不 restart、不 kill。有原生
+`/etc/init.d/auditd` 时通过 `service auditd start/reload` 操作。从 0.3.99 起也识别对应
+`/usr/libexec/initscripts/legacy-actions/auditd/<action>`，兼容没有 init 脚本的 CentOS 7。
+否则，reload 只有在 unit 报告 `CanReload=yes` 时使用 systemctl；不支持时，仅在
+本机 auditctl 帮助明确提供 `--signal` 的情况下使用 `auditctl --signal reload`。
+缺少可用入口时给出原生 helper、备份和待重载标记的诊断，停止安装，不把 reload
+转换为 restart。服务操作限时 30 秒，状态/auditctl 查询限时 10 秒，超时后最多
 5 秒强制结束命令。不会执行 `auditctl -D/-R` 或 `augenrules --load`。运行 backlog 通过
 `auditctl -b` 修改并复查，服务必须 active 且内核报告有效 daemon PID、`enabled=1/2`。
 启动、reload、注册验证或运行队列修改失败均停止后续安装并显示具体步骤。
@@ -46,9 +61,16 @@ sudo env AUDIT_TUNE=0 ./install.sh \
 验收 audit 的受控环境；此时不能把安装成功视为这些配置已完成。Bootstrap 使用时
 可在 `sudo env` 中传入同样的环境变量，Linux 子安装器会继承。
 
+0.3.99 在发布分发配置改动前，创建由 root 所有、权限 0600 的普通文件
+`<分发配置文件>.secweaver-reload-required`。失败或中断时保留该标记；下次安装
+重试原生 reload（服务停止时执行 start），成功完成服务/内核验证后才清除。标记为
+符号链接或非普通文件时，在修改策略前拒绝操作。`AUDIT_TUNE=0` 不处理这份待重载
+状态。请串行执行安装。
+
 失败后配置可能已经提高，备份与安装日志会保留，安装器不自动回退其他已完成步骤。
-需要回退时停止 Agent，按日志记录的确切备份路径恢复对应配置，再通过原生
-`service auditd reload` 或 systemctl reload 使分发配置生效；backlog 恢复还需同步
+需要回退时停止 Agent，按日志记录的确切备份路径恢复对应配置，再使用上述主机
+支持的原生重载入口。audit 2.x reload 可扩大队列，不能缩小运行队列；
+缩小需要运维安排服务重启，安装器不执行该重启。backlog 恢复还需同步
 持久 `-b` 和可变内核值。不可变内核的恢复同样需重启。不使用通配符批量覆盖备份。
 
 安装后检查 `auditctl -s` 的 PID、backlog_limit 与 lost 增量、相应配置中的 `q_depth`、
@@ -57,6 +79,35 @@ auditd journal 和真实 audit.log 写入，再分别确认 Agent JSONL 及云�
 就认为 `dispatch err (pipe full)` 已根治。隔离回归覆盖两种规则加载布局、audit 2/3/4、
 较大值保留、不可变策略、幂等安装和服务/内核失败；真实 CentOS 7 验收仍需在目标
 内核及插件配置上验证 reload、业务高峰和云端链路。
+
+## CentOS 7 重载失败恢复（0.3.99）
+
+0.3.98 及之前的安装器只检查 `/etc/init.d/auditd`。部分 CentOS 7 的 audit 包只提供
+legacy-actions，unit 又没有 `ExecReload`，因此安装器误用 `systemctl reload
+auditd.service`，在写入 `q_depth=2000` 后第一次安装失败。第二次由于文件已满足
+下限而跳过 reload；安装成功不能证明运行中的分发队列已应用新值。这是安装器
+兼容缺陷，不能据此认定 auditd 已停止。
+
+这些旧版失败不会生成新标记。检查分发配置后，可手工执行一次原生重载并核查异步
+结果，再重新安装：
+
+```bash
+sudo timeout --kill-after=5s 30s service auditd reload
+sudo systemctl is-active auditd.service
+sudo auditctl -s
+sudo journalctl -u auditd.service --since '-5 minutes' --no-pager
+```
+
+命令成功表示重载请求被接受，不保证每个 dispatcher/插件都已成功解析配置。检查
+配置错误、DAEMON_CONFIG 及 audit.log 新写入，再分别确认 Agent JSONL 和 SLS/ES
+收件。如果缺少原生 helper，先修复本机 audit/initscripts 包，不清空规则、不关闭
+audit 来绕过。待 0.3.99 发布后，重新执行原安装命令使用修复后的安装器；Agent
+进程内的二进制升级不会重跑主机依赖/队列配置步骤。
+
+依据：[RHEL 7 原生 audit 服务控制](https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/7/html/security_guide/sec-starting_the_audit_service)、
+[audit 2.8.5 unit](https://github.com/linux-audit/audit-userspace/blob/v2.8.5/init.d/auditd.service)、
+[原生 reload helper](https://github.com/linux-audit/audit-userspace/blob/v2.8.5/init.d/auditd.reload)、
+[dispatcher 重载逻辑](https://github.com/linux-audit/audit-userspace/blob/v2.8.5/audisp/audispd.c)。
 
 ## 安装进度（0.3.44）
 

@@ -1,5 +1,22 @@
 # secweaver-agent
 
+Source 0.3.103 adds bounded low-disk retry, recurring-error throttling and
+verified recovery diagnostics on Linux/Windows. Buffered reserve refusals recover
+without restarting a live writer; degraded learning trust is not reset. See
+[disk recovery and verification](docs/reliability-and-disk-protection.md).
+This source change is not a deployment.
+
+Source 0.3.102 fixes shared Audit queue-pressure restart amplification, preserves
+ordered replay within fixed limits, and exposes internal queue pressure. True
+evidence loss still disables learning filtering; upgrades do not reset degraded
+state. See [learning recovery](docs/learning-recovery.md#audit-backpressure-03102)
+for explicit repair and verification. This source change is not a deployment.
+
+Source 0.3.99 fixes first-install auditd reload failures on CentOS 7 hosts whose
+audit package provides legacy-actions without `/etc/init.d/auditd`. A persistent
+pending marker makes interrupted/failed reloads retryable rather than silently
+skipped on the next install. See [audit queue setup and recovery](docs/bootstrap-channel.md#centos-7-reload-recovery-0399).
+
 Source 0.3.96 requires a confirmed, nonblank `listener_process` for Linux listener events.
 0.3.96 freezes admitted event ownership, adds bounded historical recovery, and fixes reparenting/transient-read attribution loss while retaining PID-reuse, sibling-process and unknown-identity checks.
 Unresolved exec/connect/file events are dropped before local output and learning, so
@@ -738,7 +755,7 @@ Windows example: [`config.windows.example.json`](config.windows.example.json):
 | `enterprise_id` | Required 16-character tenant ID issued by the SecWeaver platform |
 | `status_path` | Local Agent health file containing authorization checks, heartbeat errors, module status, PID, restart count, and latest start/exit times |
 | `operations_report` | Enabled by default; append-only Agent operations JSONL with 300-second snapshots and up to 60 seconds of stable jitter, covering modules, shared audit reader, authorization, persistence, and shipper configuration |
-| `disk_budget` | Enabled by default: 2048MB total managed output, 512MB minimum free space, checked every 30 seconds; snapshots stop before realtime evidence |
+| `disk_budget` | Enabled by default: 2048MB total managed output, 512MB minimum free space, healthy checks every 30 seconds; low-space retries back off from 1 to 60 seconds, snapshots stop before realtime evidence. See [disk recovery](docs/reliability-and-disk-protection.md) |
 | `license.outage_grace_seconds` | Maximum age of the last successful authorization accepted for transient network failures or HTTP 408/425/429/5xx responses; defaults to 86400 seconds, `0` disables it, maximum 604800 |
 | `remote_config` | Optional Data Cloud managed policy pull. When enabled, Agent periodically pulls a full signed config, validates it, replaces `config.json`, and exits for the service manager to restart |
 | `modules.<name>.enabled` | Enable the module; omitted means enabled |
@@ -764,7 +781,9 @@ On Linux, `secweaver-agent run` automatically enables a single `audit.log` reade
 
 For eBPF exec events, the Agent best-effort enriches `auid`, `auid_name`, `cwd`, `tty`, and `has_tty` from `/proc/<pid>` while the process still exists. `has_tty` is a tri-state contract: `true` and `false` are emitted only when `/proc/<pid>/stat` proves whether a controlling terminal exists; the field is omitted when the process exited too quickly or procfs access failed. Consumers must treat an omitted field as unknown, never as non-interactive execution. Audit-backed events continue to obtain these fields from the kernel audit record and normally provide fuller session context.
 
-eBPF replaces only dynamic exec/clone tracking. Explicit connect/file monitoring and sensitive-file reads still use audit. Connect and file monitoring are disabled by default, while `/etc/shadow` keeps one read watch. Bounded audit records host-wide exec/clone syscalls and rejects unrelated processes before event accumulation; this removes the large kernel rule scan cost, though very high process-creation hosts must still size audit log throughput. Five-minute reconciliation removes dead ownership and repairs missed clone propagation, with `/proc` starttime preventing PID reuse. The `audit.max_rules=1024` budget, transactional rollback, stale-startup cleanup, and shutdown cleanup still apply. Run `secweaver-agent preflight` or `doctor` to inspect BTF, exec tracepoints, and fallback conditions.
+On Audit-capable hosts, eBPF replaces dynamic exec/clone tracking; explicit connect/file monitoring and sensitive-file reads still use Audit. Connect and file monitoring are disabled by default, while `/etc/shadow` keeps one read watch. Bounded Audit records host-wide exec/clone syscalls and rejects unrelated processes before event accumulation; this removes the large kernel rule scan cost, though very high process-creation hosts must still size audit log throughput. Five-minute reconciliation removes dead ownership and repairs missed clone propagation, with `/proc` starttime preventing PID reuse. The `audit.max_rules=1024` budget, transactional rollback, stale-startup cleanup, and shutdown cleanup still apply.
+
+From 0.3.100, `audit.mode=auto` also selects product eBPF-only when Audit is unavailable and the embedded programs work; unavailable Audit and eBPF fail installation/startup. `audit.mode=ebpf_only` explicitly requires this mode. It disables Audit input/rules, connect/file/sensitive evidence and persistence actor enrichment while retaining exec, learning, listener reconciliation and persistence polling. The installer verifies actual loading before enrollment; `preflight/doctor` show the coverage warning. See [eBPF-only mode](docs/ebpf-only-mode.md) for prerequisites, explicit-policy conflicts and verification commands.
 
 Listener reconciliation runs every five minutes by default. Realtime clone/exec ownership remains event-driven through eBPF or audit; reconciliation only repairs listener changes and missed events. Discovery first runs `netstat -tlnp` with `LC_ALL=C` and `LANG=C`. The parser does not depend on column widths or fixed `LISTEN-2`/`LISTEN+1` offsets: it finds the first address-shaped field before a case-insensitive LISTEN token and searches later fields for PID/program ownership. It accepts standard net-tools output, BusyBox-style `*:port` wildcards, bracketed and unbracketed IPv6, extra vendor columns, omitted PID columns, and process labels containing spaces or colons. Each command separately counts raw TCP LISTEN, parsed, and rejected rows. Any rejected listener emits `netstat listener parse incomplete` and forces procfs completion rather than silently accepting a partial result.
 

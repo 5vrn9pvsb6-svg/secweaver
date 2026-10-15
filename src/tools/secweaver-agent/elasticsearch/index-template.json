@@ -3,7 +3,7 @@
     "secweaver-public-agent-*"
   ],
   "priority": 501,
-  "version": 1,
+  "version": 2,
   "_meta": {
     "owner": "SecWeaver Community",
     "purpose": "Standalone Agent ingestion; no Operator dependency"
@@ -84,6 +84,11 @@
           "type": "keyword",
           "ignore_above": 4096
         },
+        "ppid_name": { "type": "keyword", "ignore_above": 4096 },
+        "ppid_exe": { "type": "keyword", "ignore_above": 4096 },
+        "ppid_start_boot_ns": { "type": "long" },
+        "parent_identity_status": { "type": "keyword" },
+        "ppid_exe_status": { "type": "keyword" },
         "uid": {
           "type": "keyword",
           "ignore_above": 4096

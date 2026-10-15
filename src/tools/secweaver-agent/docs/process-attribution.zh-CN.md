@@ -20,6 +20,70 @@ containerd-shim
 
 MySQL 服务根只能向已确认的后代传播归属，不能把父 shim 纳入自己的进程树。这里的 runc 是兄弟进程；它的目标容器可能是 MySQL 容器，但这不足以证明 mysqld 发起了调用。Agent 不因进程名是 runc 而将其列为可信或正常任务；本次没有新增容器任务识别或 runc 汇总过滤。
 
+## 执行时父进程证据（0.3.101）
+
+Linux amd64/arm64 的完整 Audit 模式使用 eBPF 跟踪时，以及 eBPF-only 模式，
+都会在成功 exec 的内核钩子中采集真实父进程。`ppid` 不再沿用 fork 时的
+owner map，`ppid_name` 不再事后通过可复用的 `/proc` PID 查询。
+对于 `sshd -> bash -> curl`，直接父进程是 bash，独立验证的监听根是 sshd。
+重新挂父后再次 exec 时记录新的真实父进程，已经证明的服务来源仍保留；
+父进程证据不能单独授权监听归属。
+
+| JSON 字段 | 含义 |
+| --- | --- |
+| `ppid` | 执行时父进程的宿主机 PID 命名空间 TGID；无法读取时省略 |
+| `ppid_name` | 内核采集的父进程主线程 comm，上限 15 字节，不再事后查询 `/proc` |
+| `ppid_exe` | 相对于父进程自身文件系统根的完整绝对路径；不完整路径省略 |
+| `ppid_start_boot_ns` | 父进程启动标识，单位为开机时间纳秒；不同于事件 `CLOCK_MONOTONIC` 或 `/proc` 时钟 tick，无法读取时省略 |
+| `parent_identity_status` | `complete`、`partial`、`unavailable`；完整要求名称、非零启动标识和完整路径 |
+| `ppid_exe_status` | `captured`、`truncated`、`unavailable` |
+
+这些字段为新增可选信息；Audit/Windows 事件不宣称具备这些 eBPF 保证。
+服务端协议、监听归属门禁和四字段 exec 学习键不变，升级保留学习状态。
+父进程实例键需要主机身份、同一次开机、PID 和启动标识；不能只比较 PID，
+也不能跨重启把启动标识当成同一个实例。
+
+路径最多遍历 16 步，包括跨挂载点，缓冲上限为 256 字节（255 字节有效内容）。
+使用现有 CO-RE 内核读取，不要求较新的 `bpf_d_path` helper。厂商缺字段、
+内核线程无可执行文件、读取失败、并发重新挂父/映像改变和路径超限时保留
+部分/未知状态，不关闭 exec。这是尽力而为的事件时证据，不是对全部并发
+文件重命名的原子快照。容器/chroot 路径相对于父进程自己的根，不保证能从
+Agent 的文件系统根直接访问。
+
+旧内核的开机时间启动字段名为 `real_start_time`，CO-RE 同时兼容该名称和
+`start_boottime`；不会用不同时钟的 `start_time` 替代。父进程名称/路径保留
+原始空格字节。
+
+线程退出不等于进程退出。`sched_process_exit` 先检查线程组剩余活线程数量，
+只有整个线程组死亡才删除归属和暂存参数。因此非主线程 exec 导致旧主线程
+退出时仍保留事件，最后退出的是非主线程时也能清理。加载对象时须能解析
+现有 task/signal 活线程计数 BTF 字段；失败仍明确报加载错误。内核测试强制
+从非主线程 exec，使该回归不再依赖偶然的调度。
+
+快照随事件传输，父进程退出、缓冲延迟和后续 PID 复用不会再被其他进程的
+名称替换。现有 CWD/TTY 仍依赖尽力而为的 `/proc` 补充。事件增加 288 字节；
+独立 scratch guard 每 CPU 增加 256 字节，帮助旧 verifier 验证 helper 边界，
+不进入事件传输或 pending map；map/队列容量不变。内嵌对象与 Go 布局必须
+一起重新生成，升级后重启采集器，内存 map 不跨版本复用。
+
+`go test ./pkg/auditportexecmon ./pkg/processtracker/ebpf` 验证历史输出与对象
+契约，Linux 还执行事件解码/布局测试。具备现有 eBPF 前置条件的隔离 Linux
+测试机上，执行真实 verifier、父进程退出与重新挂父验证：
+
+```bash
+sudo env SECWEAVER_EBPF_PARENT_INTEGRATION=1 go test \
+  ./pkg/processtracker/ebpf -run TestParentSnapshotKernel -v
+```
+
+检查会临时挂载程序、创建测试子进程并恢复测试进程的 subreaper 设置，
+不修改 auditd、Agent 配置、主机服务或学习状态。未显式开启时跳过；显式
+开启后实际加载失败必须让测试失败。
+
+0.3.101 在麒麟 V10 x86_64、`4.19.90-89.27.v2401.ky10.x86_64` 内核上
+完成了 30 轮实机检查，每轮覆盖父进程退出、重新挂父和路径超限，且强制
+从非主线程 exec。隔离的 eBPF-only 采集器还确认父进程字段进入本地 JSONL。
+该验证不代替 ARM64 实机挂载或 ES/SLS 上传验收；ARM64 仅完成交叉编译。
+
 ## 监听发现与实例隔离
 
 监听发现首先使用 `netstat -tlnp`，在命令失败、缺少 PID 或解析不完整时使用 `/proc/net/tcp{,6}` 和 `/proc/<pid>/fd` 的 socket inode 关联。TCP 表的 inode 固定取第 10 个空白分隔字段，不从末尾倒数；无法确认 socket 持有 PID 时不会因为端口为 22、名称为 systemd/init 就猜成 sshd。

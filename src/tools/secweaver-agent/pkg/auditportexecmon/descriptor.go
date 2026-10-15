@@ -17,10 +17,10 @@ import (
 func Descriptor() modulecontract.Descriptor {
 	return modulecontract.Descriptor{
 		Name:        "audit-port-execmon",
-		Description: "auditd-based external listener exec/connect/file evidence collector",
+		Description: "Audit/eBPF external listener exec and optional Audit connect/file evidence collector",
 		Platforms:   []string{"linux"},
 		Flags: modulecontract.Flags(
-			[]string{"config", "port", "audit-log", "output-log", "key"},
+			[]string{"config", "port", "audit-log", "output-log", "key", "collection-mode"},
 			[]string{"version", "learning-status", "include-ppid", "keep-rule", "from-start", "raw", "dry-run"},
 		),
 		OutputPaths:       descriptorOutputPaths,
@@ -58,6 +58,21 @@ func descriptorOutputPaths(args []string) []string {
 // ownership remains in this module; the parent uses the result solely to share
 // one audit.log reader when another module requests the same stream.
 func descriptorAuditSubscription(args []string) (modulecontract.AuditSubscription, bool, error) {
+	// The supervisor freezes the selected mode before building subscriptions.
+	// Standalone explicit JSON mode must obey the same no-audit-input boundary.
+	mode, overridden := modulecontract.StringFlag(args, "collection-mode")
+	if !overridden {
+		if path, ok := modulecontract.StringFlag(args, "config"); ok {
+			cfg, err := loadConfig(strings.TrimSpace(path))
+			if err != nil {
+				return modulecontract.AuditSubscription{}, false, err
+			}
+			mode = cfg.Audit.Mode
+		}
+	}
+	if normalizeAuditCollectionMode(mode) == auditCollectionModeEBPFOnly {
+		return modulecontract.AuditSubscription{}, false, nil
+	}
 	if dryRun, ok, err := modulecontract.BoolFlag(args, "dry-run"); err != nil {
 		return modulecontract.AuditSubscription{}, false, err
 	} else if ok && dryRun {

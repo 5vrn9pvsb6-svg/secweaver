@@ -47,6 +47,13 @@ python3 src/tools/secweaver-agent/elasticsearch/init_es.py --apply \
 ```
 
 只创建 `secweaver-public-agent-v1` 索引模板，匹配 `secweaver-public-agent-*`。
+
+Agent 0.3.101 增加 eBPF 父进程快照映射：`ppid_name`、`ppid_exe`、
+`ppid_start_boot_ns`、`parent_identity_status`、`ppid_exe_status`。模板内容
+版本为 2，现有名称仍为 `secweaver-public-agent-v1`。由于使用 `dynamic=false`，
+旧模板会在 `_source` 中保留新增字段，但不能搜索。已有部署需由管理员审核，
+为模板和需要查询的当前索引补充这些映射；只更新模板仅影响新建索引，不会
+对历史文档自动补建索引。初始化器仍拒绝覆盖不同模板，不自动执行迁移。
 相同配置重复运行不写入；不同配置拒绝覆盖；并发创建使用 `create=true` 防止覆盖。
 失败不删除任何资源。模板只影响后续新索引，不迁移旧索引，也不覆盖其他模板。
 如果其他更高优先级模板命中该前缀，由管理员先评估冲突。

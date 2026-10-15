@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"secweaver-agent/internal/errlog"
 	"secweaver-agent/pkg/behaviorlearning"
 	"secweaver-agent/pkg/layout"
 	agentoutput "secweaver-agent/pkg/output"
@@ -182,14 +183,13 @@ func (w *riskLearning) tick() {
 	defer close(w.done)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	report := errlog.New("Windows risk learning checkpoint")
 	for {
 		select {
 		case <-ticker.C:
 			w.mu.Lock()
 			w.engine.Health(!w.lastPoll.IsZero() && time.Since(w.lastPoll) <= w.lease, false)
-			if err := w.engine.Tick(); err != nil {
-				fmt.Fprintf(os.Stderr, "WARN: Windows risk learning checkpoint failed; originals retained: %v\n", err)
-			}
+			report.Observe(w.engine.Tick())
 			w.mu.Unlock()
 		case <-w.stop:
 			return

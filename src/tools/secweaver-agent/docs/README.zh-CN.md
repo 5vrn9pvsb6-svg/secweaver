@@ -9,6 +9,7 @@
 | 任务 | 文档 |
 |---|---|
 | 监听发现、多实例隔离、短命进程及归属输出限制 | [process-attribution](process-attribution.zh-CN.md) |
+| Linux 无 Audit 时的模式选择、eBPF-only 覆盖范围与验证 | [ebpf-only-mode](ebpf-only-mode.zh-CN.md) |
 | 行为学习、名单与日志减量 | [behavior-learning](behavior-learning.zh-CN.md) |
 | 企业采集规则：告警/不记录/强制记录/继续处理、字段组合、正则与 whitelist_ports（设计草案，尚未实现） | [custom-whitelist-design](custom-whitelist-design.zh-CN.md) |
 | 发布包接入自建 ES | [self-managed-es](self-managed-es.zh-CN.md) |

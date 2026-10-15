@@ -46,8 +46,45 @@ Free-space protection is tiered:
 
 At the threshold, a writer removes its own oldest numeric backups and checks
 again. If the reserve is still unavailable, the write returns an explicit error;
-the supervisor marks/restarts the module under its normal backoff. Refused
-writes recheck once per second so collection can recover promptly.
+the supervisor marks/restarts modules that exit under its normal backoff.
+
+### Low-space retry and recovery (Agent 0.3.103+)
+
+On Linux and Windows, reserve probes and periodic learning persistence retries
+back off through **1, 2, 4, 8, 16, 32, 60 seconds**, capped at 60 seconds per
+retrying operation. A successful probe/write resets that operation's backoff.
+Healthy disk checks still use `check_interval_seconds` (30 by default); actual
+recovery also depends on module scheduling and the normal output flush interval
+(5 seconds by default). No disk threshold is reduced to make a write succeed.
+
+Buffered output no longer permanently latches `output disk reserve exhausted`.
+This guard refuses before writing bytes, so it can safely retry accepted pending
+data after external cleanup, without restarting a live collector. The buffer
+remains bounded by its configured size (64 KiB by default); rejected new writes
+are returned to the caller, not accumulated in an unlimited spool. Unknown I/O,
+short writes and durability errors remain sticky: retrying ambiguous evidence
+must not fabricate successful checkpoints or advance Windows cursors.
+
+Recurring buffered-output, Linux/Windows learning checkpoint, Linux learning
+event-output and operations-report diagnostics log the first failure immediately
+and then at most once per minute **per operation/stream**. Further failures are
+counted in `suppressed=N`, including failures whose free-space numbers change.
+One `recovered` diagnostic follows actual successful I/O/checkpoint processing;
+an empty flush, skipped retry, service `running` state or free-space reading
+alone is not evidence that output recovered. This is not a process-wide log cap.
+
+Free space on the affected filesystem, keep the service running, and inspect
+service stderr (Linux: `journalctl -u secweaver-agent --since '5 minutes ago'`),
+output-file modification times and `/health`. Do not fill a production disk to
+test this behavior; regression tests use injected low-space probes plus real
+temporary rotating files. A restarted/exited module still follows supervisor
+restart policy rather than the live-writer retry path.
+
+Recovery does not reconstruct events that were rejected while storage was
+unavailable, nor does it silently trust a degraded learning baseline. Confirm
+new raw evidence and health output first; explicitly relearn when required by
+[learning recovery](learning-recovery.md). Never delete learning identity/state
+or disable the reserve simply to silence these warnings.
 
 The total covers Agent JSONL/update status files managed through `pkg/output`.
 It does not cover `status.json`, auditd-owned logs, or Logtail/Filebeat files.

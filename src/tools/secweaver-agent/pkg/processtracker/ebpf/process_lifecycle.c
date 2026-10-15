@@ -25,6 +25,12 @@ typedef unsigned long long __u64;
 #define ARG_SIZE 96
 #define FILENAME_SIZE 256
 #define COMM_SIZE 16
+#define PARENT_PID_VALID 1
+#define PARENT_COMM_VALID 2
+#define PARENT_START_VALID 4
+#define PARENT_EXE_VALID 8
+#define PARENT_EXE_TRUNCATED 16
+#define PARENT_PATH_STEPS 16
 
 static void *(*bpf_map_lookup_elem)(const void *map, const void *key) = (void *)1;
 static long (*bpf_map_update_elem)(const void *map, const void *key, const void *value, __u64 flags) = (void *)2;
@@ -58,14 +64,54 @@ struct inode {
 	unsigned long i_ino;
 	struct super_block *i_sb;
 } __attribute__((preserve_access_index));
+struct qstr {
+	__u32 len;
+	const unsigned char *name;
+} __attribute__((preserve_access_index));
+struct dentry {
+	struct dentry *d_parent;
+	struct qstr d_name;
+} __attribute__((preserve_access_index));
+struct vfsmount {
+	struct dentry *mnt_root;
+} __attribute__((preserve_access_index));
+struct path {
+	struct vfsmount *mnt;
+	struct dentry *dentry;
+} __attribute__((preserve_access_index));
+struct mount {
+	struct mount *mnt_parent;
+	struct dentry *mnt_mountpoint;
+	struct vfsmount mnt;
+} __attribute__((preserve_access_index));
+struct fs_struct {
+	struct path root;
+} __attribute__((preserve_access_index));
 struct file {
 	struct inode *f_inode;
+	struct path f_path;
+} __attribute__((preserve_access_index));
+struct mm_struct {
+	struct file *exe_file;
+} __attribute__((preserve_access_index));
+struct atomic_t {
+	int counter;
+} __attribute__((preserve_access_index));
+struct signal_struct {
+	struct atomic_t live;
 } __attribute__((preserve_access_index));
 struct task_struct {
 	int tgid;
 	const struct cred *cred;
 	struct kuid_t loginuid;
 	__u64 start_boottime;
+	__u64 real_start_time;
+	struct task_struct *real_parent;
+	struct task_struct *group_leader;
+	struct mm_struct *mm;
+	struct fs_struct *fs;
+	char comm[COMM_SIZE];
+	struct signal_struct *signal;
 } __attribute__((preserve_access_index));
 
 struct linux_binprm {
@@ -127,6 +173,23 @@ struct process_event {
 	char comm[COMM_SIZE];
 	char filename[FILENAME_SIZE];
 	char args[MAX_ARGS][ARG_SIZE];
+	// Parent evidence is captured only at successful exec. Flags distinguish
+	// missing vendor-kernel fields from observed values; no userspace PID lookup
+	// may replace this historical identity after the parent exits or is reused.
+	__u64 parent_start_boottime_ns;
+	__u32 parent_flags;
+	__u32 parent_exe_offset;
+	char parent_comm[COMM_SIZE];
+	char parent_exe[FILENAME_SIZE];
+};
+
+// Older verifiers cannot prove the relationship between a variable pathname
+// offset and its component length. A scratch-only guard supplies an independent
+// upper bound for helper writes; runtime checks still confine the real path to
+// parent_exe. The guard is never staged, transmitted or decoded as event data.
+struct process_scratch {
+	struct process_event event;
+	char path_bounds_guard[FILENAME_SIZE];
 };
 
 struct {
@@ -140,7 +203,7 @@ struct {
 	__uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
 	__uint(max_entries, 1);
 	__type(key, __u32);
-	__type(value, struct process_event);
+	__type(value, struct process_scratch);
 } scratch_events SEC(".maps");
 
 // Exec arguments are captured before the syscall and emitted only after
@@ -180,8 +243,13 @@ static __always_inline struct process_event *new_event(__u32 type, const struct 
  event->identity_valid = 0;
  event->timestamp_ns = bpf_ktime_get_ns();
  event->filename[0] = 0;
+ event->parent_flags = 0;
+ event->parent_start_boottime_ns = 0;
+ event->parent_exe_offset = 0;
  return event;
 }
+
+#include "parent_snapshot.h"
 
 SEC("raw_tracepoint/sched_process_fork")
 int handle_process_fork(struct bpf_raw_tracepoint_args *ctx)
@@ -339,6 +407,7 @@ int handle_process_exec(struct bpf_raw_tracepoint_args *ctx)
 	struct linux_binprm *bprm = (void *)ctx->args[2];
 	struct process_owner *owner;
 	struct process_event *event;
+	struct process_event *pending;
 	const char *filename = 0;
 	__u64 uid_gid;
 	__u32 tgid = 0;
@@ -348,11 +417,14 @@ int handle_process_exec(struct bpf_raw_tracepoint_args *ctx)
 	owner = bpf_map_lookup_elem(&tracked_processes, &tgid);
 	if (!owner)
 		return 0;
-	event = bpf_map_lookup_elem(&pending_execs, &tgid);
-	if (!event) {
-		event = new_event(EVENT_EXEC, owner, tgid, owner->parent_pid);
-		if (!event)
-			return 0;
+	pending = bpf_map_lookup_elem(&pending_execs, &tgid);
+	event = new_event(EVENT_EXEC, owner, tgid, owner->parent_pid);
+	if (!event)
+		return 0;
+	// Parent path resolution always uses the bounded scratch allocation, even
+	// when argv was staged in the smaller pending map. A single helper copy
+	// avoids unrolling a whole event memcpy on older verifier instruction limits.
+	if (!pending || bpf_probe_read_kernel(event, sizeof(*event), pending)) {
 		uid_gid = bpf_get_current_uid_gid();
 		event->uid = (__u32)uid_gid;
 		event->gid = (__u32)(uid_gid >> 32);
@@ -364,6 +436,7 @@ int handle_process_exec(struct bpf_raw_tracepoint_args *ctx)
 	}
 	event->timestamp_ns = bpf_ktime_get_ns();
 	capture_exec_identity(event, task, bprm);
+	capture_parent_identity(event, task);
 	bpf_get_current_comm(event->comm, sizeof(event->comm));
 	bpf_perf_event_output(ctx, &process_events, BPF_F_CURRENT_CPU, event, sizeof(*event));
 	bpf_map_delete_elem(&pending_execs, &tgid);
@@ -379,9 +452,18 @@ int handle_process_exit(struct bpf_raw_tracepoint_args *ctx)
 	__u32 tgid = 0;
 	__u64 current = bpf_get_current_pid_tgid();
 	__u32 current_tgid = current >> 32;
-	__u32 current_pid = (__u32)current;
+	struct signal_struct *signal = 0;
+	int live = 1;
 
-	if (read_tgid(task, &tgid) || tgid <= 1 || tgid != current_tgid || current_pid != tgid)
+	if (read_tgid(task, &tgid) || tgid <= 1 || tgid != current_tgid)
+		return 0;
+	// sched_process_exit fires per thread after signal->live is decremented.
+	// Nonleader exec kills the old leader during de_thread(); removing TGID
+	// ownership/argv at that leader's exit loses the subsequent successful exec.
+	// Clean up only at whole-group death, even when its last thread is not the
+	// original leader. Failed reads never authorize a premature process removal.
+	if (bpf_probe_read_kernel(&signal, sizeof(signal), __builtin_preserve_access_index(&task->signal)) || !signal ||
+	    bpf_probe_read_kernel(&live, sizeof(live), __builtin_preserve_access_index(&signal->live.counter)) || live != 0)
 		return 0;
 	bpf_map_delete_elem(&pending_execs, &tgid);
 	owner = bpf_map_lookup_elem(&tracked_processes, &tgid);

@@ -20,6 +20,80 @@ containerd-shim
 
 MySQL ownership flows only to confirmed descendants. It cannot promote its parent shim into its own process tree. Here runc is a sibling; targeting the MySQL container does not prove mysqld initiated the call. The process name runc does not establish trust or normal activity. This fix adds neither container-task identification nor runc aggregation/filtering.
 
+## Exec-time parent evidence (0.3.101)
+
+On Linux amd64/arm64, both complete Audit mode with eBPF tracking and eBPF-only
+capture the real parent at successful exec. `ppid` no longer comes from the
+fork-time owner map, and `ppid_name` is no longer queried through a reusable
+`/proc` PID. For `sshd -> bash -> curl`, bash is the direct parent and sshd is
+the independently verified listener root. A later exec after reparenting reports
+the new real parent without changing the proven service origin. Parent evidence
+does not independently authorize listener ownership.
+
+| JSON field | Meaning |
+| --- | --- |
+| `ppid` | Exec-time parent TGID in the host PID namespace; omitted if unreadable |
+| `ppid_name` | Captured parent leader comm (up to 15 bytes), without later `/proc` lookup |
+| `ppid_exe` | Complete absolute path relative to the parent's filesystem root; incomplete paths omitted |
+| `ppid_start_boot_ns` | Parent boot-time start token in nanoseconds; not event `CLOCK_MONOTONIC` or `/proc` clock ticks; omitted if unavailable |
+| `parent_identity_status` | `complete`, `partial` or `unavailable`; complete requires name, nonzero start token and complete path |
+| `ppid_exe_status` | `captured`, `truncated` or `unavailable` |
+
+These fields are additive. Audit/Windows events do not claim these eBPF
+guarantees. The server protocol, listener gate and four-field exec learning key
+stay unchanged; upgrades retain learning state. A parent instance key requires
+host identity, the same boot, PID and start token. Bare PIDs and tokens across
+boots are insufficient.
+
+Path resolution follows mount transitions with a maximum of 16 steps and a
+256-byte buffer (255 data bytes). Existing CO-RE kernel reads avoid requiring
+newer `bpf_d_path` helpers. Missing vendor fields, kernel threads with no image,
+unreadable paths, concurrent relationship/image changes and exhausted path
+budgets remain partial/unavailable; they do not disable exec. This is best-effort
+event-time evidence, not an atomic snapshot of all concurrent filesystem
+renames. Container/chroot paths are in the parent's own root, not necessarily
+accessible directly from the Agent's root.
+
+Older kernels expose the boot-time start token as `real_start_time`; CO-RE
+accepts that name as well as `start_boottime`. The differently clocked
+`start_time` field is never substituted. Parent name/path bytes retain spaces.
+
+Thread exit is not process exit. `sched_process_exit` checks the thread group's
+remaining live count before removing ownership or staged argv. This preserves
+nonleader exec while the kernel retires the old leader, and also cleans up when
+the last exiting thread is not the leader. Existing task/signal live-count BTF
+fields must resolve when loading the object; failure remains an explicit load
+error. The kernel test forces nonleader exec to make this regression deterministic.
+
+The snapshot travels inside the event, so parent exit, buffer delay and later
+PID reuse cannot replace it with another process's name. Existing CWD/TTY
+enrichment remains best-effort `/proc`. The event grows by 288 bytes; a separate
+256-byte per-CPU scratch guard helps older verifiers prove helper bounds without
+entering the wire record or pending map. Map and queue capacities are unchanged.
+The embedded object and Go layout must be regenerated together. Upgrade and
+restart the collector; internal maps are not reused across releases.
+
+`go test ./pkg/auditportexecmon ./pkg/processtracker/ebpf` verifies historical
+output and object contracts; Linux also runs wire decoding/layout checks.
+For actual verifier, parent exit and reparenting validation on an isolated Linux
+test host with existing eBPF prerequisites:
+
+```bash
+sudo env SECWEAVER_EBPF_PARENT_INTEGRATION=1 go test \
+  ./pkg/processtracker/ebpf -run TestParentSnapshotKernel -v
+```
+
+The opt-in test attaches temporary programs, creates disposable children and
+restores the test process's subreaper setting. It does not change auditd, Agent
+configuration, host services or learning state. Without opt-in it skips; after
+opt-in actual loading failures must fail the test.
+
+0.3.101 passed 30 native rounds on Kylin V10 x86_64 with kernel
+`4.19.90-89.27.v2401.ky10.x86_64`. Each round covers parent exit, reparenting
+and over-budget paths while forcing nonleader exec. An isolated eBPF-only
+collector also confirmed parent fields in local JSONL. This does not replace
+ARM64 native attachment or ES/SLS delivery validation; ARM64 was cross-built only.
+
 ## Listener discovery and instance isolation
 
 Discovery first uses `netstat -tlnp`. Command failure, missing PIDs or incomplete parsing trigger `/proc/net/tcp{,6}` plus `/proc/<pid>/fd` socket-inode lookup. The inode is the tenth whitespace-separated TCP field, not a column counted backwards from the end. An unresolved socket is not guessed to belong to sshd merely because its port is 22 or its reported name is systemd/init.

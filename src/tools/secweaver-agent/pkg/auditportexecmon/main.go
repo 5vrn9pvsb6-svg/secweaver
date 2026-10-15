@@ -39,6 +39,7 @@ func Main(args []string) int {
 	var showVersion bool
 	var learningStatus bool
 	var configPath string
+	var collectionModeFlag string
 	var port int
 	var auditLog string
 	var key string
@@ -52,6 +53,7 @@ func Main(args []string) int {
 	flag.BoolVar(&showVersion, "version", false, "输出版本号并退出")
 	flag.BoolVar(&learningStatus, "learning-status", false, "读取行为学习状态及名单，不修改运行状态")
 	flag.StringVar(&configPath, "config", "", "可选：JSON 配置文件路径，支持端口白名单、connect、文件创建删除监控")
+	flag.StringVar(&collectionModeFlag, "collection-mode", "", "采集模式覆盖：auto、audit 或 ebpf_only")
 	flag.IntVar(&port, "port", 0, "可选：只监控指定对外监听端口；不指定则监控所有对外监听端口")
 	flag.StringVar(&auditLog, "audit-log", "/var/log/audit/audit.log", "auditd 日志路径")
 	flag.StringVar(&outputLog, "output-log", "", fmt.Sprintf("事件 JSON 输出路径（默认 %s）；- 表示 stdout", defaultOutputLog))
@@ -83,14 +85,21 @@ func Main(args []string) int {
 		}
 		fatalf("需要 root 权限运行：sudo %s", usage)
 	}
-	if err := requireAuditEnvironment(auditLog); err != nil {
-		fatalf("%v", err)
-	}
-
 	cfg, err := loadConfig(configPath)
 	if err != nil {
 		fatalf("读取配置失败：%v", err)
 	}
+	if collectionModeFlag != "" {
+		if !validAuditCollectionMode(collectionModeFlag) {
+			return failf("collection-mode must be auto, audit or ebpf_only")
+		}
+		cfg.Audit.Mode = normalizeAuditCollectionMode(collectionModeFlag)
+	}
+	profile, err := resolveCollectionProfile(context.Background(), cfg, false, func() error { return requireAuditEnvironment(auditLog) })
+	if err != nil {
+		return failf("选择 Linux 采集模式失败：%v", err)
+	}
+	collectionMode := profile.Mode
 	if !flagChanged("include-ppid") && cfg.Exec.TrackDescendants != nil {
 		includePPID = *cfg.Exec.TrackDescendants
 	}
@@ -121,10 +130,18 @@ func Main(args []string) int {
 	monitorSensitiveFileReads := configMonitorSensitiveFileReads(cfg)
 	sensitiveFilePaths := resolveSensitiveFilePaths(cfg)
 	monitorFileOps := cfg.FileOps.Monitor
+	if collectionMode == auditCollectionModeEBPFOnly {
+		// Preserve the on-disk policy, but never advertise Audit-only features as
+		// active when the selected transport has no file/connect programs.
+		monitorConnect = false
+		monitorFileOps = false
+		monitorSensitiveFileReads = false
+	}
 	auditArches := resolveAuditArches(cfg)
 	maxAuditRules := resolveMaxAuditRules(cfg)
 	auditPressure := resolveAuditPressureConfig(cfg)
 	processTreeConfig := resolveProcessTreeConfig(cfg)
+	processTreeConfig.CollectionMode = collectionMode
 	javaMonitorMode := resolveJavaMonitorMode(cfg)
 	selfExe, _ := os.Executable()
 	selfPID := os.Getpid()
@@ -171,7 +188,7 @@ func Main(args []string) int {
 	// The bounded audit backend never mutates PID rules, while eBPF needs them
 	// only for explicitly enabled connect/file collection. Pressure polling is
 	// disabled when no dynamic audit rule path exists.
-	if processBackend == processTreeBackendAudit || (processBackend == processTreeBackendEBPF && !monitorConnect && !monitorFileOps) {
+	if collectionMode == auditCollectionModeEBPFOnly || processBackend == processTreeBackendAudit || (processBackend == processTreeBackendEBPF && !monitorConnect && !monitorFileOps) {
 		auditPressure.Enabled = false
 	}
 
@@ -180,6 +197,10 @@ func Main(args []string) int {
 	fmt.Fprintf(os.Stderr, "event output log: %s\n", eventLogPath)
 	fmt.Fprintf(os.Stderr, "monitor external listening processes: count=%d\n", len(listeners))
 	fmt.Fprintf(os.Stderr, "process tree backend: %s (%s)\n", processBackend, processBackendReason)
+	fmt.Fprintf(os.Stderr, "collection mode: %s\n", collectionMode)
+	if collectionMode == auditCollectionModeEBPFOnly {
+		fmt.Fprintln(os.Stderr, "WARN: eBPF-only mode disables audit.log input, auditctl rules, and audit-backed connect/file/sensitive evidence")
+	}
 	if skippedSelfListeners > 0 {
 		fmt.Fprintf(os.Stderr, "excluded secweaver-agent family listeners: %d\n", skippedSelfListeners)
 	}
@@ -252,6 +273,7 @@ func Main(args []string) int {
 
 	monitor := newProcessTreeMonitor(listeners, port, whitelistPorts, execKey, connectKey, fileKey, sensitiveFileKey, cloneKey, includePPID, monitorExec, execListenerPorts, monitorConnect, connectListenerPorts, skipConnectListenerPorts, skipConnectProcessNames, skipConnectExePatterns, monitorFileOps, fileListenerPorts, monitorSensitiveFileReads, sensitiveFilePaths, auditArches, javaMonitorMode)
 	monitor.setProcessTracker(processBackend, processTracker)
+	monitor.setEBPFOnly(collectionMode == auditCollectionModeEBPFOnly)
 	monitor.setMaxAuditRules(maxAuditRules)
 	monitor.configureAuditPressure(auditPressure)
 	listenerRescanInterval := listenerRescanIntervalFromConfig(cfg)
@@ -266,6 +288,9 @@ func Main(args []string) int {
 	if processBackend == processTreeBackendAudit {
 		plannedRules = estimateBoundedAuditRuleCount(monitorExec, includePPID, monitorConnect, monitorFileOps, monitorSensitiveFileReads, sensitiveFilePaths, auditArches)
 	}
+	if collectionMode == auditCollectionModeEBPFOnly {
+		plannedRules = 0
+	}
 	if maxAuditRules > 0 && plannedRules > maxAuditRules {
 		if processBackend == processTreeBackendAudit {
 			fmt.Fprintf(os.Stderr, "WARN: bounded audit rules estimate %d exceeds audit.max_rules=%d; startup will reject incomplete fixed coverage\n", plannedRules, maxAuditRules)
@@ -274,34 +299,42 @@ func Main(args []string) int {
 		}
 	}
 	if dryRun {
-		fmt.Fprintf(os.Stderr, "dry-run: no audit rules will be added and audit log will not be followed\n")
-		printAuditPrecheckWarnings(collectAuditPrecheck(), plannedRules)
+		if collectionMode == auditCollectionModeEBPFOnly {
+			fmt.Fprintln(os.Stderr, "dry-run: eBPF-only mode will not add audit rules or follow audit.log")
+		} else {
+			fmt.Fprintf(os.Stderr, "dry-run: no audit rules will be added and audit log will not be followed\n")
+			printAuditPrecheckWarnings(collectAuditPrecheck(), plannedRules)
+		}
 		return 0
 	}
-	removed, err := cleanupStaleToolAuditRules(execKey, connectKey, fileKey, sensitiveFileKey, cloneKey)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "cleanup stale audit rules failed: %v\n", err)
-	} else if removed > 0 {
-		fmt.Fprintf(os.Stderr, "removed %d stale audit rules from previous runs\n", removed)
-	}
-	printAuditPrecheckWarnings(collectAuditPrecheck(), plannedRules)
-	sharedAuditStream, usingSharedAuditStream, err := auditstream.ReaderFromEnv()
-	if err != nil {
-		fatalf("打开共享 audit 输入失败：%v", err)
-	}
-	if usingSharedAuditStream {
-		defer sharedAuditStream.Close()
-		fmt.Fprintf(os.Stderr, "audit log input: shared secweaver-agent demux\n")
+	var sharedAuditStream io.ReadCloser
+	usingSharedAuditStream := false
+	if collectionMode != auditCollectionModeEBPFOnly {
+		removed, cleanupErr := cleanupStaleToolAuditRules(execKey, connectKey, fileKey, sensitiveFileKey, cloneKey)
+		if cleanupErr != nil {
+			fmt.Fprintf(os.Stderr, "cleanup stale audit rules failed: %v\n", cleanupErr)
+		} else if removed > 0 {
+			fmt.Fprintf(os.Stderr, "removed %d stale audit rules from previous runs\n", removed)
+		}
+		printAuditPrecheckWarnings(collectAuditPrecheck(), plannedRules)
+		sharedAuditStream, usingSharedAuditStream, err = auditstream.ReaderFromEnv()
+		if err != nil {
+			fatalf("打开共享 audit 输入失败：%v", err)
+		}
+		if usingSharedAuditStream {
+			defer sharedAuditStream.Close()
+			fmt.Fprintf(os.Stderr, "audit log input: shared secweaver-agent demux\n")
+		}
 	}
 	startOffset := int64(-1)
-	if !usingSharedAuditStream && !fromStart {
+	if collectionMode != auditCollectionModeEBPFOnly && !usingSharedAuditStream && !fromStart {
 		if offset, err := fileSize(auditLog); err == nil {
 			startOffset = offset
 		} else {
 			fmt.Fprintf(os.Stderr, "capture audit log offset failed: %v\n", err)
 		}
 	}
-	if !keepRule {
+	if collectionMode != auditCollectionModeEBPFOnly && !keepRule {
 		defer func() {
 			if removed, err := monitor.cleanupSessionRules(); err != nil {
 				fmt.Fprintf(os.Stderr, "cleanup audit rules failed: %v\n", err)
@@ -360,15 +393,27 @@ func Main(args []string) int {
 
 	trackerResult := make(chan error, 1)
 	if processTracker != nil {
-		go func() {
-			trackerErr := followProcessTracker(ctx, processTracker, monitor, host, eventOut)
-			trackerResult <- trackerErr
-			if trackerErr != nil && !errors.Is(trackerErr, context.Canceled) {
-				cancelRun()
-			}
-		}()
+		if collectionMode == auditCollectionModeEBPFOnly {
+			err = followEBPFOnly(ctx, processTracker, monitor, host, eventOut, listenerRescanInterval)
+		} else {
+			go func() {
+				trackerErr := followProcessTracker(ctx, processTracker, monitor, host, eventOut)
+				trackerResult <- trackerErr
+				if trackerErr != nil && !errors.Is(trackerErr, context.Canceled) {
+					cancelRun()
+				}
+			}()
+		}
 	}
 
+	if collectionMode == auditCollectionModeEBPFOnly {
+		// followEBPFOnly already owns the tracker and its reconciliation ticker.
+		if err != nil && !errors.Is(err, context.Canceled) {
+			learningFault(eventOut, "ebpf_reader_failed")
+			return failf("读取 eBPF 进程事件失败：%v", err)
+		}
+		return 0
+	}
 	if usingSharedAuditStream {
 		err = followAuditStream(ctx, sharedAuditStream, execKey, connectKey, fileKey, monitor, host, printRaw, eventOut, listenerRescanInterval)
 	} else {

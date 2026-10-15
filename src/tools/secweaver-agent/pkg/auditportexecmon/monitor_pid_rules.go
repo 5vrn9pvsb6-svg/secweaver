@@ -11,6 +11,11 @@ import (
 // This file owns executable and PID audit-rule expansion, budget reservation, and rule identity helpers.
 
 func (m *processTreeMonitor) addExeRules(listener listenerInfo) error {
+	// Companion/listener reconciliation shares this boundary with bootstrap.
+	// No later rescan may reintroduce Audit rules in eBPF-only mode.
+	if m.isEBPFOnly() {
+		return nil
+	}
 	// Reserve the complete group before the first auditctl call. exeMonitored is
 	// then set as an in-flight ownership marker so concurrent companion discovery
 	// cannot install the same executable group twice.

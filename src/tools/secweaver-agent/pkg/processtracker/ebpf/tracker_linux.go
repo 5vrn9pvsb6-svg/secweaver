@@ -252,6 +252,7 @@ func decodeEvent(raw processLifecycleProcessEvent) processtracker.Event {
 		Filename:      int8String(raw.Filename[:]),
 		Args:          args,
 		ArgsTruncated: raw.Flags&1 != 0,
+		Parent:        decodeParentIdentity(raw),
 	}
 }
 

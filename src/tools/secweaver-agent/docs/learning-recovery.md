@@ -1,6 +1,50 @@
-# Learning Recovery and Empty Baselines (0.3.93)
+# Learning Recovery and Empty Baselines
 
 [中文](learning-recovery.zh-CN.md)
+
+## Audit backpressure (0.3.102)
+
+On Linux shared-Audit collection, short child-pipe stalls no longer immediately
+close a full 8192-line queue. The subscriber pauses live enqueueing and retains
+new lines in its existing 4096-line module ring. After the writer flushes/drains,
+it replays older buffered lines before admitting live input. Uncertain flush
+batches are capped at 256 lines; failed writes may replay duplicates rather than
+silently lose evidence. Pressure diagnostics run outside the reader/writer path.
+These are raw audit **line** limits, not event counts or a durable spool; no
+infinite buffering or sustained-overload guarantee is provided. Other subscribers
+continue independently. eBPF-only and Windows evidence paths are unchanged.
+
+Real ring overwrite still retires the stream: the existing child EOF/restart
+path records `audit_reader_failed`, disables learning filtering and keeps normal
+collection running. This is fail-open evidence retention, not a reason to restore
+trust automatically. A previously degraded generation stays degraded after an
+upgrade/restart. Custom rules and other explicit collection exclusions still apply.
+Backlog-loss health diagnostics remain sticky for the parent process.
+
+For a high-volume/degraded host:
+
+1. Inspect `doctor --verbose`, service logs and health JSONL. Compare internal
+   `queued_lines`, `queue_capacity`, `paused_subscribers`, `backlog_lines` and the
+   **increase** in `backlog_overflows_total`; kernel `auditctl -s lost=0` alone
+   does not prove the Agent delivered all lines. Check disk/rotation and module
+   restart counts as well. The new pressure gauges need 0.3.102+.
+2. Install the repaired Agent through the usual verified update procedure.
+   Stop ongoing overload/loss first. An upgrade alone does not reset learning.
+3. Run the existing helper below in inspect mode, then explicit `--apply` after
+   reviewing the JSON result. It backs up state/config, increments the learning
+   generation, validates restart and rolls back on ordinary failure. Save the
+   local backup path and result as the change receipt. No remote reset endpoint
+   or silent whitelist deletion is added by this repair.
+4. Verify fresh healthy exec/file learning, five-hit admissions, increasing
+   suppression, no new overflow/restart loop and the next server heartbeat.
+   Observe representative busy periods; a brief drop in SLS volume is not proof
+   of a stable daily rate. The API's partial authorization checks must not erase
+   the last telemetry report (Agent Server rc.87+).
+
+Regression verification: `go test -race . ./pkg/metrics` covers real pipe burst
+draining, FIFO partial replay, rate-limited loss retirement and queue metrics;
+`make recovery-test` covers explicit recovery transactions. This is source-level
+verification, not CentOS/Kylin production stress acceptance.
 
 ## Fresh Installs and Upgrades
 

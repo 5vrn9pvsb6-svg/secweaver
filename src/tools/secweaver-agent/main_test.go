@@ -497,7 +497,7 @@ func TestAuditDemuxBacklogsOnlyRoutedModuleRecords(t *testing.T) {
 	}
 }
 
-func TestAuditDemuxRetiresFullSubscriberAndBacklogsFailedLine(t *testing.T) {
+func TestAuditDemuxPausesFullSubscriberAndReplaysFailedLine(t *testing.T) {
 	lines := make(chan string, 1)
 	lines <- "already queued"
 	sub := &auditSubscriber{
@@ -517,8 +517,8 @@ func TestAuditDemuxRetiresFullSubscriberAndBacklogsFailedLine(t *testing.T) {
 	}
 	line := `type=SYSCALL msg=audit(1.0:12): key="tb_external_listener_exec"`
 	demux.broadcast(line)
-	if len(demux.subscribers) != 0 {
-		t.Fatal("full subscriber must be retired so its module reconnects")
+	if len(demux.subscribers) != 1 || !sub.paused || demux.retired != 0 {
+		t.Fatal("short queue pressure must pause without retiring the child")
 	}
 	got := demux.backlogs["audit-port-execmon"].Snapshot()
 	if len(got) != 1 || got[0] != line {
@@ -527,8 +527,12 @@ func TestAuditDemuxRetiresFullSubscriberAndBacklogsFailedLine(t *testing.T) {
 	if queued, ok := <-lines; !ok || queued != "already queued" {
 		t.Fatalf("queued line = %q ok=%v", queued, ok)
 	}
-	if _, ok := <-lines; ok {
-		t.Fatal("retired subscriber queue should be closed")
+	demux.resumeSubscriber(sub)
+	if replayed, ok := <-lines; !ok || replayed != line {
+		t.Fatalf("replayed line = %q ok=%v", replayed, ok)
+	}
+	if sub.paused || demux.backlogs[sub.module].Len() != 0 {
+		t.Fatal("subscriber did not return to live routing after replay")
 	}
 }
 

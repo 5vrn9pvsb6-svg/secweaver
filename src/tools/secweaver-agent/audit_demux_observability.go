@@ -30,6 +30,9 @@ type auditReaderNotice struct {
 // selected observability implementation.
 type auditDemuxMetrics struct {
 	backlogLines       int
+	queuedLines        int
+	queueCapacity      int
+	pausedSubscribers  int
 	subscribers        int
 	retiredSubscribers uint64
 	linesProcessed     uint64
@@ -37,6 +40,48 @@ type auditDemuxMetrics struct {
 	readers            int
 	readersReady       int
 	readerFailures     uint64
+}
+
+// reportPressure never waits for status-file IO on the routing/writer path.
+// Notices are advisory and bounded; exact current pressure is in metricsSnapshot.
+func (d *auditDemux) reportPressure(notice auditPressureNotice) {
+	if d.pressureQ == nil {
+		if d.onPressure != nil {
+			d.onPressure(notice.module, notice.buffered)
+		}
+		return
+	}
+	select {
+	case d.pressureQ <- notice:
+	default:
+	}
+}
+
+// runPressureReporter reads current state instead of persisting stale queued
+// transitions. A recovered pressure warning cannot erase an evidence-loss error,
+// which uses a separate diagnostic key and requires explicit recovery.
+func (d *auditDemux) runPressureReporter(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case notice := <-d.pressureQ:
+			d.mu.Lock()
+			var buffered uint64
+			for _, sub := range d.subscribers {
+				if sub.module == notice.module && sub.paused {
+					buffered += sub.buffered
+				}
+			}
+			d.mu.Unlock()
+			if buffered > 0 {
+				fmt.Fprintf(os.Stderr, "audit demux subscriber backpressure; buffering for ordered replay: module=%s buffered_lines=%d\n", notice.module, buffered)
+			}
+			if d.onPressure != nil {
+				d.onPressure(notice.module, buffered)
+			}
+		}
+	}
 }
 
 // observeReaderStatus turns noisy rotation retries into availability
@@ -212,6 +257,13 @@ func (d *auditDemux) metricsSnapshot() auditDemuxMetrics {
 	for _, ring := range d.backlogs {
 		snapshot.backlogLines += ring.Len()
 	}
+	for _, sub := range d.subscribers {
+		snapshot.queuedLines += len(sub.lines)
+		snapshot.queueCapacity += cap(sub.lines)
+		if sub.paused {
+			snapshot.pausedSubscribers++
+		}
+	}
 	for _, overflows := range d.overflows {
 		snapshot.backlogOverflows += overflows
 	}
@@ -233,6 +285,9 @@ func (r *auditDemuxRegistry) metricsSnapshot() auditDemuxMetrics {
 		seen[binding.demux] = true
 		snapshot := binding.demux.metricsSnapshot()
 		total.backlogLines += snapshot.backlogLines
+		total.queuedLines += snapshot.queuedLines
+		total.queueCapacity += snapshot.queueCapacity
+		total.pausedSubscribers += snapshot.pausedSubscribers
 		total.subscribers += snapshot.subscribers
 		total.retiredSubscribers += snapshot.retiredSubscribers
 		total.linesProcessed += snapshot.linesProcessed

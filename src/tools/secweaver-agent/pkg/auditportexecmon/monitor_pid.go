@@ -15,6 +15,12 @@ func (m *processTreeMonitor) rescanDescendants() {
 	m.retryPendingRuleCleanup()
 	m.pruneDeadPIDs()
 	if !m.trackDescendants {
+		// eBPF-only has no audit reader's reconciliation path. Root socket
+		// changes still need repair when the operator disables child tracking;
+		// this stays on the bounded worker and never expands descendants.
+		if m.isEBPFOnly() {
+			m.rescanNewListeners()
+		}
 		return
 	}
 	if m.usesDynamicPIDRules() && m.pressureDegraded() {

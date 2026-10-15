@@ -69,7 +69,7 @@ func (r *auditDemuxRegistry) startForSupervisor(ctx context.Context) func() {
 
 // auditDemux is the single-reader fan-out for one audit log.
 //
-// mu protects subscribers, moduleKeys, backlogs, routes, and subscriber drop
+// mu protects subscribers, moduleKeys, backlogs, routes, and subscriber pressure
 // counters. Pipe writes and diagnostic callbacks must never execute while mu is
 // held: either operation may block on another subsystem and stall audit routing.
 // Each backlog ring is accessed only under mu. Delivery is at-least-once across
@@ -91,7 +91,8 @@ type auditDemux struct {
 	overflows   map[string]uint64
 	readerReady bool
 	readerFails uint64
-	onDrop      func(module string, drops uint64)
+	onPressure  func(module string, buffered uint64)
+	pressureQ   chan auditPressureNotice
 	onOverflow  func(auditOverflowNotice)
 	overflowQ   chan auditOverflowNotice
 	onReader    func(auditReaderNotice)
@@ -119,18 +120,22 @@ type auditLineRing struct {
 // sole owner of writer; registration and closure of lines are serialized by
 // auditDemux.mu to prevent send-on-closed-channel races.
 type auditSubscriber struct {
-	id     string
-	module string
-	keys   map[string]bool
-	writer *os.File
-	lines  chan string
-	done   chan struct{}
-	drops  uint64
+	id       string
+	module   string
+	keys     map[string]bool
+	writer   *os.File
+	lines    chan string
+	done     chan struct{}
+	buffered uint64
+	// paused means the child pipe queue was full. The reader keeps the
+	// subscription alive and replays the module ring after the writer drains;
+	// only ring exhaustion retires the subscription and reports a real gap.
+	paused bool
 }
 
-type auditDropNotice struct {
-	module string
-	drops  uint64
+type auditPressureNotice struct {
+	module   string
+	buffered uint64
 }
 
 var followAuditFile = auditstream.FollowFileWithObserver
@@ -171,10 +176,16 @@ func buildAuditDemuxRegistry(modules []runtimeModule, tracker *statusTracker) (*
 			routes:      map[string]auditDemuxRoute{},
 			overflows:   map[string]uint64{},
 			overflowQ:   make(chan auditOverflowNotice, 1),
+			pressureQ:   make(chan auditPressureNotice, 8),
 			readerQ:     make(chan auditReaderNotice, 1),
-			onDrop: func(module string, drops uint64) {
+			onPressure: func(module string, buffered uint64) {
 				if tracker != nil {
-					tracker.setDiagnostic("audit_demux/"+module, "warn", "audit demux subscriber queue dropped lines", map[string]uint64{"dropped_lines": drops})
+					key := "audit_demux/backpressure/" + module
+					if buffered == 0 {
+						tracker.clearDiagnostic(key)
+					} else {
+						tracker.setDiagnostic(key, "warn", "audit demux subscriber backpressure; lines buffered for replay", map[string]uint64{"buffered_lines": buffered})
+					}
 				}
 			},
 			onOverflow: func(notice auditOverflowNotice) {
@@ -304,6 +315,9 @@ func (d *auditDemux) start(ctx context.Context) {
 		if d.readerQ != nil {
 			go d.runReaderReporter(ctx)
 		}
+		if d.pressureQ != nil {
+			go d.runPressureReporter(ctx)
+		}
 		go d.run(ctx)
 	})
 }
@@ -356,10 +370,11 @@ func (d *auditDemux) run(ctx context.Context) {
 	}
 }
 
-// broadcast routes one raw line without blocking on child processes. If a
-// module queue is full, that subscription is retired: closing the pipe makes
-// the module fail and lets the supervisor reconnect it, while the failed line
-// enters the module-specific backlog.
+// broadcast routes one raw line without blocking on child processes. A full
+// child queue pauses that subscription and moves subsequent lines into its
+// bounded module ring. This avoids converting a recoverable burst into EOF and
+// restart amplification; a ring overflow still retires the child because
+// ordered evidence can no longer be recovered safely.
 func (d *auditDemux) broadcast(line string) {
 	if strings.TrimSpace(line) == "" {
 		return
@@ -367,31 +382,40 @@ func (d *auditDemux) broadcast(line string) {
 	d.mu.Lock()
 	d.linesRead++
 	modules := d.routeModulesLocked(line)
-	var notices []auditDropNotice
+	var notices []auditPressureNotice
 	var overflowNotices []auditOverflowNotice
 	for module := range modules {
-		delivered := false
+		handled := false
 		for _, sub := range d.subscribers {
 			if sub.module != module {
 				continue
 			}
-			select {
-			case sub.lines <- line:
-				delivered = true
-			default:
-				sub.drops++
-				if sub.drops == 1 || sub.drops%1000 == 0 {
-					notices = append(notices, auditDropNotice{module: sub.module, drops: sub.drops})
+			handled = true
+			if !sub.paused {
+				select {
+				case sub.lines <- line:
+					continue
+				default:
+					sub.paused = true
 				}
-				// A full queue means this pipe can no longer provide an ordered,
-				// lossless stream. Retire it so the module observes EOF and its
-				// supervisor reconnects; the failed line is retained below.
+			}
+			sub.buffered++
+			if sub.buffered == 1 || sub.buffered%1000 == 0 {
+				notices = append(notices, auditPressureNotice{module: sub.module, buffered: sub.buffered})
+			}
+			// Retirement depends on actual loss, not the rate-limited notice:
+			// a second overflow must stop learning even when no notice is emitted.
+			overflow := d.backlogs[module].Len() >= auditDemuxBacklogLines
+			if notice := d.appendBacklogLocked(module, line); notice != nil {
+				overflowNotices = append(overflowNotices, *notice)
+			}
+			if overflow {
 				delete(d.subscribers, sub.id)
 				close(sub.lines)
 				d.retired++
 			}
 		}
-		if !delivered {
+		if !handled {
 			if notice := d.appendBacklogLocked(module, line); notice != nil {
 				overflowNotices = append(overflowNotices, *notice)
 			}
@@ -399,10 +423,7 @@ func (d *auditDemux) broadcast(line string) {
 	}
 	d.mu.Unlock()
 	for _, notice := range notices {
-		fmt.Fprintf(os.Stderr, "audit demux subscriber queue full; restarting subscriber and buffering line: module=%s drops=%d\n", notice.module, notice.drops)
-		if d.onDrop != nil {
-			d.onDrop(notice.module, notice.drops)
-		}
+		d.reportPressure(notice)
 	}
 	d.reportOverflowNotices(overflowNotices)
 }
@@ -673,11 +694,65 @@ func (d *auditDemux) writeSubscriber(s *auditSubscriber) {
 			}
 			dirty = true
 			pending = append(pending, line)
+			// Bound uncertain replay memory even under continuous input, when
+			// the timer can otherwise lose to a busy queue for many iterations.
+			if len(pending) >= 256 {
+				if !flush() {
+					return
+				}
+				d.resumeSubscriber(s)
+			}
 		case <-ticker.C:
 			if !flush() {
 				return
 			}
+			// Replaying only after Flush preserves the order between the last
+			// live line and the first buffered line. The replay function holds
+			// d.mu only while moving bounded strings between queues.
+			d.resumeSubscriber(s)
 		}
+	}
+}
+
+// resumeSubscriber drains a paused module ring only after the child queue is
+// empty. A partial drain keeps the subscription paused, so new live lines
+// cannot overtake older replay data. The ring remains bounded; overflow is
+// handled by broadcast and causes the normal module restart/degraded path.
+func (d *auditDemux) resumeSubscriber(s *auditSubscriber) {
+	d.mu.Lock()
+	recovered := false
+	defer func() {
+		d.mu.Unlock()
+		if recovered {
+			d.reportPressure(auditPressureNotice{module: s.module})
+		}
+	}()
+	current, ok := d.subscribers[s.id]
+	if !ok || current != s || !s.paused || len(s.lines) != 0 {
+		return
+	}
+	ring := d.backlogs[s.module]
+	if ring == nil || ring.Len() == 0 {
+		s.paused = false
+		s.buffered = 0
+		recovered = true
+		return
+	}
+	// At production sizes the entire 4096-line ring fits in the empty
+	// 8192-line queue. Keeping the remainder also supports smaller test queues.
+	buffered := ring.Snapshot()
+	ring.Reset()
+	for _, line := range buffered {
+		if len(s.lines) < cap(s.lines) {
+			s.lines <- line
+		} else {
+			ring.Append(line, auditDemuxBacklogLines)
+		}
+	}
+	if ring.Len() == 0 {
+		s.paused = false
+		s.buffered = 0
+		recovered = true
 	}
 }
 
@@ -694,6 +769,12 @@ func (d *auditDemux) replayFailedSubscriber(s *auditSubscriber, pending []string
 	}
 	delete(d.subscribers, s.id)
 	d.retired++
+	// Paused backlog is newer than pending and queued data. Rebuild in FIFO
+	// order before applying the same bounded overwrite policy to the whole batch.
+	buffered := d.backlogSnapshotLocked(s.module)
+	if ring := d.backlogs[s.module]; ring != nil {
+		ring.Reset()
+	}
 	var notices []auditOverflowNotice
 	for _, line := range pending {
 		if notice := d.appendBacklogLocked(s.module, line); notice != nil {
@@ -707,6 +788,11 @@ func (d *auditDemux) replayFailedSubscriber(s *auditSubscriber, pending []string
 				notices = append(notices, *notice)
 			}
 		default:
+			for _, line := range buffered {
+				if notice := d.appendBacklogLocked(s.module, line); notice != nil {
+					notices = append(notices, *notice)
+				}
+			}
 			d.mu.Unlock()
 			d.reportOverflowNotices(notices)
 			return

@@ -1,5 +1,42 @@
 # Changelog
 
+## Agent [0.3.103] - 2026-10-15
+
+- Recover buffered output after a retry-safe disk-reserve refusal without restarting the collector; retain bounded pending bytes in order and keep ambiguous filesystem/durability failures sticky.
+- Back off disk-reserve probes and learning persistence retries from one second to one minute without lowering disk protection thresholds or hiding failed checkpoints.
+- Rate-limit recurring output, Linux/Windows learning and operations-report diagnostics per operation to one warning per minute; include suppressed counts and a single recovery message after verified success.
+- Preserve degraded learning baselines and cursor durability checks after disk recovery; add real-file, backoff, ordering, concurrency and failure/recovery regressions with bilingual operating guidance.
+
+## Agent [0.3.102] - 2026-10-15
+
+- Keep shared Audit subscribers alive during recoverable queue pressure; replay bounded module backlog in FIFO order rather than immediately closing the child pipe.
+- Retire on actual backlog loss, including rate-limited overflows, and preserve the existing learning fail-open protection. Do not reset or silently trust degraded baselines on upgrade.
+- Bound uncertain pipe-flush batches, replay failed pipe data before newer backlog, and move pressure diagnostics off the audit reader path.
+- Expose active queue occupancy/capacity and paused subscribers in health JSONL and Prometheus; distinguish buffered pressure from overwritten evidence.
+- Add burst, ordering, real-overflow and pipe-replay regressions; document explicit backup/relearn/rollback and cross-checks for high-volume hosts in both languages.
+
+## Agent [0.3.101] - 2026-10-14
+
+- Capture the real exec-time parent PID, name, boot-time start token and executable path in the eBPF event, independently of listener-service ancestry.
+- Preserve process ownership and staged argv across nonleader exec; remove them only on whole-thread-group death, including when the last exiting thread is not the leader.
+- Stop looking up historical parent names through reusable `/proc` PIDs; publish explicit partial/unavailable metadata when kernel fields or bounded path resolution are insufficient.
+- Resolve parent executable paths within its filesystem root using bounded CO-RE mount traversal, without requiring newer `bpf_d_path` helpers; regenerate the embedded object and document additive JSON fields.
+- Map parent evidence explicitly in the public self-managed ES template and document existing-index migration; align the Filebeat contract test with the already shipped custom-alert stream.
+
+## Agent [0.3.100] - 2026-10-14
+
+- Add product-level Linux `audit.mode=auto|audit|ebpf_only`: automatically use eBPF-only when Audit is unavailable and fail when neither transport works.
+- Verify the embedded eBPF programs before device enrollment or binary replacement; preserve explicit backend choices, existing collection policy and learning state.
+- Remove Audit log subscriptions, rule mutations, pressure polling and persistence actor enrichment in eBPF-only mode while retaining listener exec tracking, reconciliation and persistence polling.
+- Add transport-selection, verifier-failure, rule/subscription-isolation and installer regressions; ship bilingual setup and coverage-limit documentation.
+
+## Agent [0.3.99] - 2026-10-13
+
+- Fix CentOS 7 auditd lifecycle selection when native legacy-actions exist without an init script; check systemd reload capability and use advertised native auditctl signalling where supported.
+- Persist dispatcher reload intent before changing q_depth, retry after failed/interrupted installation and clear intent only after lifecycle/kernel verification; retain bounded commands and existing audit rules.
+- Add native-layout, missing-helper, repeated-failure, interruption and marker-path regressions; document recovery for 0.3.98 hosts and asynchronous reload verification in both languages.
+- Normalize one existing architecture-test indentation that blocked the Agent formatting gate; its assertions are unchanged.
+
 ## Agent [0.3.98] - 2026-10-13
 
 - Bind the supervised custom-alert writer to the authenticated configuration identity instead of requiring child-only environment variables in the parent process.

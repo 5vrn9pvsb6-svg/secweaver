@@ -50,8 +50,10 @@ curl --fail http://127.0.0.1:9100/metrics
 - `secweaver_agent_module_status`：`1` 运行、`0` 停止或尚未启动、`-1` 错误、`-2` 重启中、`-3` 熔断降级。
 - `secweaver_agent_module_pid`：当前子模块 PID，未运行时为 `0`。
 - `secweaver_agent_audit_backlog_lines`：共享 audit demux 当前等待重放的总行数。
+- `secweaver_agent_audit_queued_lines`、`secweaver_agent_audit_queue_capacity`：活动队列当前占用/总容量，单位为原始行（0.3.102+）。
+- `secweaver_agent_audit_paused_subscribers`：暂停实时入队、等待按序回放的订阅数；压力本身不代表丢失（0.3.102+）。
 - `secweaver_agent_audit_backlog_overflows_total`：固定积压环满后被覆盖的证据行累计数；生产环境任何非零增量都应立即告警。
-- `secweaver_agent_audit_retired_subscribers_total`：因队列满或管道失败而退役并等待重连的订阅者累计数。
+- `secweaver_agent_audit_retired_subscribers_total`：因真实积压丢失或管道失败而退役的订阅者累计数；0.3.102+ 不再仅因队列满就退役。
 - `secweaver_agent_audit_lines_processed_total`：父进程共享 audit reader 已处理的原始行累计数。
 - `secweaver_agent_audit_readers`、`secweaver_agent_audit_readers_ready`：配置的共享 reader 总数和当前成功打开源文件的数量。
 - `secweaver_agent_audit_reader_failures_total`：reader 从可用进入不可用状态的累计次数；同一次故障的重试不会反复增加。
@@ -63,6 +65,11 @@ Audit 累计指标由父进程每 5 秒从 demux 拉取一次，不在 audit rea
 由独立后台 worker 写 stderr 和 `status.json`，包含最早丢失及最新记录的 audit ID。若状态盘
 很慢，单槽队列会合并为最新节流点，但 Prometheus 累计数始终精确。该 `error` 诊断在本次
 Agent 进程生命周期内保持，因已经丢失的证据无法通过后续恢复补回。
+
+0.3.102 起，8192 行实时队列满后可暂存到 4096 行积压环，不立即关闭管道；
+旧记录回放优先于新输入，诊断 IO 异步执行。`audit_demux/backpressure/<module>`
+在暂存时警告，恢复后清理，但不会清理独立的证据丢失错误。
+丢失后的显式重学见[学习恢复](learning-recovery.zh-CN.md#audit-背压03102)。
 
 Reader 首次打开、读取错误和 audit.log 轮转重开由文件跟随层上报。不可用状态生成可恢复的
 `error` 诊断，成功重新打开源文件后自动清除；空闲主机不要求持续产生 audit 事件。

@@ -14,8 +14,10 @@ func (m *processTreeMonitor) bootstrap(ctx context.Context) error {
 	// Use worker pool to bootstrap listeners concurrently while maintaining
 	// error handling and cancellation semantics.
 
-	if err := m.bootstrapBoundedAuditRules(); err != nil {
-		return err
+	if !m.isEBPFOnly() {
+		if err := m.bootstrapBoundedAuditRules(); err != nil {
+			return err
+		}
 	}
 	if len(m.listeners) == 0 {
 		return m.bootstrapSensitiveFileWatch()
@@ -101,6 +103,12 @@ func (m *processTreeMonitor) bootstrapInitial() error {
 }
 
 func (m *processTreeMonitor) bootstrapSensitiveFileWatch() error {
+	if m.isEBPFOnly() {
+		// Sensitive-file watches are audit kernel rules. eBPF-only deliberately
+		// keeps the supported exec/process contract instead of pretending these
+		// events are covered by the process tracepoints.
+		return nil
+	}
 	// Watch rules share the same hard budget as syscall rules. Successfully added
 	// watches are recorded even when a later path fails so bootstrap rollback can
 	// still remove the partial prefix.
@@ -221,12 +229,12 @@ func (m *processTreeMonitor) seedUserspaceProcessTree(pid int, listener listener
 }
 
 // bootstrapEBPFListener seeds process ownership without installing exec/clone
-// audit rules. Auxiliary connect/file audit rules remain available when those
-// explicitly enabled features require them.
+// audit rules. In product eBPF-only mode it also skips auxiliary audit rules;
+// the embedded eBPF programs currently provide process lifecycle evidence only.
 func (m *processTreeMonitor) bootstrapEBPFListener(listener listenerInfo) error {
 	trackListener := listener
 	trackListener.ExeOnly = false
-	if listener.MonitorExe != "" {
+	if listener.MonitorExe != "" && !m.isEBPFOnly() {
 		if err := m.addExeRules(listener); err != nil {
 			return err
 		}
