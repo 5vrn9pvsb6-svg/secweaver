@@ -308,19 +308,15 @@ func OpenRotatingFile(path string, perm os.FileMode, maxSizeBytes int64, maxBack
 	if perm.Perm() != DefaultFilePerm {
 		return nil, fmt.Errorf("agent log permission must be %04o, got %04o", DefaultFilePerm, perm.Perm())
 	}
-	if maxSizeBytes == 0 {
-		maxSizeBytes = DefaultMaxSizeBytes
-	}
-	if maxBackups == 0 {
-		maxBackups = DefaultMaxBackups
-	}
 	budget, err := diskBudgetPolicyFromEnv()
 	if err != nil {
 		return nil, err
 	}
+	share := int64(0)
 	if budget.enabled {
-		maxSizeBytes, maxBackups = retentionWithinBudget(maxSizeBytes, maxBackups, budget.perFileBytes)
+		share = budget.perFileBytes
 	}
+	maxSizeBytes, maxBackups = resolveRetentionLimits(maxSizeBytes, maxBackups, share)
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, err
 	}

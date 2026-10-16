@@ -298,7 +298,7 @@ func TestConfiguredOutputFileCountDeduplicatesPaths(t *testing.T) {
 		{Spec: moduleRegistry["host-state-snapshot"], Config: moduleConfig{Args: []string{"-output", "/logs/state.log"}}},
 	}
 	updater := &scheduledUpdateConfig{StatusOutput: "/logs/update.log"}
-	if got := configuredOutputFileCount(modules, updater, nil); got != 3 {
+	if got := configuredOutputFileCount(modules, updater, nil, ""); got != 3 {
 		t.Fatalf("configured output files=%d, want 3", got)
 	}
 }

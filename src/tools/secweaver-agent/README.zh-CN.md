@@ -1,5 +1,10 @@
 # secweaver-agent
 
+源码 0.3.105 将自定义风险告警纳入全局日志预算，并在 `doctor` 文本和 JSON 中增加
+逐文件大小、轮转阈值、备份数量及轮转时间估计。备份修改时间不代表精确轮转时间，
+见[日志清单](docs/reliability-and-disk-protection.zh-CN.md#日志清单agent-03105)。
+源码修改不代表已经部署。
+
 源码 0.3.103 增加 Linux/Windows 低磁盘有界退避、重复错误限流及实际恢复提示。
 缓冲输出遇到磁盘保护拒写后可在进程内恢复，不重置已降级的学习信任。验证及边界
 见[磁盘恢复说明](docs/reliability-and-disk-protection.zh-CN.md)。源码修改不代表已部署。

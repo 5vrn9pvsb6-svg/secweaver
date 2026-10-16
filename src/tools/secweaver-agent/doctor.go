@@ -40,6 +40,7 @@ type doctorReport struct {
 	Version    string        `json:"version"`
 	Generated  string        `json:"generated_at"`
 	Checks     []doctorCheck `json:"checks"`
+	Logs       []doctorLog   `json:"logs,omitempty"`
 }
 
 func runDoctorCommand(args []string) int {
@@ -117,6 +118,7 @@ func collectDoctorReport(configPath string, checkLicense bool) doctorReport {
 		doctorCheckSLSIdentity(cfg, configPath, add)
 		doctorCheckStatusFile(cfg, add)
 		doctorCheckRecentLogs(modules, add)
+		report.Logs = doctorInspectLogs(cfg, configPath, modules, updater, add)
 		if checkLicense {
 			doctorCheckLicenseConnectivity(cfg, add)
 		}
@@ -421,6 +423,7 @@ func printDoctorReport(out io.Writer, report doctorReport, verbose bool) {
 		}
 		fmt.Fprintln(out)
 	}
+	printDoctorLogs(out, report.Logs)
 	fmt.Fprintf(out, "doctor summary: ok=%d warn=%d error=%d\n", ok, warn, errCount)
 }
 

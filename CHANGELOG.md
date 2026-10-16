@@ -1,5 +1,25 @@
 # Changelog
 
+## Agent [0.3.105] - 2026-10-16
+
+- Include device-v2 custom-risk-alert output in the shared Linux/Windows log
+  disk-budget divisor, preserving disabled-controller and unique-path behavior.
+- Add read-only per-log doctor inventory for module, learning, health, update and
+  custom-alert outputs: current/total bytes, effective rotation limits, backup
+  counts and explicitly estimated latest rotation evidence, also available in JSON.
+- Share retention calculations with live writers; bound directory inspection,
+  report partial scans, and document coverage, timestamp and configuration limits.
+
+## Agent [0.3.104] - 2026-10-16
+
+- Preserve missing/unreadable learning-summary diagnostics instead of silently
+  discarding read failures and reporting that a running collector awaits restart.
+- Report fixed summary-missing, permission, no-status and read-failure categories
+  in the existing heartbeat filtering_reason; keep raw local errors out of remote
+  metadata and leave collection, learning progress and baselines unchanged.
+- Require valid prior-runtime timestamps before classifying restart readiness;
+  add checkpoint/probe/lifecycle regressions and bilingual operating guidance.
+
 ## Agent [0.3.103] - 2026-10-15
 
 - Recover buffered output after a retry-safe disk-reserve refusal without restarting the collector; retain bounded pending bytes in order and keep ambiguous filesystem/durability failures sticky.

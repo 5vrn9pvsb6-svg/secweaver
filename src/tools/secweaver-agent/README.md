@@ -1,5 +1,17 @@
 # secweaver-agent
 
+Source 0.3.105 includes custom risk alerts in the global log budget and adds
+per-log size/rotation/backup diagnostics to `doctor` text and JSON output.
+Rotation timestamps are explicitly backup-mtime estimates. See
+[log inventory](docs/reliability-and-disk-protection.md#log-inventory-agent-03105).
+This source change is not a deployment.
+
+Source 0.3.104 preserves actionable learning-summary probe failures in managed
+heartbeats rather than mislabeling missing observations as restart readiness.
+No machine reboot, relearning or baseline reset is implied. See
+[learning diagnostics](docs/behavior-learning.md#runtime-probe-diagnostics-03104).
+This source change is not a deployment.
+
 Source 0.3.103 adds bounded low-disk retry, recurring-error throttling and
 verified recovery diagnostics on Linux/Windows. Buffered reserve refusals recover
 without restarting a live writer; degraded learning trust is not reset. See

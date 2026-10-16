@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"time"
 )
+
+var errSummaryNoStatus = errors.New("learning summary has no status record")
 
 // StatusSnapshot is the bounded operational view sent in the managed heartbeat.
 // It intentionally contains progress, readiness and bounded counters only; baseline fingerprints and
@@ -164,13 +167,15 @@ func ReadBaselineSummary(path, baseline string) (*Summary, error) {
 		return nil, err
 	}
 	if latest == nil {
-		return nil, fmt.Errorf("learning summary has no status record")
+		return nil, errSummaryNoStatus
 	}
 	return latest, nil
 }
 
 // InspectStatus combines independent state with its own summary, without a
 // writer lock or full log scan. Disabled streams do not require state files.
+// Probe errors remain local to the caller; only fixed reason codes enter the
+// heartbeat, never filesystem paths, event content or exception text.
 func InspectStatus(cfg Config) (StatusSnapshot, error) {
 	if !cfg.Enabled {
 		return Snapshot(cfg, nil, nil, time.Now()), nil
@@ -179,8 +184,27 @@ func InspectStatus(cfg Config) (StatusSnapshot, error) {
 	if err != nil {
 		return Snapshot(cfg, nil, nil, time.Now()), err
 	}
-	latest, _ := ReadBaselineSummary(cfg.OutputLog, state.BaselineID)
-	return Snapshot(cfg, state, latest, time.Now()), nil
+	latest, err := ReadBaselineSummary(cfg.OutputLog, state.BaselineID)
+	status := Snapshot(cfg, state, latest, time.Now())
+	if err != nil && status.FilteringReason == "summary_unavailable" {
+		status.FilteringReason = summaryFailureReason(err)
+	}
+	return status, err
+}
+
+// summaryFailureReason preserves an actionable category without exporting raw
+// local errors. Unrecognized I/O failures stay explicit, not restart advice.
+func summaryFailureReason(err error) string {
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return "summary_missing"
+	case errors.Is(err, os.ErrPermission):
+		return "summary_permission_denied"
+	case errors.Is(err, errSummaryNoStatus):
+		return "summary_no_status"
+	default:
+		return "summary_read_failed"
+	}
 }
 
 // Snapshot combines authenticated state with the latest runtime summary. A

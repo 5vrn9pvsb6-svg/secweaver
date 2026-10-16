@@ -84,6 +84,32 @@ current reader started, at most ten minutes delayed and one minute ahead. This
 excludes lookback; it is not an admission warmup. Security 4688 and Sysmon 1 are
 separate native records, not a promise of cross-channel exactly-once execution counts.
 
+## Runtime Probe Diagnostics (0.3.104)
+
+Linux exec/file and Windows exec/file/network/risk status inspection preserves
+summary read failures. Existing heartbeat `filtering_reason` distinguishes
+`summary_missing`, `summary_permission_denied`, `summary_no_status` (no valid
+record for this baseline in the bounded tail), and `summary_read_failed`.
+Doctor keeps the local read error; heartbeats contain only fixed categories,
+not paths, command lines or raw exceptions. No new protocol fields are required.
+Collection, learned state, matching, retries and healthy-time budgets are unchanged.
+
+`awaiting_current_runtime` now requires a valid summary timestamp older than the
+running collector's start. Missing timestamps preserve the probe reason; a valid
+summary without a valid collector start reports `runtime_start_unknown`.
+Neither condition requests a host reboot. Check the learning summary output,
+file permissions, disk resources and local Agent service logs. Module exit errors
+and upgrade failures are independent observations, not proof of the cause of a
+missing learning summary. Low free space can also prevent diagnostic writes.
+
+SaaS Workspace rc.139 shows existing module errors, restart/failure counts and
+retry/circuit times in **Host Management → All types**, with separate upgrade
+diagnostics. Older Agents remain supported: unknown fields stay unreported and
+legacy restart reasons without timestamps become awaiting runtime status.
+Verify using Doctor, the next authenticated heartbeat, and that details view;
+do not delete a baseline or trigger relearning merely to clear a status label.
+Regression checks: `go test ./pkg/behaviorlearning ./pkg/auditportexecmon .`.
+
 ## Installation Choices and Status (0.3.71)
 
 Linux install.sh/Bootstrap accepts --learning-mode preserve|shadow|enable|disable.

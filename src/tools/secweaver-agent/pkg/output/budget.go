@@ -81,16 +81,13 @@ func NormalizeDiskBudgetConfig(c DiskBudgetConfig) (DiskBudgetConfig, error) {
 // processes start. Environment transport keeps every independently supervised
 // collector on the same budget without duplicating module-specific flags.
 func ApplyDiskBudgetEnvironment(c DiskBudgetConfig, outputFiles int) error {
-	normalized, err := NormalizeDiskBudgetConfig(c)
+	normalized, share, err := diskBudgetShare(c, outputFiles)
 	if err != nil {
 		return err
 	}
-	if outputFiles <= 0 {
-		outputFiles = 1
-	}
 	values := map[string]string{
 		diskBudgetEnabledEnv:       strconv.FormatBool(normalized.EnabledValue()),
-		diskBudgetPerFileBytesEnv:  strconv.FormatInt(int64(normalized.MaxTotalMB)*1024*1024/int64(outputFiles), 10),
+		diskBudgetPerFileBytesEnv:  strconv.FormatInt(share, 10),
 		diskBudgetMinFreeBytesEnv:  strconv.FormatInt(int64(normalized.MinFreeMB)*1024*1024, 10),
 		diskBudgetCheckIntervalEnv: strconv.Itoa(normalized.CheckIntervalSeconds),
 		DiskPriorityEnv:            DiskPriorityStandard,
@@ -101,6 +98,53 @@ func ApplyDiskBudgetEnvironment(c DiskBudgetConfig, outputFiles int) error {
 		}
 	}
 	return nil
+}
+
+// RetentionLimits describes the configured effective limits, not an observation
+// of a live writer. Zero PerFileBudgetBytes means host budgeting is disabled.
+type RetentionLimits struct {
+	MaxSizeBytes       int64 `json:"max_size_bytes"`
+	MaxBackups         int   `json:"max_backups"`
+	PerFileBudgetBytes int64 `json:"per_file_budget_bytes"`
+}
+
+// EffectiveRetention uses the same defaults, division and clamps as supervised
+// writers without setting environment variables or opening/pruning log files.
+func EffectiveRetention(c DiskBudgetConfig, outputFiles int, maxSize int64, maxBackups int) (RetentionLimits, error) {
+	normalized, share, err := diskBudgetShare(c, outputFiles)
+	if err != nil {
+		return RetentionLimits{}, err
+	}
+	if !normalized.EnabledValue() {
+		share = 0
+	}
+	maxSize, maxBackups = resolveRetentionLimits(maxSize, maxBackups, share)
+	return RetentionLimits{maxSize, maxBackups, share}, nil
+}
+
+// diskBudgetShare keeps diagnostics and environment transport on the same
+// divisor, including the no-file case where division must remain defined.
+func diskBudgetShare(c DiskBudgetConfig, outputFiles int) (DiskBudgetConfig, int64, error) {
+	normalized, err := NormalizeDiskBudgetConfig(c)
+	if err != nil {
+		return DiskBudgetConfig{}, 0, err
+	}
+	if outputFiles <= 0 {
+		outputFiles = 1
+	}
+	return normalized, int64(normalized.MaxTotalMB) * 1024 * 1024 / int64(outputFiles), nil
+}
+
+// resolveRetentionLimits applies zero-value defaults before the optional host
+// clamp. Keep this shared with OpenRotatingFile so doctor cannot invent limits.
+func resolveRetentionLimits(maxSize int64, maxBackups int, share int64) (int64, int) {
+	if maxSize == 0 {
+		maxSize = DefaultMaxSizeBytes
+	}
+	if maxBackups == 0 {
+		maxBackups = DefaultMaxBackups
+	}
+	return retentionWithinBudget(maxSize, maxBackups, share)
 }
 
 type diskBudgetPolicy struct {

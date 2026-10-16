@@ -34,6 +34,18 @@ Agent 父进程按实际配置的唯一输出路径数量分配 `max_total_mb`�
 打开文件时压缩单文件大小和数字备份数，使活动文件加备份不超过其分额。升级
 后首次打开也会清理超过分额的旧数字备份；不会截断正在写入的活动文件。
 
+从 Agent **0.3.105** 开始，device-v2 自定义采集告警也预留一个输出分额：使用
+`collection_rules.alert_output`，未设置时为 `<安装根目录>/logs/custom-risk-alert.log`，
+与实际 controller 共用路径解析。预留不依赖本地身份当前是否可读，避免注册/恢复
+过程中改变分母。显式关闭 controller、非 device-v2 的旧式安装不预留告警分额。
+Linux 与 Windows 均将模块/学习、升级、已启用健康报告和告警路径统一去重。
+
+单文件名义默认值仍为 **100 MiB、5 份数字备份**。启用全局预算后，按
+`max_total_mb / 唯一路径数` 得到分额，再分配活动文件和备份的空间，可能降低
+阈值。例如 2048 MiB、9 个默认输出，每个路径分额为 238,609,294 字节，单文件
+轮转阈值为 39,768,215 字节。预算属于保留控制，不是硬文件系统配额：不会截断
+已有活动文件，单条过大记录也可能超过轮转阈值。按大小/份数保留，不按天数删除。
+
 剩余空间分三档保护：
 
 | 优先级 | 默认模块 | 停写水位 |
@@ -78,6 +90,47 @@ Linux 和 Windows 的磁盘水位复查、学习模块周期持久化重试，�
 边界：总预算只覆盖通过 `pkg/output` 管理的 Agent JSONL/升级状态文件，不包括
 `status.json`、auditd 自有日志和 Logtail/Filebeat 自身文件。不同 shipper 的消费位点格式
 不统一，Agent 不伪造通用延迟值；应在 Logtail/Filebeat 监控中单独告警。
+
+### 日志清单（Agent 0.3.105）
+
+Linux 与 Windows 的 `doctor` 不加 `-verbose` 也会展示已配置的 Agent 文件输出：
+模块原始事件及声明的学习汇总、已启用健康报告、升级输出和 device-v2 告警文件。
+JSON 报告新增 `logs[]`；原有 `checks[]` 的结构不变。
+
+```bash
+secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json -check-license=false
+secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json -check-license=false -json
+```
+
+管理员 PowerShell 使用以下命令，按实际安装根目录替换：
+
+```powershell
+& 'C:\ProgramData\SecWeaver\Agent\bin\secweaver-agent.exe' doctor -config 'C:\ProgramData\SecWeaver\Agent\etc\config.json' -check-license=false -json
+```
+
+- `current_size_bytes`：活动文件字节数；缺失、不可读或非普通文件时为 `null`。
+- `max_size_bytes`、`max_backups`、`per_file_budget_bytes`：使用与 writer 相同的计算
+  得到配置生效后的轮转/保留阈值。预算字节为零表示全局预算关闭，不表示磁盘剩余为零。
+- `backup_count`、`backup_size_bytes`、`total_size_bytes`：实际普通数字备份的数量、
+  备份及总字节数，包含超过当前保留份数的旧备份。
+- `latest_backup_path`、`last_rotation_estimate`：`.1` 及其修改时间，
+  `rotation_time_source=backup_mtime_estimate`。重命名不更新 mtime，因此这是最新
+  保留文件的最后写入时间，**不是精确轮转时间**。没有 `.1` 时来源为 `unknown`，
+  不能推断从未轮转。
+- `scan_complete`、`inspection_error`：权限、非普通路径或扫描上限问题产生 warning，
+  数量/大小可能不完整，不会把部分统计伪装为完整结果。
+
+新增日志清单检查只读元数据，不创建目录、不修复权限、不上传内容或凭证、不触发轮转
+或清理；原有 JSON 行检查仍读取有界日志尾部。每批读取 128 个目录项，每个输出最多
+扫描 16,384 项，不跟随备份符号链接
+或特殊文件。结果可能与正在写入/轮转的文件存在瞬时差异。阈值来自当前配置，不能
+证明运行中进程已经重新加载；多个 writer 共用路径时显示最严格配置。调整保留策略
+后应核对配置并重启服务。关闭的模块、标准输出/错误、安装器/厂商日志、journald、
+auditd、shipper 日志及状态 JSON 不在清单中。可选日志缺失也可能只是尚未创建。
+
+验证时同时检查文本和 `-json` 输出，与活动文件及 `.1`/`.2` 的元数据比对。自动测试
+将诊断阈值与实际 writer 比较，覆盖数字轮转、自定义健康保留策略，并确认检查不会
+修改/删除文件；无需填满生产磁盘或强制生成证据。
 
 ## 状态文件可靠性
 

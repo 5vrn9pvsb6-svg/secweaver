@@ -235,6 +235,25 @@ Windows 同步处理后才提交游标。新增名单先 journal 持久化，60 
 没有每事件全盘扫描，也不持久化每次被过滤的原文。崩溃可能损失最近候选/计数，
 降级不能补回已过滤的原文，不承诺精确一次或完整历史取证。
 
+## 运行探针诊断（0.3.104）
+
+Linux exec/file 和 Windows exec/file/network/risk 状态检查不再忽略摘要读取失败。
+既有心跳 `filtering_reason` 区分 `summary_missing`（文件缺失）、
+`summary_permission_denied`（无读取权限）、`summary_no_status`（有界尾部中没有当前名单的有效状态）、
+`summary_read_failed`（其他读取失败）。Doctor 保留本机读取错误；心跳只含固定原因码，
+不发送路径、命令行或原始异常，无需新增协议字段。
+采集、名单、匹配、重试和有效学习时长均不因此改变。
+
+`awaiting_current_runtime` 现在必须有有效的摘要时间，且早于当前采集器启动时间。
+没有摘要时间时保留探针原因；已有摘要却缺少有效采集器启动时间，报告 `runtime_start_unknown`。
+这些状态都不要求重启整台机器。应检查摘要输出、文件权限、磁盘及本机 Agent 服务日志；
+模块退出错误、升级错误是独立观测，不能直接作为学习摘要缺失的根因。磁盘不足也可能阻止诊断写入。
+
+SaaS 工作台 rc.139 在“主机管理 → 各类详情”展示既有模块错误、重启/失败次数、重试及熔断时间，
+升级诊断单独展示。兼容旧 Agent：缺失字段保持未上报，没有时间戳的旧版等待重启原因显示等待运行状态。
+通过 Doctor、下次认证心跳和详情页交叉核对；不要为清除状态提示直接删除名单或触发重学。
+回归命令：`go test ./pkg/behaviorlearning ./pkg/auditportexecmon .`。
+
 ## 诊断与上传
 
 doctor 展示 exec、file、network、risk 的独立状态；Windows 对应

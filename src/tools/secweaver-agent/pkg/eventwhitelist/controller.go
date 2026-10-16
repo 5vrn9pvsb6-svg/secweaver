@@ -29,6 +29,19 @@ type Config struct {
 	AlertOutput string `json:"alert_output,omitempty"`
 }
 
+// AlertOutputPath is shared by the writer, disk-budget accounting and doctor.
+// A disabled controller owns no output; enrollment readiness does not change
+// the reserved path or its budget share later in the process lifecycle.
+func (c Config) AlertOutputPath(logsDir string) string {
+	if c.Enabled != nil && !*c.Enabled {
+		return ""
+	}
+	if c.AlertOutput != "" {
+		return c.AlertOutput
+	}
+	return filepath.Join(logsDir, "custom-risk-alert.log")
+}
+
 type Controller struct {
 	config                  Config
 	eid, device, url, token string
@@ -49,15 +62,13 @@ func Start(cfg Config, stateDir, logsDir, eid, device string) (*Controller, func
 	if cfg.PublicKey == "" {
 		cfg.PublicKey = DefaultPublicKey
 	}
-	if cfg.AlertOutput == "" {
-		cfg.AlertOutput = filepath.Join(logsDir, "custom-risk-alert.log")
-	}
+	cfg.AlertOutput = cfg.AlertOutputPath(logsDir)
 	if !filepath.IsAbs(cfg.PolicyFile) || !filepath.IsAbs(cfg.AlertOutput) {
 		return nil, func() {}, fmt.Errorf("collection paths must be absolute")
 	}
 	c := &Controller{config: cfg, eid: eid, device: device}
 	// Parent identity comes from verified configuration, not child-only env.
-	out, closeOut, err := agentoutput.OpenEnterpriseEventAppend(agentoutput.AppendOptions{Path: cfg.AlertOutput, Perm: 0600, MaxSizeBytes: 100 << 20, MaxBackups: 5}, eid)
+	out, closeOut, err := agentoutput.OpenEnterpriseEventAppend(agentoutput.AppendOptions{Path: cfg.AlertOutput, Perm: agentoutput.DefaultFilePerm}, eid)
 	if err != nil {
 		return c, func() {}, err
 	}

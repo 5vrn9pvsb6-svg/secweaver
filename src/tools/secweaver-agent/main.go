@@ -310,7 +310,7 @@ func runAgentCommand(args []string) int {
 	if collectionProfile.Mode != "" {
 		fmt.Fprintf(os.Stderr, "Linux collection mode: %s (%s)\n", collectionProfile.Mode, collectionProfile.Reason)
 	}
-	if err := agentoutput.ApplyDiskBudgetEnvironment(cfg.DiskBudget, configuredOutputFileCount(modules, updateRuntime, &operationsRuntime)); err != nil {
+	if err := agentoutput.ApplyDiskBudgetEnvironment(cfg.DiskBudget, configuredOutputFileCount(modules, updateRuntime, &operationsRuntime, configuredAlertOutput(cfg, configPath))); err != nil {
 		fmt.Fprintf(os.Stderr, "configure output disk budget failed: %v\n", err)
 		return configurationErrorExitCode
 	}

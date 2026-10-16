@@ -36,6 +36,22 @@ paths. Each child clamps active-file size and numeric backup count to that
 share. Existing oldest backups are pruned on open and rotation; an active file
 is never truncated.
 
+From Agent **0.3.105**, device-v2 custom collection alerts also reserve a slot:
+`collection_rules.alert_output`, or `<installation-root>/logs/custom-risk-alert.log`
+when unset. The path resolver is shared with the actual controller. Its slot is
+reserved before local identity becomes readable so enrollment/recovery does not
+change the divisor. An explicitly disabled controller or a legacy non-device-v2
+installation reserves no alert slot. Module/learning, update, enabled health and
+alert paths are deduplicated together on both Linux and Windows.
+
+The nominal per-file defaults remain **100 MiB plus 5 numeric backups**. Enabled
+host budgeting can lower these limits: `max_total_mb / unique-path-count` is the
+file share, divided across active and backup slots. For example, nine default
+outputs with a 2048 MiB budget receive 238,609,294 bytes per path and a 39,768,215
+byte rotation threshold each. Budgeting is retention control, not a hard
+filesystem quota: old active files are not truncated and an individual oversized
+record can exceed the rotation threshold. Log retention is by size/count, not days.
+
 Free-space protection is tiered:
 
 | Priority | Default modules | Refusal threshold |
@@ -90,6 +106,54 @@ The total covers Agent JSONL/update status files managed through `pkg/output`.
 It does not cover `status.json`, auditd-owned logs, or Logtail/Filebeat files.
 Shipper cursor formats are not portable, so shipper lag must be monitored by
 the selected Logtail/Filebeat integration rather than inferred by the Agent.
+
+### Log inventory (Agent 0.3.105)
+
+On Linux and Windows, `doctor` lists configured Agent-owned file outputs even
+without `-verbose`: module evidence and declared learning summaries, enabled
+health output, update output, and the device-v2 alert sink. The JSON report adds
+`logs[]`; existing `checks[]` remains unchanged in shape.
+
+```bash
+secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json -check-license=false
+secweaver-agent doctor -config /opt/secweaver-agent/etc/config.json -check-license=false -json
+```
+
+In administrator PowerShell (substitute your installation root):
+
+```powershell
+& 'C:\ProgramData\SecWeaver\Agent\bin\secweaver-agent.exe' doctor -config 'C:\ProgramData\SecWeaver\Agent\etc\config.json' -check-license=false -json
+```
+
+- `current_size_bytes`: active-file bytes, or `null` when missing/unreadable/nonregular.
+- `max_size_bytes`, `max_backups`, `per_file_budget_bytes`: effective configured
+  rotation/retention limits, using exactly the live writer's calculation;
+  zero budget bytes means host budgeting is disabled, not zero space available.
+- `backup_count`, `backup_size_bytes`, `total_size_bytes`: observed regular numeric
+  backups and bytes, including backups above the configured retention count.
+- `latest_backup_path`, `last_rotation_estimate`: `.1` and its modification time,
+  with `rotation_time_source=backup_mtime_estimate`. Rename does not update mtime;
+  this is the newest retained file's last write, **not an exact rotation timestamp**.
+  Without `.1`, the source is `unknown`; do not infer that rotation never occurred.
+- `scan_complete`, `inspection_error`: access/nonregular-path/scan-limit problems
+  produce a warning and partial counts, never fabricated complete totals.
+
+The new inventory reads metadata only: no directory creation, permission repair,
+content/credential upload, rotation or pruning. Existing recent-JSON checks still
+read bounded log tails. Directory scans use batches of
+128 entries, capped at 16,384 entries per output; symlink/special-file backups
+are not followed. Results can race active writes/rotation. Limits describe the
+current configuration, not proof that an already running process has reloaded
+it; shared paths show the strictest configured writer limits. Inspect the intended
+configuration and restart the service when changing retention. Disabled modules,
+stdout/stderr, installer/vendor logs, journald, auditd, shipper logs and state JSON
+are not included. Missing optional logs may simply not have been created yet.
+
+Verification: check both text and `-json` output and compare the listed files and
+`.1`/`.2` backups with filesystem metadata. Automated tests compare diagnostic
+limits with real writers, exercise numeric rotation/custom health retention and
+verify that inspection does not modify/prune files. No production disk filling or
+forced evidence generation is required.
 
 ## Status persistence
 

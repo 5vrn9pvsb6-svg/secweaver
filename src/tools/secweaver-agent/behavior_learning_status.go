@@ -72,6 +72,8 @@ func behaviorLearningStatus(modules []runtimeModule, health map[string]agentlice
 
 // A prior process can leave a fresh summary. Qualify each stream against its
 // actual collector start, without overwriting why the baseline itself is empty.
+// Missing/failed probes cannot establish a prior runtime: keep their diagnosis
+// rather than misleading operators into restarting an already running host.
 func qualifyLearningRuntime(status behaviorlearning.StatusSnapshot, err error, health agentlicense.ModuleHealth) behaviorlearning.StatusSnapshot {
 	if err != nil && status.Mode == "" {
 		status = behaviorlearning.StatusSnapshot{Mode: "unknown", Reason: "status_unavailable", FilteringReason: "status_unavailable"}
@@ -81,7 +83,14 @@ func qualifyLearningRuntime(status behaviorlearning.StatusSnapshot, err error, h
 		updated, updateErr := time.Parse(time.RFC3339, status.UpdatedAt)
 		if health.Status != "running" {
 			status.FilteringActive, status.FilteringReason = false, "collector_not_running"
-		} else if startErr != nil || updateErr != nil || updated.Before(started) {
+		} else if updateErr != nil {
+			status.FilteringActive = false
+			if status.FilteringReason == "" {
+				status.FilteringReason = "summary_unavailable"
+			}
+		} else if startErr != nil {
+			status.FilteringActive, status.FilteringReason = false, "runtime_start_unknown"
+		} else if updated.Before(started) {
 			status.FilteringActive, status.FilteringReason = false, "awaiting_current_runtime"
 		}
 	}

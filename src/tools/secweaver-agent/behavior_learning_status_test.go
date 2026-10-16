@@ -1,10 +1,29 @@
 package main
 
 import (
+	"errors"
 	"secweaver-agent/pkg/agentlicense"
 	"secweaver-agent/pkg/behaviorlearning"
 	"testing"
 )
+
+// Missing observations are not evidence of a restart. Keep the actionable probe
+// reason even when the collector itself remains alive under supervision.
+func TestLearningRuntimePreservesProbeFailure(t *testing.T) {
+	health := agentlicense.ModuleHealth{Status: "running", LastStartAt: "2026-10-12T00:02:00Z"}
+	for _, reason := range []string{"summary_unavailable", "summary_missing", "summary_read_failed", "state_unavailable"} {
+		s := behaviorlearning.StatusSnapshot{Enabled: true, Mode: "learning", FilteringReason: reason}
+		got := qualifyLearningRuntime(s, errors.New("local probe failed"), health)
+		if got.FilteringReason != reason || got.FilteringActive {
+			t.Fatalf("probe reason lost: %+v", got)
+		}
+	}
+	s := behaviorlearning.StatusSnapshot{Enabled: true, Mode: "learning", UpdatedAt: "2026-10-12T00:03:00Z"}
+	got := qualifyLearningRuntime(s, nil, agentlicense.ModuleHealth{Status: "running"})
+	if got.FilteringActive || got.FilteringReason != "runtime_start_unknown" {
+		t.Fatalf("missing lifecycle evidence: %+v", got)
+	}
+}
 
 func TestLearningRuntimeReasons(t *testing.T) {
 	s := behaviorlearning.StatusSnapshot{Enabled: true, Mode: "enforcing", FilteringActive: true, UpdatedAt: "2026-10-12T00:01:00Z", Reason: "baseline_note"}

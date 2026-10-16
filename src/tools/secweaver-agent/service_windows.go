@@ -309,7 +309,7 @@ func runWindowsServiceSupervisorOnce(ctx context.Context, configPath string, man
 	if err != nil {
 		return fmt.Errorf("configure operations report: %w", err)
 	}
-	if err := agentoutput.ApplyDiskBudgetEnvironment(cfg.DiskBudget, configuredOutputFileCount(modules, updateRuntime, &operationsRuntime)); err != nil {
+	if err := agentoutput.ApplyDiskBudgetEnvironment(cfg.DiskBudget, configuredOutputFileCount(modules, updateRuntime, &operationsRuntime, configuredAlertOutput(cfg, configPath))); err != nil {
 		return fmt.Errorf("configure output disk budget: %w", err)
 	}
 	statusTracker := newStatusTracker(statusPath, cfg.EnterpriseID, licenseRuntime, modules)

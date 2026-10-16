@@ -249,30 +249,8 @@ func normalizeOperationsReportConfig(config operationsReportConfig) (operationsR
 // configuredOutputFileCount returns the global retention divisor. Paths are
 // deduplicated because two descriptors referring to one file must share one
 // budget slot rather than accidentally receiving twice the host allocation.
-func configuredOutputFileCount(modules []runtimeModule, updater *scheduledUpdateConfig, operations *operationsReportRuntime) int {
-	paths := make(map[string]bool)
-	for _, module := range modules {
-		if module.Spec.OutputPaths == nil {
-			continue
-		}
-		for _, path := range module.Spec.OutputPaths(module.Config.Args) {
-			path = strings.TrimSpace(path)
-			if path != "" && path != "-" {
-				paths[path] = true
-			}
-		}
-	}
-	if updater != nil {
-		if path := strings.TrimSpace(updater.StatusOutput); path != "" && path != "-" {
-			paths[path] = true
-		}
-	}
-	if operations != nil && operations.Enabled {
-		if path := strings.TrimSpace(operations.Output); path != "" && path != "-" {
-			paths[path] = true
-		}
-	}
-	return len(paths)
+func configuredOutputFileCount(modules []runtimeModule, updater *scheduledUpdateConfig, operations *operationsReportRuntime, alertPath string) int {
+	return len(configuredLogOutputs(modules, updater, operations, alertPath))
 }
 
 func enabledModules(cfg agentConfig) ([]runtimeModule, error) {

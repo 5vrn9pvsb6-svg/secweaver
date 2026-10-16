@@ -2,12 +2,56 @@ package behaviorlearning
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestSummaryFailureReasonDoesNotExposeLocalErrors(t *testing.T) {
+	err := fmt.Errorf("open /private/secret: %w", os.ErrPermission)
+	if got := summaryFailureReason(err); got != "summary_permission_denied" {
+		t.Fatalf("permission classification: %s", got)
+	}
+}
+
+// A valid checkpoint does not hide failure to read its independent runtime
+// summary. Diagnostics must not create state, reset progress or expose paths.
+func TestInspectStatusReportsSummaryFailure(t *testing.T) {
+	dir := t.TempDir()
+	cfg, _ := (Config{Enabled: true, StateDir: dir, OutputLog: filepath.Join(dir, "summary.log")}).Normalize()
+	store, err := OpenStore(dir, cfg.StateMB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	state := State{Version: 1, Device: "device", BaselineID: "base", Mode: "learning", Generation: cfg.Generation, Policy: policyHash(cfg), HealthySeconds: 241,
+		Entries: map[string]*Entry{}, Candidates: map[string]*Entry{}, LastSeen: map[string]time.Time{}}
+	if err := store.Commit(state); err != nil {
+		t.Fatal(err)
+	}
+	check := func(want string) {
+		t.Helper()
+		got, err := InspectStatus(cfg)
+		if err == nil || got.FilteringReason != want || got.HealthySeconds != 241 || got.FilteringActive {
+			t.Fatalf("status=%+v error=%v; want %s", got, err, want)
+		}
+	}
+	check("summary_missing")
+	if err := os.WriteFile(cfg.OutputLog, []byte("{}\n{bad json\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	check("summary_no_status")
+	if err := os.Remove(cfg.OutputLog); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(cfg.OutputLog, 0700); err != nil {
+		t.Fatal(err)
+	}
+	check("summary_read_failed")
+}
 
 // Status probes must not upgrade a baseline observation into proof of active
 // filtering after restart, policy change, or degraded input.
