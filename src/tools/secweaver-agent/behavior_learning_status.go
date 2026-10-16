@@ -94,6 +94,11 @@ func qualifyLearningRuntime(status behaviorlearning.StatusSnapshot, err error, h
 			status.FilteringActive, status.FilteringReason = false, "awaiting_current_runtime"
 		}
 	}
+	// The checkpoint may be intact while its sole owner is stopped/restarting.
+	// Runtime qualification can only remove readiness, never create it.
+	if status.FilteringReason != "active" && status.FilteringReason != "baseline_empty" {
+		status.RelearningEligible = false
+	}
 	return status
 }
 

@@ -189,7 +189,13 @@ func (w *riskLearning) tick() {
 		case <-ticker.C:
 			w.mu.Lock()
 			w.engine.Health(!w.lastPoll.IsZero() && time.Since(w.lastPoll) <= w.lease, false)
-			report.Observe(w.engine.Tick())
+			// Test doubles and legacy engines need no operation interface. The
+			// production sole writer consumes only its independent risk target.
+			var inboxErr error
+			if inbox, ok := w.engine.(interface{ PollRelearningInbox() error }); ok {
+				inboxErr = inbox.PollRelearningInbox()
+			}
+			report.Observe(errors.Join(inboxErr, w.engine.Tick()))
 			w.mu.Unlock()
 		case <-w.stop:
 			return

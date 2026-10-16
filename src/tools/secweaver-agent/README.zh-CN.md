@@ -1,5 +1,9 @@
 # secweaver-agent
 
+源码 **0.3.106** 实现认证的分类型追加学习窗口，不重启Agent/采集器，不清空已有可信名单。
+默认不启用，须配套新版Gateway/工作台及签名开始许可。真实Linux/Windows验收及不可变发布锁
+仍待完成，尚未部署。见[追加学习与离线恢复](docs/additional-learning.zh-CN.md)。
+
 源码 0.3.105 将自定义风险告警纳入全局日志预算，并在 `doctor` 文本和 JSON 中增加
 逐文件大小、轮转阈值、备份数量及轮转时间估计。备份修改时间不代表精确轮转时间，
 见[日志清单](docs/reliability-and-disk-protection.zh-CN.md#日志清单agent-03105)。

@@ -32,6 +32,9 @@ type evidence struct {
 // Engine owns its mutable state under mu. I/O is invoked by the bounded adapter
 // worker, never the kernel reader. Fault can concurrently invalidate matching.
 type Engine struct {
+	// Inbox polling fields are owned only by the existing adapter worker.
+	inboxPollAfter  time.Time
+	inboxDigest     [32]byte
 	mu              sync.Mutex
 	cfg             Config
 	store           *Store
@@ -219,6 +222,7 @@ func (e *Engine) Process(o Observation) error {
 	defer e.mu.Unlock()
 	e.applyFault()
 	now := e.now()
+	e.finishRelearning(now)
 	if e.cfg.simpleExec {
 		return e.processSimple(o, now)
 	}
@@ -480,7 +484,11 @@ func (e *Engine) Tick() error {
 		}
 	}
 	if e.state.Mode == "learning" {
-		if e.state.HealthySeconds >= float64(e.cfg.LearningSeconds) {
+		if e.state.Relearning != nil && e.state.Relearning.State == "learning" {
+			// Window-local bases preserve lifetime counters and policy identity.
+			// Terminal facts and the frozen admission state commit together.
+			e.finishRelearning(now)
+		} else if e.state.HealthySeconds >= float64(e.cfg.LearningSeconds) {
 			e.freeze(now)
 		} else if e.state.OnlineSeconds >= float64(e.cfg.OnlineDeadline) {
 			e.faultLocked("learning_deadline")

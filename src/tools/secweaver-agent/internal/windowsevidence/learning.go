@@ -188,7 +188,7 @@ func (w *Learning) tick() {
 			for i, engine := range w.engines() {
 				if engine != nil {
 					engine.Health(!w.lastPoll.IsZero() && time.Since(w.lastPoll) <= w.lease, false)
-					reports[i].Observe(engine.Tick())
+					reports[i].Observe(errors.Join(engine.PollRelearningInbox(), engine.Tick()))
 				}
 			}
 			w.mu.Unlock()

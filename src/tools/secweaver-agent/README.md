@@ -1,5 +1,11 @@
 # secweaver-agent
 
+Source **0.3.106** implements authenticated, per-stream additional-learning windows
+without restarting the Agent/collector or clearing trusted entries. It remains
+opt-in and requires the new Gateway/Workspace and a signed start grant. Native
+Linux/Windows acceptance and immutable release pins are still pending; not deployed.
+See [additional learning and offline recovery](docs/additional-learning.md).
+
 Source 0.3.105 includes custom risk alerts in the global log budget and adds
 per-log size/rotation/backup diagnostics to `doctor` text and JSON output.
 Rotation timestamps are explicitly backup-mtime estimates. See

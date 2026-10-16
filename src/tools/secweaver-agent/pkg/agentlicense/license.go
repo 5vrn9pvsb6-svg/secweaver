@@ -23,6 +23,7 @@ import (
 	"secweaver-agent/pkg/behaviorlearning"
 	"secweaver-agent/pkg/eventwhitelist/core"
 	"secweaver-agent/pkg/layout"
+	"secweaver-agent/pkg/learningoperation"
 )
 
 const (
@@ -68,6 +69,11 @@ type State struct {
 }
 
 type Request struct {
+	InstallationID     string                    `json:"installation_id,omitempty"`
+	BehaviorRelearning *learningoperation.Report `json:"behavior_relearning,omitempty"`
+	RelearningClaim    *struct {
+		OperationID string `json:"operation_id"`
+	} `json:"behavior_relearning_claim,omitempty"`
 	EnterpriseID        string                  `json:"enterprise_id"`
 	DeviceID            string                  `json:"device_id"`
 	HostName            string                  `json:"host_name"`
@@ -163,19 +169,23 @@ type ModuleHealth struct {
 }
 
 type Response struct {
-	Allowed               bool          `json:"allowed"`
-	Registered            bool          `json:"registered"`
-	ErrorCode             string        `json:"errorCode,omitempty"`
-	Reason                string        `json:"reason,omitempty"`
-	Message               string        `json:"message,omitempty"`
-	EnterpriseID          string        `json:"enterprise_id,omitempty"`
-	DeviceID              string        `json:"device_id,omitempty"`
-	DeviceKeyVersion      int           `json:"device_key_version,omitempty"`
-	MaxDevices            int           `json:"max_devices,omitempty"`
-	UsedDevices           int           `json:"used_devices,omitempty"`
-	SubscriptionExpiresAt string        `json:"subscription_expires_at,omitempty"`
-	ServerTime            string        `json:"server_time,omitempty"`
-	UpdatePolicy          *UpdatePolicy `json:"update_policy,omitempty"`
+	// Parse optional additions only at their consumer: malformed operation data
+	// must not invalidate an otherwise successful license heartbeat.
+	RelearningDelivery    json.RawMessage `json:"behavior_relearning_delivery,omitempty"`
+	RelearningGrant       json.RawMessage `json:"behavior_relearning_grant,omitempty"`
+	Allowed               bool            `json:"allowed"`
+	Registered            bool            `json:"registered"`
+	ErrorCode             string          `json:"errorCode,omitempty"`
+	Reason                string          `json:"reason,omitempty"`
+	Message               string          `json:"message,omitempty"`
+	EnterpriseID          string          `json:"enterprise_id,omitempty"`
+	DeviceID              string          `json:"device_id,omitempty"`
+	DeviceKeyVersion      int             `json:"device_key_version,omitempty"`
+	MaxDevices            int             `json:"max_devices,omitempty"`
+	UsedDevices           int             `json:"used_devices,omitempty"`
+	SubscriptionExpiresAt string          `json:"subscription_expires_at,omitempty"`
+	ServerTime            string          `json:"server_time,omitempty"`
+	UpdatePolicy          *UpdatePolicy   `json:"update_policy,omitempty"`
 	// AgentRuntimePolicy is an optional server-owned runtime envelope. Older
 	// Agents ignore the additive response field; newer Agents apply it only
 	// after validating the bounded values locally.
@@ -454,6 +464,12 @@ func (c Client) HeartbeatWithUpdateAndLearning(ctx context.Context, cfg Config, 
 // HeartbeatWithCollectionRules keeps the older API and wire clients unchanged.
 // Only device-authenticated capable Agents receive signed optional policies.
 func (c Client) HeartbeatWithCollectionRules(ctx context.Context, cfg Config, enterpriseID, agentVersion string, modules map[string]ModuleHealth, updateStatus *UpdateReport, learning *behaviorlearning.StatusSnapshot, capabilities []string, rules *core.Status) (Response, error) {
+	return c.HeartbeatWithRelearning(ctx, cfg, enterpriseID, agentVersion, modules, updateStatus, learning, capabilities, rules, nil)
+}
+
+// HeartbeatWithRelearning leaves all older APIs/legacy payloads unchanged.
+// Only a signed V2 full heartbeat advertises the optional fixed operation.
+func (c Client) HeartbeatWithRelearning(ctx context.Context, cfg Config, enterpriseID, agentVersion string, modules map[string]ModuleHealth, updateStatus *UpdateReport, learning *behaviorlearning.StatusSnapshot, capabilities []string, rules *core.Status, report *learningoperation.Report) (Response, error) {
 	cfg = cfg.Normalize()
 	if err := cfg.Validate(); err != nil {
 		return Response{}, err
@@ -486,6 +502,10 @@ func (c Client) HeartbeatWithCollectionRules(ctx context.Context, cfg Config, en
 		req.CollectionRuleCapabilities = capabilities
 		req.CollectionRules = rules
 		req.EnterpriseID = state.EnterpriseID
+		if learningoperation.ValidReport(report) {
+			req.BehaviorRelearning = report
+			req.InstallationID = state.InstallationID
+		}
 		return c.postSigned(ctx, cfg, heartbeatV2Path, req, state)
 	}
 	resp, err := c.post(ctx, cfg, heartbeatPath, req)

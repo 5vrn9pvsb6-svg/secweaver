@@ -122,8 +122,11 @@ func (s *Store) Load() (*State, error) {
 	if err = json.Unmarshal(envelope.State, &state); err != nil {
 		return nil, err
 	}
-	if state.Version != 1 || state.Entries == nil || state.Candidates == nil || state.LastSeen == nil {
+	if (state.Version != 1 && state.Version != 2) || state.Entries == nil || state.Candidates == nil || state.LastSeen == nil {
 		return nil, fmt.Errorf("incompatible learning checkpoint")
+	}
+	if err := validateRelearningState(state); err != nil {
+		return nil, err
 	}
 	return &state, nil
 }
@@ -184,7 +187,9 @@ func (s *Store) read(name string, max int64) ([]byte, error) {
 	if !stateFilePermissionsOK(st) {
 		return nil, fmt.Errorf("insecure learning state permissions: %s", name)
 	}
-	f, err := os.Open(path)
+	// Lock-free inbox readers must allow atomic replacement on Windows as status
+	// readers do; os.Open would omit FILE_SHARE_DELETE and briefly block writers.
+	f, err := openSummaryFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -195,6 +200,13 @@ func (s *Store) read(name string, max int64) ([]byte, error) {
 // atomic retains the previous valid checkpoint until rename, and fsyncs its
 // parent before reporting success. Temporary files are removed on all failures.
 func (s *Store) atomic(name string, body []byte) error {
+	if _, err := os.Lstat(filepath.Join(s.dir, "relearning-backup.json")); err == nil {
+		if err := s.relearningBudget(int64(len(body))); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	return writeStateFile(filepath.Join(s.dir, name), body)
 }
 

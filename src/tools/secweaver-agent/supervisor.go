@@ -14,6 +14,7 @@ import (
 
 	"secweaver-agent/internal/modulecontract"
 	"secweaver-agent/pkg/agentlicense"
+	"secweaver-agent/pkg/behaviorlearning"
 	"secweaver-agent/pkg/eventwhitelist"
 	"secweaver-agent/pkg/metrics"
 	agentoutput "secweaver-agent/pkg/output"
@@ -54,6 +55,15 @@ func runSupervisor(ctx context.Context, modules []runtimeModule, updater *schedu
 					}
 				}
 				modules[i].CollectionEnv = controller.Env(modules[i].Spec.Name)
+				// Only this installed V2 identity can supply operation bindings to
+				// existing child workers. Network envelopes cannot choose a path.
+				public := cfg.CollectionRules.PublicKey
+				if public == "" {
+					public = eventwhitelist.DefaultPublicKey
+				}
+				modules[i].CollectionEnv = withEnvValue(modules[i].CollectionEnv, eventwhitelist.PublicKeyEnv, public)
+				modules[i].CollectionEnv = withEnvValue(modules[i].CollectionEnv, behaviorlearning.RelearningDataEnv, filepath.Dir(licenseCfg.Normalize().StatePath))
+				modules[i].CollectionEnv = withEnvValue(modules[i].CollectionEnv, behaviorlearning.RelearningInstallationEnv, state.InstallationID)
 			}
 		}
 	}

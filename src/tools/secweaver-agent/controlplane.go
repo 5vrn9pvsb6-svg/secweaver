@@ -10,6 +10,7 @@ import (
 
 	"secweaver-agent/pkg/agentlicense"
 	"secweaver-agent/pkg/agentupdate"
+	"secweaver-agent/pkg/learningoperation"
 	"secweaver-agent/pkg/metrics"
 )
 
@@ -212,15 +213,24 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 			for name, h := range moduleHealth {
 				pids[name] = h.PID
 			}
-			resp, err := (agentlicense.Client{}).HeartbeatWithCollectionRules(
+			learningStatus := behaviorLearningStatus(runtimeModules, moduleHealth, cfg, enterpriseID)
+			binding, bindingErr := localRelearningBinding(cfg, configPath)
+			var relearningTelemetry *learningoperation.Report
+			if bindingErr == nil {
+				if report, reportErr := relearningReport(binding, learningStatus); reportErr == nil {
+					relearningTelemetry = report
+				}
+			}
+			resp, err := (agentlicense.Client{}).HeartbeatWithRelearning(
 				checkCtx,
 				cfg,
 				enterpriseID,
 				version,
 				moduleHealth,
 				updateHeartbeatReport(updater),
-				behaviorLearningStatus(runtimeModules, moduleHealth, cfg, enterpriseID),
+				learningStatus,
 				controller.Capabilities(), controller.Status(pids),
+				relearningTelemetry,
 			)
 			cancel()
 			if metricsExporter != nil {
@@ -237,6 +247,9 @@ func runScheduledHeartbeat(ctx context.Context, runtimeModules []runtimeModule, 
 				fmt.Fprintf(os.Stderr, "license heartbeat unavailable; Agent remains active and will reconnect: %v\n", err)
 				nextWait = heartbeatBackoff(nextWait, interval)
 			} else {
+				if operationErr := acceptRelearningDelivery(ctx, binding, cfg, relearningTelemetry, resp, updater); operationErr != nil {
+					fmt.Fprintln(os.Stderr, "optional relearning delivery deferred; existing collection retained")
+				}
 				if policyErr := controller.Apply(resp.CollectionRulesEnvelope); policyErr != nil {
 					fmt.Fprintln(os.Stderr, "collection policy apply failed; last valid policy retained")
 				}

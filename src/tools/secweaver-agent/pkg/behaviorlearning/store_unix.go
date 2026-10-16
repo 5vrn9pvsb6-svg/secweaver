@@ -10,6 +10,9 @@ import (
 func protectStateDirectory(path string) error    { return os.Chmod(path, 0700) }
 func stateFilePermissionsOK(st os.FileInfo) bool { return st.Mode().Perm() == 0600 }
 
+// Operation readers must not silently repair a directory writable by others.
+func operationDirectoryPrivate(_ string, st os.FileInfo) bool { return st.Mode().Perm() == 0700 }
+
 // Unix readers retain their original inode across a concurrent rename.
 func openSummaryFile(path string) (*os.File, error) { return os.Open(path) }
 

@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -229,7 +230,7 @@ func (w *learningOutput) run() {
 		case <-tick.C:
 			for i, engine := range w.engines() {
 				if engine != nil {
-					reports[i].Observe(engine.Tick())
+					reports[i].Observe(errors.Join(engine.PollRelearningInbox(), engine.Tick()))
 				}
 			}
 		case <-healthTick.C:

@@ -127,7 +127,10 @@ type Entry struct {
 // State is a checkpoint, not an event log. Only Store may commit it. Legacy rate
 // counters need restart warm-up; the simple strategy restores exact entries.
 type State struct {
-	Strategy string `json:"strategy,omitempty"`
+	// Relearning exists only in checkpoint v2. Its sequence survives completion
+	// so replay cannot reopen learning after a clean process restart.
+	Relearning *RelearningWindow `json:"relearning,omitempty"`
+	Strategy   string            `json:"strategy,omitempty"`
 	// Seen contains HMAC source IDs for the simple policy's one-hour dedup window.
 	// Legacy checkpoints omit it, preserving their serialization and semantics.
 	Seen           map[string]time.Time `json:"seen,omitempty"`

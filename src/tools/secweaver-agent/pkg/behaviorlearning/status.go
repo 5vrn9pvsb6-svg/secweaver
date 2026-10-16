@@ -10,6 +10,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"secweaver-agent/pkg/learningoperation"
 	"strings"
 	"time"
 )
@@ -20,20 +21,23 @@ var errSummaryNoStatus = errors.New("learning summary has no status record")
 // It intentionally contains progress, readiness and bounded counters only; baseline fingerprints and
 // command arguments never leave the host through this status object.
 type StatusSnapshot struct {
-	EngineCoverage   *EngineCoverage `json:"engine_coverage,omitempty"`
-	Enabled          bool            `json:"enabled"`
-	Mode             string          `json:"mode"`
-	Shadow           bool            `json:"shadow"`
-	StartedAt        string          `json:"started_at,omitempty"`
-	RemainingSeconds int64           `json:"remaining_seconds,omitempty"`
-	FilteringActive  bool            `json:"filtering_active"`
-	HealthySeconds   float64         `json:"healthy_seconds,omitempty"`
-	BaselineEntries  int             `json:"baseline_entries,omitempty"`
-	CandidateEntries int             `json:"candidate_entries,omitempty"`
-	Reason           string          `json:"reason,omitempty"`
-	UpdatedAt        string          `json:"updated_at,omitempty"`
-	FilteringReason  string          `json:"filtering_reason,omitempty"`
-	CountsReported   bool            `json:"counts_reported,omitempty"`
+	RelearningToken    string                      `json:"relearning_token,omitempty"`
+	RelearningEligible bool                        `json:"relearning_eligible,omitempty"`
+	Relearning         *learningoperation.Progress `json:"relearning,omitempty"`
+	EngineCoverage     *EngineCoverage             `json:"engine_coverage,omitempty"`
+	Enabled            bool                        `json:"enabled"`
+	Mode               string                      `json:"mode"`
+	Shadow             bool                        `json:"shadow"`
+	StartedAt          string                      `json:"started_at,omitempty"`
+	RemainingSeconds   int64                       `json:"remaining_seconds,omitempty"`
+	FilteringActive    bool                        `json:"filtering_active"`
+	HealthySeconds     float64                     `json:"healthy_seconds,omitempty"`
+	BaselineEntries    int                         `json:"baseline_entries,omitempty"`
+	CandidateEntries   int                         `json:"candidate_entries,omitempty"`
+	Reason             string                      `json:"reason,omitempty"`
+	UpdatedAt          string                      `json:"updated_at,omitempty"`
+	FilteringReason    string                      `json:"filtering_reason,omitempty"`
+	CountsReported     bool                        `json:"counts_reported,omitempty"`
 	// Only the heartbeat root sets Streams; each value is a leaf. Old consumers
 	// keep reading the top-level exec projection. No baseline content is sent.
 	Streams map[string]StatusSnapshot `json:"streams,omitempty"`
@@ -225,6 +229,10 @@ func Snapshot(cfg Config, state *State, latest *Summary, now time.Time) StatusSn
 		return result
 	}
 	result.Mode = state.Mode
+	result.RelearningToken = baselineToken(state)
+	if w := state.Relearning; w != nil {
+		result.Relearning = &learningoperation.Progress{OperationID: w.OperationID, Sequence: w.Sequence, Result: relearningResult(*state)}
+	}
 	result.Shadow = cfg.Shadow
 	if !state.Started.IsZero() {
 		result.StartedAt = state.Started.UTC().Format(time.RFC3339)
@@ -235,7 +243,12 @@ func Snapshot(cfg Config, state *State, latest *Summary, now time.Time) StatusSn
 	result.CandidateEntries = len(state.Candidates)
 	result.Reason = strings.TrimSpace(state.Reason)
 	if result.Mode == "learning" {
-		remaining := int64(math.Ceil(float64(cfg.LearningSeconds) - state.HealthySeconds))
+		target := float64(cfg.LearningSeconds)
+		if state.Relearning != nil && state.Relearning.State == "learning" {
+			target = state.Relearning.HealthyBase + 86400
+			result.StartedAt = state.Relearning.StartedAt.UTC().Format(time.RFC3339)
+		}
+		remaining := int64(math.Ceil(target - state.HealthySeconds))
 		if remaining > 0 {
 			result.RemainingSeconds = remaining
 		}
@@ -274,5 +287,7 @@ func Snapshot(cfg Config, state *State, latest *Summary, now time.Time) StatusSn
 		result.FilteringActive = true
 		result.FilteringReason = "active"
 	}
+	result.RelearningEligible = cfg.simpleExec && simpleStrategyKnown(state.Strategy) && state.Mode == "enforcing" &&
+		(result.FilteringReason == "active" || result.FilteringReason == "baseline_empty")
 	return result
 }

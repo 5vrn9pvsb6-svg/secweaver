@@ -46,6 +46,15 @@ func (s *Store) appendAdmission(baseline string, entry *Entry, at time.Time) err
 	if !info.Mode().IsRegular() || !stateFilePermissionsOK(info) || info.Size()+int64(len(line)) > s.limit/3 {
 		return fmt.Errorf("invalid or full admission journal")
 	}
+	if _, err := os.Lstat(filepath.Join(s.dir, "relearning-backup.json")); err == nil {
+		// A retained pre-window backup participates in the same disk budget;
+		// reserve space before admission becomes enforceable in memory.
+		if err := s.relearningBudget(int64(len(line))); err != nil {
+			return err
+		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return err

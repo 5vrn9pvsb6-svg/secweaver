@@ -4,6 +4,7 @@ package behaviorlearning
 
 import (
 	"os"
+	"strings"
 
 	"golang.org/x/sys/windows"
 )
@@ -25,6 +26,22 @@ func protectStateDirectory(path string) error {
 
 // Windows exposes synthetic mode bits; the protected directory ACL owns access.
 func stateFilePermissionsOK(os.FileInfo) bool { return true }
+
+// Unlike synthetic mode bits, the protected DACL proves that children inherit
+// access only for SYSTEM/Administrators. Unknown ACL shapes fail closed.
+func operationDirectoryPrivate(path string, _ os.FileInfo) bool {
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		return false
+	}
+	text := sd.String()
+	at := strings.Index(text, "D:")
+	if at < 0 {
+		return false
+	}
+	dacl := text[at:]
+	return dacl == "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)" || dacl == "D:P(A;OICI;FA;;;BA)(A;OICI;FA;;;SY)"
+}
 
 // openSummaryFile lets a status reader keep its old complete snapshot while the
 // writer atomically replaces the path. os.Open omits FILE_SHARE_DELETE on
