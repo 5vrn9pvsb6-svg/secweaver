@@ -1,5 +1,18 @@
 # Changelog
 
+## Agent [0.3.107] - 2026-10-22
+
+- Add opt-in `exec.local_backend_listeners` with exact loopback IP, TCP port and
+  executable matching, collecting independently managed PHP-FPM/backend trees
+  without falsely assigning them to Nginx or merging unrelated same-exe instances.
+- Resolve inherited-FD workers through verified same-executable parent lifetimes;
+  reuse existing Audit/eBPF tracking, bounded discovery, restart reconciliation,
+  exclusions and learning without resetting existing baselines.
+- Add read-only Doctor eligibility/gap diagnostics, IPv6 procfs loopback decoding
+  and regressions for admission, exclusions, PID reuse and independent attribution.
+- Document opt-in migration, shared-FD and namespace limitations, operational
+  verification and the distinction between backend collection and proxy attribution.
+
 ## Agent [0.3.105] - 2026-10-16
 
 - Include device-v2 custom-risk-alert output in the shared Linux/Windows log

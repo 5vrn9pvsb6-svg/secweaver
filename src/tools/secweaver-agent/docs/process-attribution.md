@@ -100,9 +100,76 @@ Discovery first uses `netstat -tlnp`. Command failure, missing PIDs or incomplet
 
 - Each listener PID has an independent root identity. Shared Java/Nginx executables or bind addresses do not merge distinct PIDs. Bootstrap starts at the actual socket owner and expands downward, without seeding all processes running the same executable into one service.
 - Executable rules remain a collection optimization, but their hits are only candidates. Both `audit_pid` and auxiliary eBPF audit records require real ancestry and root lifetime validation, rather than an executable's old label.
-- Independent PHP-FPM, Gunicorn, Puma and other backends are no longer assigned to the first Nginx/Apache gateway. Only verified descendants inherit it; independent backends need their own discoverable listener root. Independent Unix-socket-only or loopback-only backends are not automatically included. This release adds no explicit proxy-mapping configuration.
+- Independent PHP-FPM, Gunicorn, Puma and other backends are not assigned to the first Nginx/Apache gateway. Only verified descendants inherit it; independent backends use their own listener roots. Agent 0.3.107 adds explicit loopback TCP admission below, not proxy mapping; Unix-socket-only backends remain outside this entry point.
 - Discovery remains limited to filtered, non-loopback TCP LISTEN sockets in the Agent's network namespace. It does not enumerate every container namespace or equate host NAT/proxies with application roots. The default listener rescan is five minutes.
 - When multiple processes share a socket FD, a discovery source may expose only one owner. Other owners are not merged merely by executable equality. Verify the actual master/worker topology; arbitrary shared-FD topologies are not guaranteed complete coverage.
+
+## Explicit Local Backends (Agent 0.3.107)
+
+### Goal and Limits
+
+Fix the exec blind spot when Nginx uses `fastcgi_pass 127.0.0.1:9000` with independently
+managed PHP-FPM. A network request graph is not an OS parent-child graph: collect the
+backend without falsely labeling it as a Nginx descendant. This is a Linux local
+configuration entry point, not a Server protocol, event-schema or learning-policy change.
+
+Merge into the existing `exec` block in `/opt/secweaver-agent/etc/audit-port-execmon.json`:
+
+```json
+{
+  "monitor": true,
+  "track_descendants": true,
+  "local_backend_listeners": [
+    {"address": "127.0.0.1", "port": 9000, "exe": "/usr/sbin/php-fpm"}
+  ]
+}
+```
+
+- The default list is empty. Upgrades do not silently enable broader scope or reset baselines. Use the resolved absolute executable from `readlink /proc/<socket-owner-pid>/exe`, not a command name, regex or symlink alias.
+- At most 64 entries; each requires an exact loopback IP literal (IPv4/IPv6), TCP port 1–65535 and executable path. Invalid configuration is rejected before tracking/rule installation.
+- Existing `-port`, `exec.listener_ports`, unmigrated `whitelist_ports` and enterprise `exclude_listener` still apply. Nonempty port selections must include the backend port. Child commands require `exec.monitor=true` and `track_descendants=true`.
+- Uses existing Linux amd64/arm64 eBPF or Audit backends and the existing available Audit backend on Linux loong64. eBPF-only remains exec/process-lifecycle only; no file/network capability is added. Windows does not use this Linux entry point.
+- No cross-network-namespace, remote backend or Unix socket admission, HTTP request tracing or guessed frontend/tenant association. Arbitrary shared-FD topologies remain unsupported.
+
+### Modules and Flow
+
+```mermaid
+flowchart TD
+    A[netstat / bounded procfs fallback] --> B{External listener or explicit loopback endpoint}
+    B -->|Loopback| C[Exact exe and PID lifetime verification]
+    C --> D[Walk actual same-exe parents to master]
+    B -->|External| E[Existing listener root]
+    D --> F[Independent backend root]
+    E --> G[Existing Audit/eBPF tracking and lifecycle]
+    F --> G
+    G --> H[Custom rules / learning / JSONL]
+    I[Read-only doctor] --> A
+```
+
+`listeners.go` owns shared discovery/exclusions/admission; `local_backends.go` owns
+validation and independent root resolution. Existing monitor code owns bootstrap,
+descendants, root generations and cleanup; `local_backend_coverage.go` / `doctor`
+perform read-only inspection. If netstat exposes a PHP worker holding an inherited
+FD, only verified actual same-executable parents (at most 64 hops) may resolve its
+master, whose existing descendants are then seeded. Independent same-executable
+instances are not merged. Missing/reused PIDs and executable mismatches fail admission.
+Backend restarts use the existing 300-second rescan; later fork/exec remains event-driven.
+An exhausted FD scan budget cannot prune previous scope from partial discovery;
+an initial discovery failure is reported explicitly.
+
+### Activation, Verification and Recovery
+
+1. Back up configuration; verify the endpoint, owning PID and resolved exe with `netstat -tlnp` and procfs. Merge fields without replacing other `exec` settings or changing learning generations.
+2. With the fixed Agent, run `secweaver-agent doctor --verbose --check-license=false`. `exec/local-backends` reports `unconfigured`, `identity_mismatch`, `not_listening`, `policy_limited` or `eligible`. Known PHP-FPM/Gunicorn-style loopback backends without selectors produce warnings. Silence does not prove coverage of arbitrary runtimes, Unix sockets or containers.
+3. `eligible` means discovery/local-policy eligibility only, not proof of a running service, installed kernel tracking, signed-rule allowance or SLS delivery. Restart `secweaver-agent` after editing configuration; startup stderr prints `explicit local backend root`.
+4. Execute a harmless unique command in an isolated test application. Verify `listener_process=php-fpm`, `listener_address=127.0.0.1`, `listener_port=9000`, command and actual parent in local `audit-port-execmon.log`, then separately verify ES/SLS delivery. Learning/custom rules may still filter known commands; repeated commands alone cannot diagnose collection failure.
+5. Remove entries and restart to restore previous scope. No host reboot or learning reset is needed. The fix cannot reconstruct exec events never collected before the update.
+
+Regression coverage includes independent Nginx/PHP, shared-FD worker/master selection,
+same-executable instance isolation, PID reuse, port exclusions, missing/failed netstat,
+IPv6 loopback and Audit/eBPF userspace pipelines. These do not replace native Linux
+eBPF attachment, real PHP-FPM execution or cloud-delivery acceptance; record those
+results separately when releasing.
 
 ## Event snapshots, active tracking and historical evidence
 

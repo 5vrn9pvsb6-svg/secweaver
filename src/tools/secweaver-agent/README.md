@@ -1,5 +1,12 @@
 # secweaver-agent
 
+Source **0.3.107** adds explicit, exact-match loopback TCP backend collection
+and read-only `doctor` coverage warnings. Independent PHP-FPM is recorded as its
+own root, not guessed to belong to Nginx. Existing scope/learning is preserved;
+configure `exec.local_backend_listeners` to opt in. See
+[local backend collection](docs/process-attribution.md#explicit-local-backends-agent-03107).
+This source change is not a deployment.
+
 Source **0.3.106** implements authenticated, per-stream additional-learning windows
 without restarting the Agent/collector or clearing trusted entries. It remains
 opt-in and requires the new Gateway/Workspace and a signed start grant. Native

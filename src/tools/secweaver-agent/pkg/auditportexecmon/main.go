@@ -147,12 +147,20 @@ func Main(args []string) int {
 	selfPID := os.Getpid()
 	selfBranch := collectSelfBranchPIDs(selfPID, selfExe)
 
-	listeners, err := findExternalListeners(port, whitelistPorts)
+	listeners, err := findMonitoredListeners(port, whitelistPorts, cfg.Exec.LocalBackendListeners)
 	if err != nil {
 		fatalf("定位对外监听端口进程失败：%v", err)
 	}
 	listeners, skippedSelfListeners := filterSelfListeners(listeners, selfPID, selfExe, selfBranch)
-	if len(listeners) == 0 && eventwhitelist.ListenerRevision() == 0 {
+	for _, listener := range listeners {
+		if isLoopback(listener.Address) {
+			fmt.Fprintf(os.Stderr, "explicit local backend root: pid=%d process=%s exe=%s address=%s port=%d; frontend association=unverified\n", listener.PID, listener.Process, listener.LocalBackendExe, listener.Address, listener.Port)
+		}
+	}
+	if len(listeners) == 0 && len(cfg.Exec.LocalBackendListeners) > 0 {
+		fmt.Fprintln(os.Stderr, "configured local backend scope is empty; reconciliation remains active; run doctor --verbose to inspect endpoint/exe and policy limits")
+	}
+	if len(listeners) == 0 && eventwhitelist.ListenerRevision() == 0 && len(cfg.Exec.LocalBackendListeners) == 0 {
 		if skippedSelfListeners > 0 {
 			fatalf("定位对外监听端口进程失败：只发现 secweaver-agent 自身监听，已排除；没有其他需要监控的对外监听端口")
 		}
@@ -272,6 +280,7 @@ func Main(args []string) int {
 	}
 
 	monitor := newProcessTreeMonitor(listeners, port, whitelistPorts, execKey, connectKey, fileKey, sensitiveFileKey, cloneKey, includePPID, monitorExec, execListenerPorts, monitorConnect, connectListenerPorts, skipConnectListenerPorts, skipConnectProcessNames, skipConnectExePatterns, monitorFileOps, fileListenerPorts, monitorSensitiveFileReads, sensitiveFilePaths, auditArches, javaMonitorMode)
+	monitor.localBackendListeners = append([]localBackendListener(nil), cfg.Exec.LocalBackendListeners...)
 	monitor.setProcessTracker(processBackend, processTracker)
 	monitor.setEBPFOnly(collectionMode == auditCollectionModeEBPFOnly)
 	monitor.setMaxAuditRules(maxAuditRules)

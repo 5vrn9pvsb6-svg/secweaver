@@ -113,6 +113,7 @@ func collectDoctorReport(configPath string, checkLicense bool) doctorReport {
 			doctorCheckWindowsLearning(cfg, modules, sysmon, add)
 		} else if runtime.GOOS == "linux" {
 			doctorCheckLinuxLearning(modules, add)
+			doctorCheckLinuxBackends(modules, add)
 		}
 		doctorCheckService(add)
 		doctorCheckSLSIdentity(cfg, configPath, add)

@@ -69,15 +69,16 @@ type processTreeMonitor struct {
 
 	// Agent identity and listener ownership. selfBranch prevents the supervisor,
 	// this module, and their auditctl maintenance children from monitoring itself.
-	selfPID        int
-	selfExe        string
-	selfBranch     map[int]bool
-	portFilter     int
-	whitelistPorts map[int]bool
-	listeners      []listenerInfo
-	pidListener    map[int]listenerInfo
-	processTracker processtracker.Tracker
-	processBackend string
+	selfPID               int
+	selfExe               string
+	selfBranch            map[int]bool
+	portFilter            int
+	whitelistPorts        map[int]bool
+	localBackendListeners []localBackendListener // immutable after startup; reused by reconciliation
+	listeners             []listenerInfo
+	pidListener           map[int]listenerInfo
+	processTracker        processtracker.Tracker
+	processBackend        string
 	// ebpfOnly suppresses every auditctl mutation owned by this monitor. eBPF
 	// process events remain active, while audit-backed connect/file/sensitive
 	// evidence is reported as unavailable by the product preflight.
@@ -139,8 +140,8 @@ type processTreeMonitor struct {
 	auditArches               []string
 	javaMonitorMode           string
 
-	// Companion backends are separate process trees (for example php-fpm behind
-	// nginx) whose events are attributed to the gateway listener.
+	// Companion inheritance requires verified gateway ancestry. Independent
+	// loopback backends use their own explicitly discovered listener identity.
 	companionLogged map[string]bool
 	pidTargets      map[int]trackingTarget
 	exeTargets      map[string]trackingTarget

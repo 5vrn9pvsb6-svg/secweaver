@@ -28,6 +28,9 @@ type execSettings struct {
 	ProcessTreeBackend string       `json:"process_tree_backend"`
 	FallbackBackend    string       `json:"fallback_backend"`
 	EBPF               ebpfSettings `json:"ebpf"`
+	// LocalBackendListeners explicitly admits independent loopback backends;
+	// it never asserts that a backend belongs to a particular reverse proxy.
+	LocalBackendListeners []localBackendListener `json:"local_backend_listeners,omitempty"`
 }
 
 type ebpfSettings struct {
@@ -417,6 +420,9 @@ func loadConfig(path string) (config, error) {
 		return config{}, err
 	}
 	cfg.normalize()
+	if err := validateLocalBackendListeners(cfg.Exec.LocalBackendListeners); err != nil {
+		return config{}, err
+	}
 	if !validAuditCollectionMode(cfg.Audit.Mode) {
 		return config{}, fmt.Errorf("audit.mode 只能是 %q、%q 或 %q", auditCollectionModeAuto, auditCollectionModeAudit, auditCollectionModeEBPFOnly)
 	}

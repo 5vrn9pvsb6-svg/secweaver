@@ -30,6 +30,7 @@
   "exec": {
     "monitor": true,
     "listener_ports": [],
+    "local_backend_listeners": [],
     "track_descendants": true,
     "java_monitor_mode": "hybrid",
     "process_tree_backend": "auto",

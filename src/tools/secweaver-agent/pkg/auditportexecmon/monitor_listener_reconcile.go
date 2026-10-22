@@ -25,7 +25,7 @@ func (m *processTreeMonitor) rescanNewListeners() {
 	// Clone events cover the interval between scans; this pass repairs socket
 	// ownership changes, daemon restarts, and processes missed by audit races.
 	revision := eventwhitelist.ListenerRevision()
-	listeners, err := findExternalListeners(m.portFilter, m.whitelistPorts)
+	listeners, err := findMonitoredListeners(m.portFilter, m.whitelistPorts, m.localBackendListeners)
 	if err != nil {
 		return
 	}

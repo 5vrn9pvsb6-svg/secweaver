@@ -90,9 +90,68 @@ sudo env SECWEAVER_EBPF_PARENT_INTEGRATION=1 go test \
 
 - 每个监听 PID 独立建立根身份，相同 Java/Nginx 可执行文件或相同监听地址不会把独立 PID 合并。初始化从实际 socket 持有 PID 开始，再向后代扩展；不会把所有同 exe 进程播种为一个服务。
 - exe 规则仍可降低采集规则成本，但命中只代表候选事件。`audit_pid` 及 eBPF 辅助 audit 同样必须验证真实祖先和根生命周期，不能直接返回 exe 对应的旧标签。
-- 不再将独立 PHP-FPM、Gunicorn、Puma 等进程自动挂到第一个 Nginx/Apache。只有可验证的后代能继承该网关；独立后端应按自己的可发现监听根采集。仅使用 Unix socket 或 loopback 的独立后端不会因此自动纳入，此版本没有新增显式代理映射配置。
+- 不再将独立 PHP-FPM、Gunicorn、Puma 等进程自动挂到第一个 Nginx/Apache。只有可验证的后代能继承该网关；独立后端按自己的监听根采集。0.3.107 增加下述 loopback TCP 显式准入，但没有新增代理映射；Unix socket 后端仍不在此入口范围内。
 - 当前自动发现范围仍是 Agent 所在网络命名空间内、经过端口过滤的非 loopback TCP LISTEN；不遍历所有容器网络命名空间，也不将宿主机 NAT/proxy 等同于容器应用根。默认监听重扫为 5 分钟。
 - 多个进程共享同一个 socket FD 时，发现源可能只提供一个持有者；其他持有者不会仅因 exe 相同就自动合并。需要验证具体 master/worker 拓扑，不能宣称任意共享 FD 拓扑都覆盖完整。
+
+## 显式本地后端（Agent 0.3.107）
+
+### 目标与边界
+
+修复 Nginx 经 `fastcgi_pass 127.0.0.1:9000` 调用独立 systemd PHP-FPM 时的 exec 盲区。
+网络请求链不是操作系统父子链：不能把独立 PHP-FPM 强行归给 Nginx，也不能因只监听回环而永远不采集。
+本次仅增加 Linux 本地配置入口，不改 Server 协议、业务日志结构、学习规则或学习状态。
+
+在 `/opt/secweaver-agent/etc/audit-port-execmon.json` 的已有 `exec` 块合并：
+
+```json
+{
+  "monitor": true,
+  "track_descendants": true,
+  "local_backend_listeners": [
+    {"address": "127.0.0.1", "port": 9000, "exe": "/usr/sbin/php-fpm"}
+  ]
+}
+```
+
+- 默认空列表，升级不会静默开启或清空名单。实际 exe 以 `readlink /proc/<持有者PID>/exe` 为准，填写解析后的绝对路径，不填写命令名、正则或符号链接别名。
+- 最多 64 项，每项必须同时匹配回环 IP 字面量（支持 IPv4/IPv6）、TCP 端口 1–65535 和可执行路径。配置错误在安装跟踪/审计规则前拒绝。
+- `-port`、`exec.listener_ports`、未迁移的 `whitelist_ports` 和企业 `exclude_listener` 继续生效；非空端口限制需包含后端端口。命令子进程采集还需要 `exec.monitor=true` 与 `track_descendants=true`。
+- 使用既有 Linux amd64/arm64 eBPF 或 Audit 后端；Linux loong64 使用其原有可用 Audit 后端。eBPF-only 仍只有 exec/进程生命周期能力，不因此获得文件/网络事件。Windows 不使用此 Linux 入口。
+- 不扩展到其他网络命名空间、远程后端或 Unix socket；不推断真实 HTTP 请求、前端网关或租户归属。任意共享 FD 拓扑仍不保证覆盖。
+
+### 模块与流程
+
+```mermaid
+flowchart TD
+    A[netstat / 有界 procfs 回退] --> B{外部监听或显式回环 endpoint}
+    B -->|回环| C[精确 exe 与 PID 生命周期校验]
+    C --> D[沿真实同 exe 父链定位 master]
+    B -->|外部| E[原有监听根]
+    D --> F[独立后端监听根]
+    E --> G[现有 Audit/eBPF 跟踪与生命周期管理]
+    F --> G
+    G --> H[自定义规则 / 学习过滤 / JSONL]
+    I[doctor 只读检查] --> A
+```
+
+`listeners.go` 统一执行发现、端口排除和准入；`local_backends.go` 负责配置校验及独立根识别；
+现有 monitor 负责 bootstrap、后代跟踪、根代次和清理；`local_backend_coverage.go` / `doctor` 只读诊断。
+netstat 返回 PHP worker 时，仅沿可验证的真实同 exe 父链向上最多 64 层寻找 master，再播种其现有后代。
+不会扫描全部同 exe 进程作为同一服务；不同实例保持隔离。PID 消失、复用、exe 不匹配均不准入。
+后端停止/重启沿用默认 300 秒重扫，后续 fork/exec 使用实时事件。
+FD 扫描预算耗尽时不按不完整结果裁剪既有范围；初次发现失败则明确报错。
+
+### 配置生效、验收与恢复
+
+1. 备份配置，确认 `netstat -tlnp` 的监听地址、端口及持有 PID、解析后的 exe，再合并上述字段。不要覆盖整个 `exec` 块或修改学习 generation。
+2. 更新到包含本修复的 Agent 后执行 `secweaver-agent doctor --verbose --check-license=false`。`exec/local-backends` 可显示 `unconfigured`、`identity_mismatch`、`not_listening`、`policy_limited` 或 `eligible`。已知 PHP-FPM/Gunicorn 等只监听回环但未配置时会提示；没有告警不代表任意语言/Unix socket/容器后端均已覆盖。
+3. `eligible` 只表示当前发现与本地配置符合，不证明服务正运行、eBPF map 已写入、签名规则允许或 SLS 已收录。配置变更需 `systemctl restart secweaver-agent`；启动 stderr 会打印 `explicit local backend root`。
+4. 在隔离测试应用执行无害的唯一命令，核对本地 `audit-port-execmon.log` 的 `listener_process=php-fpm`、`listener_address=127.0.0.1`、`listener_port=9000` 和真实命令父进程，再独立核对 SLS/ES。学习/自定义规则仍可能过滤已知命令，不能仅用重复命令断定采集失败。
+5. 移除显式条目并重启即可恢复原范围；不需要重启主机或重置学习状态。这个修复不能找回升级前未采集的 exec。
+
+回归测试覆盖独立 Nginx/PHP、共享 FD worker/master、同 exe 不同实例、PID 复用、端口排除、netstat 失败/缺 PID、IPv6 回环和 Audit/eBPF 用户态管线。
+这些测试不代替 Linux 内核 eBPF 挂载、真实 PHP-FPM 调用与云端入库验收；发布时需记录实机验证结果。
 
 ## 事件快照、活跃跟踪与历史证据
 

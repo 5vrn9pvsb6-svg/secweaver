@@ -1,5 +1,10 @@
 # secweaver-agent
 
+源码 **0.3.107** 增加精确匹配的 loopback TCP 独立后端采集及 `doctor` 覆盖缺口检查。
+PHP-FPM 使用自己的根身份，不猜测属于哪个 Nginx。保留既有采集范围和学习状态，
+需要配置 `exec.local_backend_listeners` 才会纳入。详见
+[本地后端采集](docs/process-attribution.zh-CN.md#显式本地后端agent-03107)。本次源码修改不代表已部署。
+
 源码 **0.3.106** 实现认证的分类型追加学习窗口，不重启Agent/采集器，不清空已有可信名单。
 默认不启用，须配套新版Gateway/工作台及签名开始许可。真实Linux/Windows验收及不可变发布锁
 仍待完成，尚未部署。见[追加学习与离线恢复](docs/additional-learning.zh-CN.md)。

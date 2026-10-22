@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"net"
 	"os"
@@ -19,23 +20,35 @@ import (
 const listenerCommandTimeout = 5 * time.Second
 
 func findExternalListeners(portFilter int, whitelistPorts map[int]bool) ([]listenerInfo, error) {
+	return findMonitoredListeners(portFilter, whitelistPorts, nil)
+}
+
+// findMonitoredListeners shares discovery and exclusions between external
+// listeners and explicitly selected local backends. Local admission is not
+// evidence of a network/request relationship with any external gateway.
+func findMonitoredListeners(portFilter int, whitelistPorts map[int]bool, local []localBackendListener) ([]listenerInfo, error) {
 	// An explicitly consented digest replaces the effective legacy exclusion;
 	// retaining its file bytes makes rollback restore the original local policy.
 	effective := whitelistPorts
 	if eventwhitelist.LegacyPortsMigrated(whitelistPorts) {
 		effective = nil
 	}
-	listeners, err := findExternalListenersWithSources(portFilter, effective, listenerDiscoverySources{
+	listeners, err := findMonitoredListenersWithSources(portFilter, effective, local, listenerDiscoverySources{
 		netstatCandidates: readNetstatListenerCandidates,
 		socketOwners:      buildSocketInodeMapWithStats,
 		procListeners:     findListenersFromProc,
+		inspectProcess:    readLocalBackendProcess,
 	})
 	if err != nil {
 		return nil, err
 	}
 	kept := listeners[:0]
 	for _, l := range listeners {
-		fields := eventwhitelist.SemanticFields(map[string]any{"/listener_port": l.Port, "/listener_address": l.Address, "/listener_process": l.Process, "/listener_exe": l.MonitorExe})
+		exe := l.MonitorExe
+		if l.LocalBackendExe != "" {
+			exe = l.LocalBackendExe
+		}
+		fields := eventwhitelist.SemanticFields(map[string]any{"/listener_port": l.Port, "/listener_address": l.Address, "/listener_process": l.Process, "/listener_exe": exe})
 		if eventwhitelist.Decide(core.Event{EventType: "__listener", Fields: fields}).Action != "exclude_listener" {
 			kept = append(kept, l)
 		}
@@ -47,6 +60,7 @@ type listenerDiscoverySources struct {
 	netstatCandidates func() (netstatListenerScan, error)
 	socketOwners      func() (map[string]int, socketInodeScanStats)
 	procListeners     func(map[string]int) []listenerInfo
+	inspectProcess    func(int) localBackendProcess
 }
 
 // netstatListenerScan preserves completeness information that a plain slice
@@ -62,6 +76,21 @@ type netstatListenerScan struct {
 // only justified when netstat fails, finds nothing, omits a relevant PID, or
 // contains a TCP LISTEN row the compatibility parser cannot understand.
 func findExternalListenersWithSources(portFilter int, whitelistPorts map[int]bool, sources listenerDiscoverySources) ([]listenerInfo, error) {
+	return findMonitoredListenersWithSources(portFilter, whitelistPorts, nil, sources)
+}
+
+// findMonitoredListenersWithSources keeps loopback admission separate from
+// public discovery. A missing PID still triggers the same bounded procfs repair;
+// an executable mismatch never expands scope or guesses a gateway instead.
+func findMonitoredListenersWithSources(portFilter int, whitelistPorts map[int]bool, local []localBackendListener, sources listenerDiscoverySources) ([]listenerInfo, error) {
+	if sources.inspectProcess == nil {
+		sources.inspectProcess = readLocalBackendProcess
+	}
+	matches := func(l listenerInfo) bool {
+		return (listenerMatchesFilter(l, portFilter, whitelistPorts) ||
+			(isLoopback(l.Address) && localBackendEndpointSelected(l, local))) &&
+			(portFilter <= 0 || l.Port == portFilter) && !whitelistPorts[l.Port]
+	}
 	netstatScan, netstatErr := sources.netstatCandidates()
 	needsProcFallback := netstatErr != nil || netstatScan.TCPListenLines == 0 || netstatScan.RejectedListenLines > 0
 	if netstatScan.RejectedListenLines > 0 {
@@ -75,8 +104,15 @@ func findExternalListenersWithSources(portFilter int, whitelistPorts map[int]boo
 	var listeners []listenerInfo
 	appendListeners := func(candidates []listenerInfo) {
 		for _, listener := range candidates {
-			if !listenerMatchesFilter(listener, portFilter, whitelistPorts) {
+			if !matches(listener) {
 				continue
+			}
+			if isLoopback(listener.Address) {
+				var ok bool
+				listener, ok = resolveLocalBackendRoot(listener, local, sources.inspectProcess)
+				if !ok {
+					continue
+				}
 			}
 			if listener.Process == "" {
 				listener.Process = readProcComm(listener.PID)
@@ -97,7 +133,7 @@ func findExternalListenersWithSources(portFilter int, whitelistPorts map[int]boo
 	}
 
 	for _, candidate := range netstatScan.Candidates {
-		if !listenerMatchesFilter(candidate, portFilter, whitelistPorts) {
+		if !matches(candidate) {
 			continue
 		}
 		if candidate.PID <= 1 && candidate.MonitorExe == "" {
@@ -112,7 +148,7 @@ func findExternalListenersWithSources(portFilter int, whitelistPorts map[int]boo
 	if needsProcFallback {
 		inodeToPID, stats := sources.socketOwners()
 		if stats.BudgetExhausted {
-			if eventwhitelist.ListenerRevision() > 0 {
+			if eventwhitelist.ListenerRevision() > 0 || len(local) > 0 {
 				return nil, fmt.Errorf("listener discovery incomplete; previous scope retained")
 			}
 			// A bounded scan protects the host from a very large FD table. Missing
@@ -120,7 +156,7 @@ func findExternalListenersWithSources(portFilter int, whitelistPorts map[int]boo
 			fmt.Fprintf(os.Stderr, "listener /proc fd scan reached budget: scanned=%d budget=%d\n", stats.FDsScanned, stats.FDBudget)
 		}
 		for _, candidate := range netstatScan.Candidates {
-			if !listenerMatchesFilter(candidate, portFilter, whitelistPorts) || candidate.PID > 1 || candidate.MonitorExe != "" {
+			if !matches(candidate) || candidate.PID > 1 || candidate.MonitorExe != "" {
 				continue
 			}
 			if listener, ok := resolveNetstatListener(candidate, inodeToPID); ok {
@@ -131,6 +167,11 @@ func findExternalListenersWithSources(portFilter int, whitelistPorts map[int]boo
 	}
 
 	if len(listeners) == 0 {
+		// A configured backend may start after the Agent. Keep reconciliation
+		// alive instead of requiring an unrelated public listener to be present.
+		if len(local) > 0 {
+			return nil, nil
+		}
 		if portFilter > 0 {
 			return nil, fmt.Errorf("没有找到监听在对外地址上的 TCP 端口 %d；请确认 netstat -tlnp 可见该端口且非 127.0.0.1", portFilter)
 		}
@@ -156,7 +197,9 @@ func enrichListenerMonitorMode(l *listenerInfo) {
 	// Long-lived multiprocess runtimes are cheaper and more stable with -F exe
 	// coverage than one rule group per worker PID. PID-tree fallback remains
 	// available when the executable path or kernel support is insufficient.
-	if l.PID <= 1 {
+	if l.PID <= 1 || l.LocalBackendExe != "" {
+		// Local backend selection is tied to a socket-owning process family,
+		// never to every process running the same executable on the host.
 		return
 	}
 	comm := strings.ToLower(l.Process)
@@ -397,10 +440,12 @@ func findPIDByListenAddressPort(address string, port int, inodeToPID map[string]
 			if len(localParts) != 2 || !strings.EqualFold(localParts[1], portHex) {
 				continue
 			}
-			if isProcNetLoopback(localParts[0]) {
+			listenAddress := formatProcNetAddress(localParts[0])
+			// Only an explicit loopback endpoint may resolve a loopback owner;
+			// preserve the old exclusion for empty/wildcard public lookups.
+			if isLoopback(listenAddress) && !isLoopback(address) {
 				continue
 			}
-			listenAddress := formatProcNetAddress(localParts[0])
 			if !listenAddressMatches(address, listenAddress) {
 				continue
 			}
@@ -456,9 +501,6 @@ func parseProcNetListeners(path string, inodeToPID map[string]int) ([]listenerIn
 		if len(localParts) != 2 {
 			continue
 		}
-		if isProcNetLoopback(localParts[0]) {
-			continue
-		}
 		port64, err := strconv.ParseUint(localParts[1], 16, 16)
 		if err != nil {
 			continue
@@ -486,9 +528,6 @@ func parseProcNetListeners(path string, inodeToPID map[string]int) ([]listenerIn
 			}
 		}
 		if pid <= 1 {
-			continue
-		}
-		if isLoopback(address) {
 			continue
 		}
 		if name == "" {
@@ -523,13 +562,14 @@ func formatProcNetAddress(addrHex string) string {
 		return ip.String()
 	case 32:
 		ip := make(net.IP, 16)
-		for i := 0; i < 16; i++ {
-			part := addrHex[i*2 : i*2+2]
-			value, err := strconv.ParseUint(part, 16, 8)
+		// tcp6 renders four native-endian u32 words, not sixteen network-order
+		// bytes. Decode per word so ::1 survives the procfs fallback as loopback.
+		for i := 0; i < 4; i++ {
+			value, err := strconv.ParseUint(addrHex[i*8:i*8+8], 16, 32)
 			if err != nil {
 				return addrHex
 			}
-			ip[i] = byte(value)
+			binary.NativeEndian.PutUint32(ip[i*4:i*4+4], uint32(value))
 		}
 		return ip.String()
 	default:

@@ -19,8 +19,11 @@ type listenerInfo struct {
 	Address            string `json:"address"`
 	Port               int    `json:"port"`
 	MonitorExe         string `json:"-"`
-	ExeOnly            bool   `json:"-"` // nginx/java/php-fpm 等：仅用 -F exe= 规则
-	Raw                string `json:"raw"`
+	// LocalBackendExe preserves exact admission evidence for listener policies
+	// without enabling global same-exe audit rules or merging service instances.
+	LocalBackendExe string `json:"-"`
+	ExeOnly         bool   `json:"-"` // nginx/java/php-fpm 等：仅用 -F exe= 规则
+	Raw             string `json:"raw"`
 }
 
 // auditEvent is the normalized JSON contract emitted by this module. Fields
