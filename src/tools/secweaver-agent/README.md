@@ -1,5 +1,12 @@
 # secweaver-agent
 
+Source **0.3.108** fixes exec additional learning rejecting the normal, independently
+budgeted file/network state subdirectories on Linux/Windows. Existing entries, keys
+and active child learning are preserved; previously rejected operations are not
+replayed. Storage refusals now report fixed layout/budget reasons. See
+[additional learning](docs/additional-learning.md#independent-stream-directories-and-budgets).
+This source change is not a deployment; native-host verification remains pending.
+
 Source **0.3.107** adds explicit, exact-match loopback TCP backend collection
 and read-only `doctor` coverage warnings. Independent PHP-FPM is recorded as its
 own root, not guessed to belong to Nginx. Existing scope/learning is preserved;

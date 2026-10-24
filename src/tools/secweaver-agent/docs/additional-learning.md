@@ -1,4 +1,4 @@
-# Additional learning: source0.3.106
+# Additional learning: source0.3.108
 
 [简体中文](additional-learning.zh-CN.md) · [Learning overview](behavior-learning.md)
 
@@ -52,11 +52,37 @@ Backup, state and journal replacements count against the configured per-stream b
 128KiB coordination reserve is included for stores of at least8MiB. Space failure rejects
 extension and preserves the trusted copy. Backup replacement never deletes the only copy first.
 
+### Independent stream directories and budgets
+
+The Linux exec state root may contain `file-operations/`; the Windows exec root may
+contain `file-operations/` and `network-operations/`. These product-created streams
+have independent lifetime locks, HMAC keys, checkpoints, additional-learning backups
+and configured budgets. The exec budget counts its own regular files without
+traversing child stores, charging their bytes, acquiring their locks or changing
+their files. File, network, risk and the `learning-operations` coordination directory
+receive no child-directory exemptions. Unknown directories, symlinks and special files
+are still refused. Starting additional learning never automatically deletes files.
+
+0.3.108 fixes normal child directories being rejected as `unexpected learning state file`,
+which blocked exec additional learning. No directory migration or baseline reset is
+required; a normal clean upgrade retains existing entries and independent file-learning
+progress. Upgrading does not replay a previously rejected operation. If another stream
+in that operation is still learning, preserve it until terminal before requesting a new
+exec operation through the workspace. Do not delete receipts, SQL records or learning
+directories to bypass terminal results.
+
+New refusal receipts use the existing `reason` field to distinguish `state_layout_invalid`
+(unexpected directory/file type) and `state_budget_exceeded` (this stream's budget).
+Other unclassified failures remain `engine_refused`. Only fixed reason codes are reported,
+not local paths, keys or entries; detailed errors remain in local logs. Historical receipts
+are not rewritten. Inspect each stream result: an overall learning state does not mean
+every selected stream has started.
+
 ## Explicit offline recovery
 
 This is maintenance tooling, **not** the UI action. It stages a new directory and
 never switches a live directory, restores device credentials or clears server fences.
-Use the source0.3.106 tool from this directory (Go required), or build it explicitly;
+Use the source0.3.108 tool from this directory (Go required), or build it explicitly;
 it is not automatically installed as an Agent service command:
 
 ```bash
@@ -85,6 +111,9 @@ go run ./cmd/learning-recovery -source /absolute/stopped-stream-state -destinati
 Local checks cover contract signature/binding/renewal, exact window accounting,
 candidate/entry retention, restart/idempotency, terminal refusal, resource failures,
 backup tamper/locked-source/overwrite denials, and coordinator receipt preservation.
+0.3.108 also tests real nested Linux/Windows layouts, starting exec while file is learning,
+independent budgets, concurrent checkpoints, clean restarts and directory/symlink denials.
+These are local temporary-directory filesystem tests, not native-host acceptance.
 Run from the Agent module:
 
 ```bash

@@ -169,7 +169,7 @@ func (e *Engine) PollRelearningInbox() error {
 	_, err = e.ApplyRelearning(g, stream, public, eid, installation)
 	if err != nil {
 		refusal := RelearningRefusal{OperationID: g.OperationID, Sequence: g.Sequence, Digest: g.Digest,
-			Result: learningoperation.StreamResult{State: "rejected", Reason: "engine_refused", RemainingSeconds: 86400}}
+			Result: learningoperation.StreamResult{State: "rejected", Reason: relearningRefusalReason(err), RemainingSeconds: 86400}}
 		raw, _ := json.Marshal(refusal)
 		if writeErr := WriteOperationFile(data, stream+".json", raw); writeErr != nil {
 			return errors.Join(err, writeErr)
@@ -179,4 +179,18 @@ func (e *Engine) PollRelearningInbox() error {
 	// are authoritative; after permit expiry the parent can report no acceptance.
 	e.inboxDigest = sum
 	return err
+}
+
+// relearningRefusalReason exports fixed operational categories only. Local
+// filesystem errors may contain paths; neither those nor state/key bytes belong
+// in the existing remote reason field. Unknown failures keep the legacy code.
+func relearningRefusalReason(err error) string {
+	switch {
+	case errors.Is(err, errLearningStateLayout):
+		return "state_layout_invalid"
+	case errors.Is(err, errRelearningBudget):
+		return "state_budget_exceeded"
+	default:
+		return "engine_refused"
+	}
 }

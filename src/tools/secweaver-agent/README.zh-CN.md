@@ -1,5 +1,10 @@
 # secweaver-agent
 
+源码 **0.3.108** 修复 Linux/Windows exec 追加学习误拒绝正常 file/network 独立状态子目录的问题。
+保留原有名单、密钥及子流学习进度，不重放已拒绝操作；存储拒绝上报明确的目录/预算原因码。
+见[追加学习的独立目录与预算](docs/additional-learning.zh-CN.md#独立事件流的目录与预算)。
+本次源码修改不代表已部署，真实主机验收仍待完成。
+
 源码 **0.3.107** 增加精确匹配的 loopback TCP 独立后端采集及 `doctor` 覆盖缺口检查。
 PHP-FPM 使用自己的根身份，不猜测属于哪个 Nginx。保留既有采集范围和学习状态，
 需要配置 `exec.local_backend_listeners` 才会纳入。详见

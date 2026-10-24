@@ -1,4 +1,4 @@
-# 追加学习：源码0.3.106
+# 追加学习：源码0.3.108
 
 [English](additional-learning.md) · [学习总览](behavior-learning.zh-CN.md)
 
@@ -38,10 +38,29 @@ worker环境变量 `SECWEAVER_RELEARNING_DATA`、`SECWEAVER_RELEARNING_INSTALLAT
 `relearning-backup.json`，含完整窗口前state/key/journal。备份、state、journal替换计入每流预算，
 至少8MiB的store另外预留128KiB通信预算。空间不足拒绝追加并保留可信副本，替换备份不先删除唯一副本。
 
+### 独立事件流的目录与预算
+
+Linux exec 的状态根目录下可以有 `file-operations/`；Windows exec 的状态根目录下
+可以有 `file-operations/`、`network-operations/`。这些是产品创建的独立事件流，
+各自持有生命周期锁、HMAC密钥、checkpoint、追加学习备份和配置预算。
+exec 的预算检查只计算本流的普通文件，不递归扫描、占用子流预算、获取子流锁或修改子流文件。
+file、network、risk 及 `learning-operations` 通信目录没有这些子目录豁免。
+未知目录、符号链接和特殊文件仍会拒绝；不会为了追加学习自动删除文件。
+
+0.3.108 修复了正常子目录被误判为 `unexpected learning state file`、导致 exec 追加学习
+被拒绝的问题。无需迁移状态目录或重置已有名单；正常清洁升级保留原有名单及独立 file 学习进度。
+升级不会自动重放已经拒绝的旧操作。已有操作仍有其他事件流正在学习时，保留该操作直至终态，
+再通过企业工作台发起新的 exec 追加学习；不要删除操作回执、SQL记录或学习目录来绕过终态。
+
+新拒绝回执在现有 `reason` 字段区分 `state_layout_invalid`（不允许的目录/文件类型）和
+`state_budget_exceeded`（本流预算不足），其他未分类失败仍为 `engine_refused`。
+仅上报固定原因码，不上传本地路径、密钥或名单；详细错误留在本机日志。
+旧回执不会补写新的原因码。多类型操作需逐项检查结果，总状态为学习中不代表每个类型都已开始。
+
 ## 显式离线恢复
 
 这是维护工具，**不是**页面“再学习”。只暂存新目录，不切换在线目录、不恢复设备凭证、不清服务器互斥。
-在Agent源码目录使用0.3.106工具（需Go），或显式编译；不会自动安装为Agent服务命令：
+在Agent源码目录使用0.3.108工具（需Go），或显式编译；不会自动安装为Agent服务命令：
 
 ```bash
 go run ./cmd/learning-recovery -source /absolute/stopped-stream-state -destination /absolute/new-recovery-state -state-mb 64
@@ -61,7 +80,9 @@ go run ./cmd/learning-recovery -source /absolute/stopped-stream-state -destinati
 ## 发布前验证
 
 本地覆盖签名/身份/续签、精确窗口计时、候选与名单保留、重启/幂等、终态拒绝、资源失败、
-备份篡改/在线锁/覆盖拒绝以及协调器回执保留。在Agent模块运行：
+备份篡改/在线锁/覆盖拒绝以及协调器回执保留。0.3.108 还覆盖 Linux/Windows 真实嵌套布局、
+file 已学习时启动 exec、独立预算、并发 checkpoint、清洁重启及异常目录/链接拒绝。
+这些是临时目录中的本地文件系统测试，不等同于已在对应原生主机上验收。在Agent模块运行：
 
 ```bash
 go test -p 2 ./pkg/learningoperation ./pkg/behaviorlearning ./pkg/agentlicense ./pkg/auditportexecmon ./internal/windowsevidence ./pkg/windowseventlogriskjson . ./cmd/learning-recovery

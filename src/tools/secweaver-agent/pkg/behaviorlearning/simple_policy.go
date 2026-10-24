@@ -10,6 +10,7 @@ import (
 const simpleWindowsExecStrategy = "windows_exec_four_fields_v1"
 const simpleNetworkStrategy = "windows_connect_seven_fields_v1"
 const simpleScriptStrategy = "windows_script_exact_v1"
+const networkStoreDirectory = "network-operations"
 
 // WindowsExecPolicy replaces legacy service-token admission in the existing
 // state directory. New authentic policies migrate once; disabled stays disabled.
@@ -24,7 +25,7 @@ func NetworkPolicy(base Config) Config {
 	base.Enabled = base.Enabled && includesEvent(base, "active_connect")
 	base.simpleExec, base.simpleFile, base.fileWindows = true, false, true
 	base.simpleKind = "active_connect"
-	base.StateDir = filepath.Join(base.StateDir, "network-operations")
+	base.StateDir = filepath.Join(base.StateDir, networkStoreDirectory)
 	base.EventTypes, base.FileRoots = []string{"active_connect"}, nil
 	return base
 }

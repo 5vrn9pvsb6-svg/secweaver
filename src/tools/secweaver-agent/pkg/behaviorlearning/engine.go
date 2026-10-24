@@ -80,6 +80,11 @@ func New(cfg Config, device string, original func(json.RawMessage) error, summar
 	if err != nil {
 		return nil, err
 	}
+	// File/network engines own separate child stores and budgets. Bind their
+	// layout from trusted adapter policy, never from directory or checkpoint data.
+	if cfg.simpleExec {
+		s.strategy = cfg.simpleStrategy()
+	}
 	runID, err := randomID()
 	if err != nil {
 		s.Close()

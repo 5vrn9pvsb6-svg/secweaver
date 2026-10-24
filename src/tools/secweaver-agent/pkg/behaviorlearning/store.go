@@ -21,6 +21,9 @@ type Store struct {
 	lock  *os.File
 	Key   []byte
 	fresh bool // Only this lock holder's first initialization may lack a checkpoint.
+	// The owning Engine binds the normalized policy before writing. Coordination
+	// stores leave this empty and cannot exempt any nested directories.
+	strategy string
 }
 
 // OpenStore refuses symlinked state roots and partial/corrupt initialization.

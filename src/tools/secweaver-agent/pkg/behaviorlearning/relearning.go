@@ -283,9 +283,29 @@ func (s *Store) backupRelearning(state State) error {
 	return s.atomic("relearning-backup.json", bundle)
 }
 
-// relearningBudget is deliberately directory-wide, including old backups and
-// replacement-file peaks. It never frees trusted state to make a write fit.
-// Callers own the lifetime Store lock, so only this writer changes the budget.
+var (
+	errLearningStateLayout = errors.New("unexpected learning state file")
+	errRelearningBudget    = errors.New("relearning state budget exceeded")
+)
+
+// independentChildStore recognizes only adapter-defined child stores of exec.
+// They have separate locks and budgets: never traverse, charge, or clean their
+// contents while holding the parent lock. Other policies/coordination stay flat.
+func (s *Store) independentChildStore(name string) bool {
+	switch s.strategy {
+	case simpleExecStrategy:
+		return name == fileStoreDirectory
+	case simpleWindowsExecStrategy:
+		return name == fileStoreDirectory || name == networkStoreDirectory
+	default:
+		return false
+	}
+}
+
+// relearningBudget counts this writer's files, old backups and replacement
+// peaks without deleting trusted state. Known child stores are independent;
+// Lstat still rejects symlinks, unexpected directories and special files. The
+// lifetime Store lock serializes this stream's writes, not child-store writes.
 func (s *Store) relearningBudget(extra int64) error {
 	files, err := os.ReadDir(s.dir)
 	if err != nil {
@@ -300,13 +320,16 @@ func (s *Store) relearningBudget(extra int64) error {
 		if err != nil {
 			return err
 		}
+		if s.independentChildStore(file.Name()) && info.IsDir() && info.Mode()&os.ModeSymlink == 0 {
+			continue
+		}
 		if !info.Mode().IsRegular() {
-			return fmt.Errorf("unexpected learning state file")
+			return fmt.Errorf("%w: %s", errLearningStateLayout, file.Name())
 		}
 		used += info.Size()
 	}
 	if used > s.limit {
-		return fmt.Errorf("relearning state budget exceeded")
+		return errRelearningBudget
 	}
 	return nil
 }

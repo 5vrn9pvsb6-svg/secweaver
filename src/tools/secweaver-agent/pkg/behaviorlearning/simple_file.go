@@ -7,6 +7,7 @@ import (
 
 const simpleLinuxFileStrategy = "linux_file_five_fields_v1"
 const simpleWindowsFileStrategy = "windows_file_five_fields_v1"
+const fileStoreDirectory = "file-operations"
 
 // FilePolicy creates a separate baseline without changing the parent policy's
 // hash or progress. Explicit event scope is respected; Linux omitted scope also
@@ -23,7 +24,7 @@ func FilePolicy(base Config, windows bool) Config {
 	base.Enabled = base.Enabled && enabled
 	base.simpleExec, base.simpleFile, base.fileWindows = true, true, windows
 	base.simpleKind = "file_op"
-	base.StateDir = filepath.Join(base.StateDir, "file-operations")
+	base.StateDir = filepath.Join(base.StateDir, fileStoreDirectory)
 	base.EventTypes, base.FileRoots = []string{"file_op"}, nil
 	return base
 }

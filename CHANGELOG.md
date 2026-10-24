@@ -1,5 +1,17 @@
 # Changelog
 
+## Agent [0.3.108] - 2026-10-24
+
+- Fix exec additional learning rejecting the product's independent file/network
+  state subdirectories on Linux/Windows; keep per-stream locks and storage budgets
+  independent without traversing or changing child stores.
+- Preserve existing baselines, keys, source dedup and active child learning across
+  clean upgrades; retain terminal refusal semantics instead of replaying old requests.
+- Report fixed layout-invalid and budget-exceeded refusal reasons without exposing
+  local paths or state; keep unknown-directory, symlink and special-file rejection.
+- Add nested-layout, budget isolation, concurrent checkpoint, restart, immediate
+  filtering and refusal regressions with bilingual recovery and verification guidance.
+
 ## Agent [0.3.107] - 2026-10-22
 
 - Add opt-in `exec.local_backend_listeners` with exact loopback IP, TCP port and
